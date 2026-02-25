@@ -1,12 +1,9 @@
 <template>
   <div class="app-shell">
     <AppSidebar />
-    <div class="app-main">
-      <AppTopbar />
-      <main class="app-content">
-        <slot />
-      </main>
-    </div>
+    <main class="app-content">
+      <slot />
+    </main>
   </div>
 </template>
 
@@ -14,9 +11,7 @@
 const theme = useCookie('umbra-theme', { default: () => 'dark' })
 
 useHead({
-  htmlAttrs: {
-    'data-theme': theme,
-  },
+  htmlAttrs: { 'data-theme': theme },
 })
 </script>
 
@@ -25,14 +20,6 @@ useHead({
   display: flex;
   height: 100vh;
   background: var(--bg);
-  overflow: hidden;
-}
-
-.app-main {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
   overflow: hidden;
 }
 
