@@ -49,7 +49,7 @@
 </template>
 
 <script setup lang="ts">
-// TODO: brancher sur le store alerts
+// TODO: connect to alerts store
 const alertCount = ref(2)
 </script>
 

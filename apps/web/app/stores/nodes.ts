@@ -35,7 +35,7 @@ export const useNodesStore = defineStore('nodes', () => {
         loading.value = true
         error.value = null
         try {
-            // TODO: remplacer par appel API réel
+            // TODO: replace with real API call
             await new Promise(r => setTimeout(r, 300))
             nodes.value = MOCK_NODES
         } catch (e) {
@@ -66,7 +66,7 @@ export const useNodesStore = defineStore('nodes', () => {
     }
 })
 
-// Mock data — à supprimer quand l'API sera prête
+// Mock data — remove when the API is ready
 const MOCK_NODES: Node[] = [
     {
         id: '1', name: 'RPi maison', ip: '100.64.0.1',

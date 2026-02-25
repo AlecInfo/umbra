@@ -23,7 +23,7 @@
 
     <!-- Empty state -->
     <div v-if="nodes.length === 0" class="empty">
-      Aucun noeud enregistré
+      Aucun noeud trouvé
     </div>
 
   </div>

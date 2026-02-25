@@ -9,11 +9,11 @@ export interface Node {
     country:    string
     status:     NodeStatus
     category:   NodeCategory
-    latency:    number | null   // ms, null si offline
+    latency:    number | null   // ms, null if offline
     cpu:        number | null   // %
     ram:        number | null   // %
     disk:       number | null   // %
     temp:       number | null   // °C
-    uptime:     number | null   // secondes
+    uptime:     number | null   // seconds
     lastSeen:   string | null   // ISO date
 }
