@@ -1,10 +1,16 @@
 <template>
-  <NodeTable
-      :nodes="mockNodes"
-      @connect="onConnect"
-      @cut="onCut"
-      @click-node="onClickNode"
-  />
+  <div style="display:flex;flex-direction:column;gap:var(--sp-6)">
+
+    <div class="stat-grid">
+      <StatCard label="Noeuds actifs" value="10" suffix="/12" sub="2 hors ligne · 1 alerte" />
+      <StatCard label="Appareils" value="2" sub="enregistrés" color="default" />
+      <StatCard label="Bande passante" value="1.2" suffix="GB" sub="aujourd'hui" color="default" />
+      <StatCard label="Latence moy." value="110" suffix="ms" sub="sur 10 noeuds" />
+    </div>
+
+    <NodeTable :nodes="mockNodes" @connect="onConnect" @cut="onCut" @click-node="onClickNode" />
+
+  </div>
 </template>
 
 <script setup lang="ts">
@@ -41,3 +47,11 @@ function onConnect(node: Node)   { console.log('connect', node.name) }
 function onCut(node: Node)       { console.log('cut', node.name) }
 function onClickNode(node: Node) { console.log('detail', node.name) }
 </script>
+
+<style scoped>
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--sp-3);
+}
+</style>
