@@ -8,6 +8,13 @@
       <StatCard label="Latence moy." value="110" suffix="ms" sub="sur 10 noeuds" />
     </div>
 
+    <VpnBar
+        :node="mockNodes[0]"
+        upload="1.2 MB/s"
+        download="4.8 MB/s"
+        @cut="onCut"
+    />
+
     <NodeTable :nodes="mockNodes" @connect="onConnect" @cut="onCut" @click-node="onClickNode" />
 
   </div>
