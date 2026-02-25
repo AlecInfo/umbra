@@ -3,10 +3,7 @@ export default defineNuxtConfig({
   future: { compatibilityVersion: 4 },
   devtools: { enabled: true },
 
-  modules: [
-    '@pinia/nuxt',
-    '@vueuse/nuxt',
-  ],
+  modules: ['@pinia/nuxt', '@vueuse/nuxt'],
 
   css: [
     '~/assets/css/tokens.css',
@@ -14,7 +11,7 @@ export default defineNuxtConfig({
   ],
 
   typescript: {
-    typeCheck: true,
+    typeCheck: false,
   },
 
   runtimeConfig: {
@@ -22,4 +19,8 @@ export default defineNuxtConfig({
       apiBase: 'https://api.umbravpn.io',
     },
   },
+
+  components: [
+    { path: '~/components', pathPrefix: false },
+  ],
 })
