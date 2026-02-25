@@ -1,0 +1,9 @@
+{
+  "name": "umbra",
+  "private": true,
+  "scripts": {
+    "web": "pnpm --filter web dev",
+    "api": "pnpm --filter api dev",
+    "landing": "pnpm --filter landing dev"
+  }
+}

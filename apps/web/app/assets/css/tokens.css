@@ -1,0 +1,83 @@
+/* ─── UMBRA Design Tokens ─────────────────────────────── */
+
+:root {
+    /* Fonts */
+    --font-mono: 'JetBrains Mono', monospace;
+    --font-disp: 'Syne', sans-serif;
+
+    /* Radius */
+    --r: 6px;
+
+    /* Spacing */
+    --sp-1: 4px;
+    --sp-2: 8px;
+    --sp-3: 12px;
+    --sp-4: 16px;
+    --sp-5: 20px;
+    --sp-6: 24px;
+    --sp-8: 32px;
+    --sp-10: 40px;
+    --sp-12: 48px;
+    --sp-16: 64px;
+
+    /* Layout */
+    --topbar-h: 44px;
+    --sidebar-w: 214px;
+}
+
+/* ─── Dark theme (default) ───────────────────────────── */
+[data-theme="dark"], :root {
+    --bg:       #0a0a0b;
+    --surface:  #111114;
+    --surface2: #1a1a1f;
+    --border:   rgba(255,255,255,.07);
+    --border2:  rgba(255,255,255,.12);
+
+    --text:     #e8e8f0;
+    --muted:    rgba(232,232,240,.4);
+
+    --accent:   #4fffb0;
+    --accent2:  #7b6ef6;
+    --online:   #4fffb0;
+    --offline:  #ff4f6b;
+    --warning:  #ffb74f;
+    --pending:  #4fa8ff;
+}
+
+/* ─── Light theme ────────────────────────────────────── */
+[data-theme="light"] {
+    --bg:       #f4f4f6;
+    --surface:  #ffffff;
+    --surface2: #ebebef;
+    --border:   rgba(0,0,0,.07);
+    --border2:  rgba(0,0,0,.13);
+
+    --text:     #111114;
+    --muted:    rgba(17,17,20,.45);
+
+    --accent:   #00c47a;
+    --accent2:  #6357e0;
+    --online:   #00c47a;
+    --offline:  #e03050;
+    --warning:  #e07800;
+    --pending:  #2277dd;
+}
+
+/* ─── Mid theme ──────────────────────────────────────── */
+[data-theme="mid"] {
+    --bg:       #13131a;
+    --surface:  #1c1c26;
+    --surface2: #24242f;
+    --border:   rgba(255,255,255,.08);
+    --border2:  rgba(255,255,255,.14);
+
+    --text:     #e0e0ec;
+    --muted:    rgba(224,224,236,.38);
+
+    --accent:   #4fffb0;
+    --accent2:  #7b6ef6;
+    --online:   #4fffb0;
+    --offline:  #ff4f6b;
+    --warning:  #ffb74f;
+    --pending:  #4fa8ff;
+}
