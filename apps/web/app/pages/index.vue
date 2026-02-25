@@ -1,7 +1,6 @@
 <template>
   <div class="dashboard">
 
-    <!-- Page header -->
     <div class="page-header">
       <div>
         <div class="page-title">Dashboard</div>
@@ -10,25 +9,22 @@
       <button class="btn-primary">+ Nouveau noeud</button>
     </div>
 
-    <!-- VPN bar (visible si connexion active) -->
     <VpnBar
-        v-if="connectedNode"
-        :node="connectedNode"
+        v-if="store.connectedNode"
+        :node="store.connectedNode"
         upload="1.2 MB/s"
         download="4.8 MB/s"
         class="mb"
-        @cut="onCut"
+        @cut="store.disconnect()"
     />
 
-    <!-- Stat cards -->
     <div class="stat-grid mb">
-      <StatCard label="Noeuds actifs"   value="10" suffix="/12" sub="2 hors ligne · 1 alerte" />
-      <StatCard label="Appareils"       value="2"              sub="enregistrés"   color="default" />
-      <StatCard label="Bande passante"  value="1.2" suffix="GB" sub="aujourd'hui"  color="default" />
-      <StatCard label="Latence moy."    value="110" suffix="ms" sub="sur 10 noeuds" />
+      <StatCard label="Noeuds actifs"  :value="store.onlineCount" :suffix="`/${store.nodes.length}`" :sub="`${store.offlineCount} hors ligne · ${store.warningCount} alerte`" />
+      <StatCard label="Appareils"      value="2"   sub="enregistrés"    color="default" />
+      <StatCard label="Bande passante" value="1.2" suffix="GB" sub="aujourd'hui" color="default" />
+      <StatCard label="Latence moy."   :value="store.avgLatency ?? '—'" suffix="ms" sub="sur les noeuds actifs" />
     </div>
 
-    <!-- Carte monde (placeholder) -->
     <div class="map-card mb">
       <div class="map-header">
         <span class="map-title">Carte des noeuds</span>
@@ -39,15 +35,15 @@
       </div>
     </div>
 
-    <!-- Table noeuds -->
     <div class="section-header">
       <span class="section-title">Noeuds</span>
       <NuxtLink to="/nodes" class="section-link">Voir tout →</NuxtLink>
     </div>
+
     <NodeTable
-        :nodes="mockNodes"
-        @connect="onConnect"
-        @cut="onCut"
+        :nodes="store.nodes"
+        @connect="n => store.setConnected(n.id)"
+        @cut="store.disconnect()"
         @click-node="onClickNode"
     />
 
@@ -57,46 +53,19 @@
 <script setup lang="ts">
 import type { Node } from '@umbra/types'
 
-const mockNodes: Node[] = [
-  {
-    id: '1', name: 'RPi maison', ip: '100.64.0.1',
-    location: 'Geneva, CH', country: 'CH',
-    status: 'connected', category: 'sbc',
-    latency: 8, cpu: 12, ram: 34, disk: 45, temp: 52, uptime: 864000, lastSeen: null,
-  },
-  {
-    id: '2', name: 'Hetzner Frankfurt', ip: '100.64.0.3',
-    location: 'Frankfurt, DE', country: 'DE',
-    status: 'online', category: 'vps',
-    latency: 24, cpu: 8, ram: 20, disk: 30, temp: 40, uptime: 432000, lastSeen: null,
-  },
-  {
-    id: '3', name: 'Orange Pi Mumbai', ip: '100.64.0.7',
-    location: 'Mumbai, IN', country: 'IN',
-    status: 'warning', category: 'sbc',
-    latency: 112, cpu: 94, ram: 78, disk: 60, temp: 71, uptime: 172800, lastSeen: null,
-  },
-  {
-    id: '4', name: 'GL.iNet Nairobi', ip: '100.64.0.12',
-    location: 'Nairobi, KE', country: 'KE',
-    status: 'offline', category: 'router',
-    latency: null, cpu: null, ram: null, disk: null, temp: null, uptime: null, lastSeen: '2026-02-25T14:32:00Z',
-  },
-]
+const store = useNodesStore()
 
-const connectedNode = computed(() =>
-    mockNodes.find(n => n.status === 'connected') ?? null
+onMounted(() => store.fetchNodes())
+
+const today = computed(() =>
+    new Date().toLocaleDateString('fr-FR', {
+      weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
+    })
 )
 
-const today = computed(() => {
-  return new Date().toLocaleDateString('fr-FR', {
-    weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
-  })
-})
-
-function onConnect(node: Node)   { console.log('connect', node.name) }
-function onCut(node: Node)       { console.log('cut', node.name) }
-function onClickNode(node: Node) { console.log('detail', node.name) }
+function onClickNode(node: Node) {
+  navigateTo(`/nodes/${node.id}`)
+}
 </script>
 
 <style scoped>
