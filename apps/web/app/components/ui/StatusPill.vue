@@ -6,11 +6,11 @@
 </template>
 
 <script setup lang="ts">
-const props = defineProps<{
-  status: 'online' | 'offline' | 'warning' | 'pending' | 'connected'
-}>()
+import type { NodeStatus } from '@umbra/types'
 
-const labels: Record<string, string> = {
+const props = defineProps<{ status: NodeStatus }>()
+
+const labels: Record<NodeStatus, string> = {
   online:    'En ligne',
   offline:   'Hors ligne',
   warning:   'Alerte',
