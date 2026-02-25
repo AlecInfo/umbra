@@ -1,15 +1,10 @@
 <template>
-  <div class="node-table">
-    <div class="t-head">
-      <span>Noeud</span>
-      <span>Localisation</span>
-      <span>Statut</span>
-      <span>Latence</span>
-      <span>CPU</span>
-      <span></span>
-    </div>
-    <NodeRow v-for="node in mockNodes" :key="node.id" :node="node" @connect="onConnect" @cut="onCut" />
-  </div>
+  <NodeTable
+      :nodes="mockNodes"
+      @connect="onConnect"
+      @cut="onCut"
+      @click-node="onClickNode"
+  />
 </template>
 
 <script setup lang="ts">
@@ -42,26 +37,7 @@ const mockNodes: Node[] = [
   },
 ]
 
-function onConnect(node: Node) { console.log('connect', node.name) }
-function onCut(node: Node)     { console.log('cut', node.name) }
+function onConnect(node: Node)   { console.log('connect', node.name) }
+function onCut(node: Node)       { console.log('cut', node.name) }
+function onClickNode(node: Node) { console.log('detail', node.name) }
 </script>
-
-<style scoped>
-.node-table {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--r);
-  overflow: hidden;
-}
-
-.t-head {
-  display: grid;
-  grid-template-columns: 2fr 1.1fr 1fr 0.9fr 0.9fr 88px;
-  padding: 9px 16px;
-  border-bottom: 1px solid var(--border);
-  font-size: 9px;
-  color: var(--muted);
-  text-transform: uppercase;
-  letter-spacing: .1em;
-}
-</style>
