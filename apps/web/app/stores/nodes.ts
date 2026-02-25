@@ -78,13 +78,13 @@ const MOCK_NODES: Node[] = [
         id: '2', name: 'Hetzner Frankfurt', ip: '100.64.0.3',
         location: 'Frankfurt, DE', country: 'DE',
         status: 'online', category: 'vps',
-        latency: 24, cpu: 8, ram: 20, disk: 30, temp: 40, uptime: 432000, lastSeen: null,
+        latency: 24, cpu: 8, ram: 20, disk: 30, temp: 39, uptime: 432000, lastSeen: null,
     },
     {
         id: '3', name: 'Orange Pi Mumbai', ip: '100.64.0.7',
         location: 'Mumbai, IN', country: 'IN',
         status: 'warning', category: 'sbc',
-        latency: 112, cpu: 94, ram: 78, disk: 60, temp: 71, uptime: 172800, lastSeen: null,
+        latency: 112, cpu: 94, ram: 78, disk: 61, temp: 71, uptime: 172800, lastSeen: null,
     },
     {
         id: '4', name: 'GL.iNet Nairobi', ip: '100.64.0.12',

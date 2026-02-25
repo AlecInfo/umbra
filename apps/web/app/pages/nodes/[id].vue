@@ -66,7 +66,54 @@
           </div>
           <div class="card-body">
             <!-- Metric boxes — step 2 -->
-            <div class="metrics-placeholder">Métriques — à venir</div>
+            <!-- Metric boxes -->
+            <div class="metrics-grid">
+              <div class="metric-box">
+                <div class="metric-lbl">CPU</div>
+                <div class="metric-val">{{ node.cpu ?? '—' }}<span class="metric-unit">%</span></div>
+                <div class="metric-bar"><div class="metric-fill" :style="`width:${node.cpu ?? 0}%;background:${cpuColor}`" /></div>
+                <div class="metric-sub">load avg 0.18 · 4 cœurs</div>
+              </div>
+              <div class="metric-box">
+                <div class="metric-lbl">Mémoire</div>
+                <div class="metric-val">{{ node.ram ?? '—' }}<span class="metric-unit">%</span></div>
+                <div class="metric-bar"><div class="metric-fill" :style="`width:${node.ram ?? 0}%;background:${ramColor}`" /></div>
+                <div class="metric-sub">{{ ramUsed }} / {{ ramTotal }} GB</div>
+              </div>
+              <div class="metric-box">
+                <div class="metric-lbl">Disque</div>
+                <div class="metric-val">{{ node.disk ?? '—' }}<span class="metric-unit">%</span></div>
+                <div class="metric-bar"><div class="metric-fill" :style="`width:${node.disk ?? 0}%;background:${diskColor}`" /></div>
+                <div class="metric-sub">15.4 / 29.3 GB</div>
+              </div>
+              <div class="metric-box">
+                <div class="metric-lbl">Température</div>
+                <div class="metric-val" :style="tempStyle">{{ node.temp ?? '—' }}<span class="metric-unit">°C</span></div>
+                <div class="metric-bar"><div class="metric-fill" :style="`width:${node.temp ?? 0}%;background:${tempColor}`" /></div>
+                <div class="metric-sub">seuil critique : 85°C</div>
+              </div>
+              <div class="metric-box">
+                <div class="metric-lbl">Latence VPN</div>
+                <div class="metric-val accent">{{ node.latency ?? '—' }}<span class="metric-unit">ms</span></div>
+                <div class="metric-bar"><div class="metric-fill fill-green" :style="`width:${Math.min((node.latency ?? 0) / 2, 100)}%`" /></div>
+                <div class="metric-sub">ping backend : 14ms</div>
+              </div>
+              <div class="metric-box">
+                <div class="metric-lbl">Uptime</div>
+                <div class="metric-val uptime-val">{{ uptimeDisplay }}</div>
+                <div class="metric-bar"><div class="metric-fill fill-green" style="width:100%" /></div>
+                <div class="metric-sub">depuis le {{ uptimeSince }}</div>
+              </div>
+            </div>
+
+            <!-- Charts separator -->
+            <div class="chart-sep">
+              <span class="chart-sep-lbl">Historique — <span class="accent">{{ periodLabel }}</span></span>
+              <div class="chart-sep-line" />
+            </div>
+
+            <!-- Charts placeholder -->
+            <div class="charts-placeholder">Graphiques — à venir</div>
           </div>
         </div>
       </div>
@@ -207,6 +254,65 @@ function onConnect() {
   if (node.value.status === 'connected') store.disconnect()
   else store.setConnected(node.value.id)
 }
+
+const ramTotal = 4
+const ramUsed  = computed(() => node.value?.ram ? ((node.value.ram / 100) * ramTotal).toFixed(2) : '—')
+
+const cpuColor = computed(() => {
+  const v = node.value?.cpu ?? 0
+  if (v > 90) return 'var(--offline)'
+  if (v > 70) return 'var(--warning)'
+  return 'var(--accent)'
+})
+
+const ramColor = computed(() => {
+  const v = node.value?.ram ?? 0
+  if (v > 90) return 'var(--offline)'
+  if (v > 75) return 'var(--warning)'
+  return 'var(--accent2)'
+})
+
+const diskColor = computed(() => {
+  const v = node.value?.disk ?? 0
+  if (v > 90) return 'var(--offline)'
+  if (v > 80) return 'var(--warning)'
+  return 'var(--accent)'
+})
+
+const tempColor = computed(() => {
+  const t = node.value?.temp ?? 0
+  if (t > 75) return 'var(--offline)'
+  if (t > 60) return 'var(--warning)'
+  if (t < 40) return 'var(--pending)'
+  return 'var(--accent)'
+})
+
+const tempStyle = computed(() => `color: ${tempColor.value}`)
+
+const uptimeDisplay = computed(() => {
+  const s = node.value?.uptime
+  if (!s) return '—'
+  const d = Math.floor(s / 86400)
+  const h = Math.floor((s % 86400) / 3600)
+  return d > 0 ? `${d}j ${h}h` : `${h}h`
+})
+
+const uptimeSince = computed(() => {
+  const s = node.value?.uptime
+  if (!s) return '—'
+  const d = new Date(Date.now() - s * 1000)
+  return d.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
+})
+
+const periodLabels: Record<string, string> = {
+  '1h': 'dernière heure',
+  '1j': 'dernières 24h',
+  '1s': 'dernière semaine',
+  '1m': 'dernier mois',
+  '1a': 'dernière année',
+}
+const periodLabel = computed(() => periodLabels[period.value])
+
 </script>
 
 <style scoped>
@@ -317,6 +423,99 @@ function onConnect() {
   background: rgba(255,79,107,.1) !important;
   border: 1px solid rgba(255,79,107,.3) !important;
   color: var(--offline) !important;
+}
+/* ── Metric boxes ── */
+.metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.metric-box {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  padding: 10px 12px;
+}
+
+.metric-lbl {
+  font-size: 9px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: .1em;
+  margin-bottom: 4px;
+}
+
+.metric-val {
+  font-family: var(--font-disp);
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--text);
+  margin-bottom: 7px;
+}
+
+.uptime-val { font-size: 17px; }
+
+.metric-unit {
+  font-size: 12px;
+  color: var(--muted);
+  margin-left: 1px;
+}
+
+.metric-bar {
+  height: 3px;
+  background: var(--border2);
+  border-radius: 2px;
+  overflow: hidden;
+  margin-bottom: 5px;
+}
+
+.metric-fill {
+  height: 100%;
+  border-radius: 2px;
+  transition: width .4s ease;
+}
+
+.fill-green  { background: var(--accent); }
+
+.metric-sub {
+  font-size: 9px;
+  color: var(--muted);
+  margin-top: 3px;
+}
+
+/* ── Chart separator ── */
+.chart-sep {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.chart-sep-lbl {
+  font-size: 9px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: .1em;
+  white-space: nowrap;
+}
+
+.chart-sep-line {
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
+
+.charts-placeholder {
+  font-size: 11px;
+  color: var(--muted);
+  padding: var(--sp-5);
+  text-align: center;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
 }
 
 /* ── Card ── */
