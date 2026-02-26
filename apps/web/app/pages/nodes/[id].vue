@@ -18,7 +18,7 @@
         <div class="page-sub">{{ node.ip }} · {{ node.location }} · Agent v1.0.0</div>
       </div>
       <div class="header-actions">
-        <button class="btn-ghost">Partager</button>
+        <button class="btn-ghost" @click="showShare = true">Partager</button>
         <button class="btn-ghost">Configurer</button>
         <button
             class="btn-primary"
@@ -212,6 +212,127 @@
 
     </div><!-- /detail-grid -->
 
+    <!-- Share modal -->
+    <div v-if="showShare" class="modal-overlay" @click.self="showShare = false">
+      <div class="modal">
+
+        <div class="modal-header">
+          <div>
+            <div class="modal-title">Partager — {{ node.name }}</div>
+            <div class="modal-sub">Gérer les accès à ce noeud</div>
+          </div>
+          <button class="close-btn" @click="showShare = false">✕</button>
+        </div>
+
+        <div class="modal-body">
+
+          <!-- Search + invite -->
+          <div class="form-group">
+            <label class="form-label">Ajouter un utilisateur</label>
+            <div class="search-wrap">
+              <div class="search-input-row">
+                <svg class="search-ico" width="12" height="12" viewBox="0 0 16 16" fill="none">
+                  <circle cx="6.5" cy="6.5" r="4.5" stroke="currentColor" stroke-width="1.4"/>
+                  <line x1="10" y1="10" x2="14" y2="14" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
+                </svg>
+                <input
+                    v-model="searchQuery"
+                    class="search-input"
+                    placeholder="Nom ou email..."
+                    @focus="searchFocused = true"
+                    @blur="setTimeout(() => searchFocused = false, 150)"
+                />
+              </div>
+
+              <!-- Autocomplete dropdown -->
+              <div v-if="searchFocused && (searchResults.length > 0 || showExternalInvite)" class="search-dropdown">
+                <div
+                    v-for="u in searchResults" :key="u.id"
+                    class="search-result"
+                    @mousedown.prevent="selectUser(u)"
+                >
+                  <div class="result-avatar" :style="`background: ${u.color}`">{{ u.avatar }}</div>
+                  <div class="result-info">
+                    <div class="result-name">{{ u.name }}</div>
+                    <div class="result-email">{{ u.email }}</div>
+                  </div>
+                  <span class="result-badge">UMBRA</span>
+                </div>
+
+                <div v-if="showExternalInvite" class="search-result external" @mousedown.prevent="inviteExternal">
+                  <div class="result-avatar ext-avatar">✉</div>
+                  <div class="result-info">
+                    <div class="result-name">Inviter {{ searchQuery }}</div>
+                    <div class="result-email">Envoi d'un email d'invitation</div>
+                  </div>
+                  <span class="result-badge ext">Nouveau</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Permission picker -->
+          <div class="form-group">
+            <label class="form-label">Permission par défaut</label>
+            <div class="perm-grid">
+              <div
+                  v-for="p in permOptions" :key="p.value"
+                  class="perm-opt" :class="{ selected: sharePerm === p.value }"
+                  @click="sharePerm = p.value"
+              >
+                <div class="perm-icon">{{ p.icon }}</div>
+                <div class="perm-name">{{ p.label }}</div>
+                <div class="perm-desc">{{ p.desc }}</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Active members -->
+          <div class="form-group" v-if="activeMembers.length > 0">
+            <label class="form-label">Accès actifs ({{ activeMembers.length }})</label>
+            <div class="members-list">
+              <div v-for="m in activeMembers" :key="m.id" class="member-item">
+                <div class="member-avatar" :style="`background: ${m.color}`">{{ m.avatar }}</div>
+                <div class="member-info">
+                  <div class="member-name">{{ m.name }}</div>
+                  <div class="member-email">{{ m.email }}</div>
+                </div>
+                <select class="perm-select" :value="m.perm" @change="m.perm = ($event.target as HTMLSelectElement).value as Permission">
+                  <option v-for="p in permOptions" :key="p.value" :value="p.value">{{ p.label }}</option>
+                </select>
+                <button class="revoke-btn" @click="revokeMember(m.id)">✕</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Pending invitations -->
+          <div class="form-group" v-if="pendingMembers.length > 0">
+            <label class="form-label">En attente ({{ pendingMembers.length }})</label>
+            <div class="members-list">
+              <div v-for="m in pendingMembers" :key="m.id" class="member-item pending">
+                <div class="pending-avatar">?</div>
+                <div class="member-info">
+                  <div class="member-name">{{ m.email }}</div>
+                  <div class="member-email pending-lbl">⏳ Invitation envoyée · {{ m.perm }}</div>
+                </div>
+                <button class="revoke-btn" @click="revokeMember(m.id)">✕</button>
+              </div>
+            </div>
+          </div>
+
+          <div v-if="members.length === 0" class="members-empty">
+            Aucun accès partagé pour ce noeud
+          </div>
+
+        </div>
+
+        <div class="modal-footer">
+          <button class="btn-ghost-sm" @click="showShare = false">Fermer</button>
+        </div>
+
+      </div>
+    </div>
+
   </div>
 
   <!-- Loading / not found -->
@@ -228,6 +349,99 @@ onMounted(() => { if (!store.nodes.length) store.fetchNodes() })
 const node = computed(() =>
     store.nodes.find(n => n.id === route.params.id) ?? null
 )
+
+// ── Share modal ──
+const showShare = ref(false)
+const searchQuery = ref('')
+const sharePerm = ref<'read' | 'connect' | 'manage' | 'admin'>('connect')
+const searchFocused = ref(false)
+
+type Permission = 'read' | 'connect' | 'manage' | 'admin'
+
+interface NodeMember {
+  id:      string
+  email:   string
+  name:    string
+  perm:    Permission
+  avatar:  string
+  color:   string
+  status:  'active' | 'pending'
+}
+
+const members = ref<NodeMember[]>([
+  { id: '1', email: 'marie@example.com',  name: 'marie',  perm: 'connect', avatar: 'M', color: 'linear-gradient(135deg,#ff6b6b,#ffa726)',      status: 'active'  },
+  { id: '2', email: 'thomas@example.com', name: 'thomas', perm: 'read',    avatar: 'T', color: 'linear-gradient(135deg,#4fa8ff,#7b6ef6)',       status: 'active'  },
+  { id: '3', email: 'sam@example.com',    name: 'sam',    perm: 'connect', avatar: 'S', color: 'linear-gradient(135deg,var(--muted),var(--muted))', status: 'pending' },
+])
+
+// Mock existing UMBRA users for autocomplete
+const umbraUsers = [
+  { id: 'u1', email: 'alice@example.com', name: 'alice',  avatar: 'A', color: 'linear-gradient(135deg,#a78bfa,#7b6ef6)' },
+  { id: 'u2', email: 'bob@example.com',   name: 'bob',    avatar: 'B', color: 'linear-gradient(135deg,#f59e0b,#ef4444)' },
+  { id: 'u3', email: 'lea@example.com',   name: 'léa',    avatar: 'L', color: 'linear-gradient(135deg,#10b981,#3b82f6)' },
+  { id: 'u4', email: 'marc@example.com',  name: 'marc',   avatar: 'M', color: 'linear-gradient(135deg,#ec4899,#8b5cf6)' },
+]
+
+const existingEmails = computed(() => members.value.map(m => m.email))
+
+const searchResults = computed(() => {
+  const q = searchQuery.value.trim().toLowerCase()
+  if (!q || q.length < 2) return []
+  return umbraUsers.filter(u =>
+      !existingEmails.value.includes(u.email) &&
+      (u.name.includes(q) || u.email.includes(q))
+  )
+})
+
+const isValidEmail = (s: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s)
+
+const showExternalInvite = computed(() => {
+  const q = searchQuery.value.trim()
+  if (!q || searchResults.value.length > 0) return false
+  return isValidEmail(q) && !existingEmails.value.includes(q)
+})
+
+const permOptions: { value: Permission, label: string, desc: string, icon: string }[] = [
+  { value: 'read',    label: 'Lecture',   desc: 'Voir les métriques',    icon: '👁️' },
+  { value: 'connect', label: 'Connexion', desc: 'Se connecter',          icon: '➡️' },
+  { value: 'manage',  label: 'Gestion',   desc: 'Modifier les réglages', icon: '⚙️' },
+  { value: 'admin',   label: 'Admin',     desc: 'Partager et révoquer',  icon: '👑' },
+]
+
+function selectUser(user: typeof umbraUsers[0]) {
+  members.value.push({
+    id:     Date.now().toString(),
+    email:  user.email,
+    name:   user.name,
+    perm:   sharePerm.value,
+    avatar: user.avatar,
+    color:  user.color,
+    status: 'active',
+  })
+  searchQuery.value = ''
+}
+
+function inviteExternal() {
+  const email = searchQuery.value.trim()
+  if (!isValidEmail(email)) return
+  members.value.push({
+    id:     Date.now().toString(),
+    email,
+    name:   email.split('@')[0],
+    perm:   sharePerm.value,
+    avatar: email[0].toUpperCase(),
+    color:  'var(--surface2)',
+    status: 'pending',
+  })
+  searchQuery.value = ''
+}
+
+function revokeMember(id: string) {
+  members.value = members.value.filter(m => m.id !== id)
+}
+
+const activeMembers  = computed(() => members.value.filter(m => m.status === 'active'))
+const pendingMembers = computed(() => members.value.filter(m => m.status === 'pending'))
 
 const period = ref('1j')
 const periods = [
@@ -424,6 +638,279 @@ const periodLabel = computed(() => periodLabels[period.value])
   border: 1px solid rgba(255,79,107,.3) !important;
   color: var(--offline) !important;
 }
+
+/* ── Modal ── */
+.modal-overlay {
+  position: fixed; inset: 0; z-index: 100;
+  background: rgba(0,0,0,.6);
+  display: flex; align-items: center; justify-content: center;
+}
+.modal {
+  background: var(--surface);
+  border: 1px solid var(--border2);
+  border-radius: var(--r);
+  width: 480px;
+  box-shadow: 0 16px 48px rgba(0,0,0,.5);
+  max-height: 90vh;
+  overflow-y: auto;
+}
+.modal-header {
+  display: flex; align-items: flex-start; justify-content: space-between;
+  padding: 16px 20px; border-bottom: 1px solid var(--border);
+  position: sticky; top: 0; background: var(--surface); z-index: 1;
+}
+.modal-title { font-size: 13px; font-weight: 600; color: var(--text); }
+.modal-sub   { font-size: 10px; color: var(--muted); margin-top: 2px; }
+.close-btn   { background: none; border: none; color: var(--muted); font-size: 14px; cursor: pointer; transition: color .15s; }
+.close-btn:hover { color: var(--text); }
+.modal-body  { padding: 20px; display: flex; flex-direction: column; gap: 18px; }
+.modal-footer {
+  display: flex; justify-content: flex-end;
+  padding: 14px 20px; border-top: 1px solid var(--border);
+}
+
+.form-group { display: flex; flex-direction: column; gap: 7px; }
+.form-label { font-size: 9px; color: var(--muted); text-transform: uppercase; letter-spacing: .1em; }
+
+/* ── Search ── */
+.search-wrap { position: relative; }
+
+.search-input-row {
+  display: flex; align-items: center; gap: 8px;
+  background: var(--bg); border: 1px solid var(--border2);
+  border-radius: var(--r); padding: 8px 10px;
+  transition: border-color .15s;
+}
+.search-input-row:focus-within { border-color: var(--accent); }
+
+.search-ico   { color: var(--muted); flex-shrink: 0; }
+.search-input {
+  flex: 1; background: none; border: none; outline: none;
+  font-family: var(--font-mono); font-size: 12px; color: var(--text);
+}
+.search-input::placeholder { color: var(--muted); }
+
+.search-dropdown {
+  position: absolute; top: calc(100% + 4px); left: 0; right: 0;
+  background: var(--surface); border: 1px solid var(--border2);
+  border-radius: var(--r); overflow: hidden;
+  box-shadow: 0 8px 24px rgba(0,0,0,.4); z-index: 10;
+}
+
+.search-result {
+  display: flex; align-items: center; gap: 10px;
+  padding: 9px 12px; cursor: pointer; transition: background .1s;
+}
+.search-result:hover { background: var(--surface2); }
+.search-result.external { border-top: 1px solid var(--border); }
+
+.result-avatar {
+  width: 28px; height: 28px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 11px; font-weight: 600; color: var(--bg); flex-shrink: 0;
+}
+.ext-avatar { background: var(--surface2) !important; color: var(--muted); font-size: 13px; border: 1px solid var(--border2); }
+
+.result-info  { flex: 1; min-width: 0; }
+.result-name  { font-size: 12px; font-weight: 500; color: var(--text); }
+.result-email { font-size: 10px; color: var(--muted); }
+
+.result-badge {
+  font-size: 8px; padding: 2px 6px; border-radius: 3px;
+  background: rgba(79,255,176,.1); color: var(--accent);
+  border: 1px solid rgba(79,255,176,.2);
+}
+.result-badge.ext {
+  background: rgba(79,168,255,.1); color: var(--pending);
+  border-color: rgba(79,168,255,.2);
+}
+
+/* ── Permission picker ── */
+.perm-grid {
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px;
+}
+.perm-opt {
+  display: flex; flex-direction: column; align-items: center; gap: 3px;
+  padding: 9px 6px; border-radius: var(--r);
+  border: 1px solid var(--border2); background: var(--bg);
+  cursor: pointer; transition: all .15s; text-align: center;
+}
+.perm-opt:hover   { border-color: var(--text); }
+.perm-opt.selected { border-color: var(--accent); background: rgba(79,255,176,.06); }
+.perm-name { font-size: 10px; font-weight: 600; color: var(--text); }
+.perm-desc { font-size: 9px; color: var(--muted); }
+
+/* ── Members list ── */
+.members-list {
+  background: var(--bg); border: 1px solid var(--border);
+  border-radius: var(--r); overflow: hidden;
+}
+.member-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 9px 12px; border-bottom: 1px solid var(--border);
+  transition: background .1s;
+}
+.member-item:last-child { border-bottom: none; }
+.member-item:hover      { background: var(--surface2); }
+.member-item.pending    { opacity: .7; }
+
+.member-avatar {
+  width: 26px; height: 26px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 10px; font-weight: 600; color: var(--bg); flex-shrink: 0;
+}
+.pending-avatar {
+  width: 26px; height: 26px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 11px; color: var(--muted); flex-shrink: 0;
+  background: var(--surface2); border: 1px dashed var(--border2);
+}
+
+.member-info  { flex: 1; min-width: 0; }
+.member-name  { font-size: 11px; font-weight: 500; color: var(--text); }
+.member-email { font-size: 9px; color: var(--muted); }
+.pending-lbl  { color: var(--warning) !important; }
+
+.perm-select {
+  font-family: var(--font-mono); font-size: 9px;
+  background: rgba(79,168,255,.1); color: var(--pending);
+  border: 1px solid rgba(79,168,255,.2);
+  border-radius: 3px; padding: 2px 5px; cursor: pointer;
+  outline: none;
+}
+
+.revoke-btn {
+  background: none; border: none; color: var(--muted);
+  font-size: 11px; cursor: pointer; padding: 3px 5px;
+  border-radius: 3px; transition: all .15s;
+}
+.revoke-btn:hover { color: var(--offline); background: rgba(255,79,107,.08); }
+
+.members-empty {
+  padding: 20px; text-align: center;
+  font-size: 11px; color: var(--muted);
+}
+
+.btn-ghost-sm {
+  display: inline-flex; align-items: center;
+  padding: 6px 14px; border-radius: var(--r);
+  font-family: var(--font-mono); font-size: 11px;
+  cursor: pointer; background: transparent;
+  border: 1px solid var(--border2); color: var(--muted);
+  transition: all .15s;
+}
+.btn-ghost-sm:hover { border-color: var(--text); color: var(--text); }
+
+/* Permission grid */
+.perm-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+}
+
+.perm-opt {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  padding: 10px 6px;
+  border-radius: var(--r);
+  border: 1px solid var(--border2);
+  background: var(--bg);
+  cursor: pointer;
+  transition: all .15s;
+  text-align: center;
+}
+.perm-opt:hover   { border-color: var(--text); }
+.perm-opt.selected {
+  border-color: var(--accent);
+  background: rgba(79,255,176,.06);
+}
+
+.perm-icon { font-size: 14px; }
+.perm-name { font-size: 10px; font-weight: 600; color: var(--text); }
+.perm-desc { font-size: 9px; color: var(--muted); }
+
+/* Members list */
+.members-list {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  overflow: hidden;
+}
+
+.member-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  border-bottom: 1px solid var(--border);
+  transition: background .1s;
+}
+.member-item:last-child { border-bottom: none; }
+.member-item:hover      { background: var(--surface2); }
+
+.member-avatar {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--bg);
+  flex-shrink: 0;
+}
+
+.member-info { flex: 1; min-width: 0; }
+.member-name  { font-size: 11px; font-weight: 500; color: var(--text); }
+.member-email { font-size: 9px; color: var(--muted); }
+
+.member-perm {
+  font-size: 9px;
+  font-family: var(--font-mono);
+  background: rgba(79,168,255,.1);
+  color: var(--pending);
+  border: 1px solid rgba(79,168,255,.2);
+  padding: 2px 6px;
+  border-radius: 3px;
+}
+
+.revoke-btn {
+  background: none;
+  border: none;
+  color: var(--muted);
+  font-size: 11px;
+  cursor: pointer;
+  padding: 3px 5px;
+  border-radius: 3px;
+  transition: all .15s;
+}
+.revoke-btn:hover { color: var(--offline); background: rgba(255,79,107,.08); }
+
+.members-empty {
+  padding: 16px;
+  text-align: center;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.btn-ghost-sm {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 14px;
+  border-radius: var(--r);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  cursor: pointer;
+  background: transparent;
+  border: 1px solid var(--border2);
+  color: var(--muted);
+  transition: all .15s;
+}
+.btn-ghost-sm:hover { border-color: var(--text); color: var(--text); }
+
 /* ── Metric boxes ── */
 .metrics-grid {
   display: grid;
