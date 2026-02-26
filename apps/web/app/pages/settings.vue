@@ -123,6 +123,71 @@
           </div>
         </div>
 
+        <!-- Équipe -->
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">Équipe</div>
+            <span class="member-count">{{ orgMembers.length }} membres</span>
+          </div>
+          <div class="card-body">
+
+            <!-- Invite row -->
+            <div class="setting-row">
+              <div class="setting-info">
+                <div class="setting-lbl">Inviter un membre</div>
+                <div class="setting-sub">Accès à tous les noeuds de l'organisation</div>
+              </div>
+              <button class="btn-ghost-sm" @click="showInvite = !showInvite">
+                + Inviter
+              </button>
+            </div>
+
+            <!-- Invite form (collapsible) -->
+            <div v-if="showInvite" class="invite-form">
+              <div class="invite-row">
+                <input v-model="inviteEmail" class="form-input" placeholder="email@example.com" type="email" @keyup.enter="sendInvite" />
+                <div class="seg-group">
+                  <button v-for="r in roles" :key="r.value"
+                          class="seg-btn" :class="{ active: inviteRole === r.value }"
+                          @click="inviteRole = r.value">{{ r.label }}</button>
+                </div>
+                <button class="btn-accent-sm" :disabled="!inviteEmail" @click="sendInvite">Envoyer</button>
+              </div>
+              <div class="role-hint">
+                <span v-if="inviteRole === 'member'">👁️ Lecture + connexion aux noeuds partagés</span>
+                <span v-else-if="inviteRole === 'admin'">⚙️ Peut gérer les membres et les noeuds</span>
+              </div>
+            </div>
+
+            <!-- Members list -->
+            <div class="org-members">
+              <div v-for="m in orgMembers" :key="m.id" class="org-member-row">
+                <div class="member-avatar" :style="`background: ${m.color}`">{{ m.avatar }}</div>
+                <div class="member-info">
+                  <div class="member-name">
+                    {{ m.name }}
+                    <span v-if="m.id === 'me'" class="you-badge">vous</span>
+                  </div>
+                  <div class="member-email">{{ m.email }}</div>
+                </div>
+                <div v-if="m.status === 'pending'" class="pending-chip">⏳ En attente</div>
+                <select
+                    v-else-if="m.role !== 'owner'"
+                    class="role-select"
+                    :value="m.role"
+                    @change="m.role = ($event.target as HTMLSelectElement).value as OrgRole"
+                >
+                  <option v-for="r in roles" :key="r.value" :value="r.value">{{ r.label }}</option>
+                </select>
+                <span v-else class="owner-badge">owner</span>
+                <button v-if="m.id !== 'me' && m.role !== 'owner'" class="remove-btn" @click="removeMember(m.id)">✕</button>
+                <div v-else class="remove-placeholder" />
+              </div>
+            </div>
+
+          </div>
+        </div>
+
         <!-- Agent & réseau -->
         <div class="card">
           <div class="card-header"><div class="card-title">Agent & réseau</div></div>
@@ -220,6 +285,53 @@ const notifications = ref([
 function setTheme(t: string) {
   theme.value = t
   document.documentElement.setAttribute('data-theme', t === 'dark' ? '' : t)
+}
+
+type OrgRole = 'owner' | 'admin' | 'member'
+
+interface OrgMember {
+  id:     string
+  name:   string
+  email:  string
+  avatar: string
+  color:  string
+  role:   OrgRole
+  status: 'active' | 'pending'
+}
+
+const showInvite  = ref(false)
+const inviteEmail = ref('')
+const inviteRole  = ref<OrgRole>('member')
+
+const roles = [
+  { value: 'member', label: 'Membre' },
+  { value: 'admin',  label: 'Admin'  },
+]
+
+const orgMembers = ref<OrgMember[]>([
+  { id: 'me', name: 'alecptt', email: 'alecptt@example.com', avatar: 'A', color: 'linear-gradient(135deg,var(--accent2),var(--accent))', role: 'owner',  status: 'active'  },
+  { id: '2',  name: 'marie',   email: 'marie@example.com',   avatar: 'M', color: 'linear-gradient(135deg,#ff6b6b,#ffa726)',              role: 'admin',  status: 'active'  },
+  { id: '3',  name: 'thomas',  email: 'thomas@example.com',  avatar: 'T', color: 'linear-gradient(135deg,#4fa8ff,#7b6ef6)',              role: 'member', status: 'active'  },
+  { id: '4',  name: 'sam',     email: 'sam@example.com',     avatar: 'S', color: 'var(--surface2)',                                      role: 'member', status: 'pending' },
+])
+
+function sendInvite() {
+  if (!inviteEmail.value) return
+  orgMembers.value.push({
+    id:     Date.now().toString(),
+    name:   inviteEmail.value.split('@')[0],
+    email:  inviteEmail.value,
+    avatar: inviteEmail.value[0].toUpperCase(),
+    color:  'var(--surface2)',
+    role:   inviteRole.value,
+    status: 'pending',
+  })
+  inviteEmail.value = ''
+  showInvite.value  = false
+}
+
+function removeMember(id: string) {
+  orgMembers.value = orgMembers.value.filter(m => m.id !== id)
 }
 </script>
 
@@ -426,4 +538,127 @@ function setTheme(t: string) {
   border-radius: 4px;
   white-space: nowrap;
 }
+
+/* ── Équipe ── */
+.member-count {
+  font-size: 10px;
+  color: var(--muted);
+  font-family: var(--font-mono);
+}
+
+.invite-form {
+  padding: 12px 16px;
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.invite-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.form-input {
+  flex: 1;
+  background: var(--surface);
+  border: 1px solid var(--border2);
+  border-radius: var(--r);
+  padding: 7px 10px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--text);
+  outline: none;
+  transition: border-color .15s;
+}
+.form-input:focus { border-color: var(--accent); }
+
+.role-hint {
+  font-size: 10px;
+  color: var(--muted);
+  padding-left: 2px;
+}
+
+.org-members { display: flex; flex-direction: column; }
+
+.org-member-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border);
+  transition: background .1s;
+}
+.org-member-row:last-child { border-bottom: none; }
+.org-member-row:hover      { background: var(--surface2); }
+
+.member-avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--bg);
+  flex-shrink: 0;
+}
+
+.member-info  { flex: 1; min-width: 0; }
+.member-name  { font-size: 12px; font-weight: 500; color: var(--text); display: flex; align-items: center; gap: 6px; }
+.member-email { font-size: 10px; color: var(--muted); margin-top: 1px; }
+
+.you-badge {
+  font-size: 8px;
+  background: rgba(79,255,176,.1);
+  color: var(--accent);
+  border: 1px solid rgba(79,255,176,.2);
+  padding: 1px 5px;
+  border-radius: 3px;
+}
+
+.owner-badge {
+  font-size: 9px;
+  font-family: var(--font-mono);
+  background: rgba(255,183,79,.1);
+  color: var(--warning);
+  border: 1px solid rgba(255,183,79,.2);
+  padding: 2px 7px;
+  border-radius: 3px;
+}
+
+.pending-chip {
+  font-size: 9px;
+  color: var(--warning);
+  font-family: var(--font-mono);
+}
+
+.role-select {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  background: var(--surface2);
+  color: var(--muted);
+  border: 1px solid var(--border2);
+  border-radius: 3px;
+  padding: 3px 6px;
+  cursor: pointer;
+  outline: none;
+}
+
+.remove-btn {
+  background: none;
+  border: none;
+  color: var(--muted);
+  font-size: 11px;
+  cursor: pointer;
+  padding: 3px 5px;
+  border-radius: 3px;
+  transition: all .15s;
+}
+.remove-btn:hover { color: var(--offline); background: rgba(255,79,107,.08); }
+
+.remove-placeholder { width: 24px; }
 </style>
