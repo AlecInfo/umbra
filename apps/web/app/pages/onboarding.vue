@@ -87,7 +87,7 @@
         </div>
       </div>
 
-      <!-- Step 3 — Connexion -->
+      <!-- Step 3 — C'est parti ! -->
       <div v-else class="onboard-body">
 
         <div class="success-banner">
@@ -95,34 +95,59 @@
             <circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="1.4"/>
             <path d="M5 8l2 2 4-4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
           </svg>
-          Noeud <strong>{{ nodeName || 'mon-noeud' }}</strong> enregistré avec succès
+          <strong>{{ nodeName }}</strong> est enregistré et en ligne
         </div>
 
-        <div class="form-group">
-          <label class="form-label">Se connecter à</label>
-          <div class="node-select-list">
-            <div class="node-select-item selected">
-              <div class="nicon" :class="`cat-${category}`">
-                <svg width="13" height="13" viewBox="0 0 16 16" fill="none" v-html="selectedCategoryIcon" />
-              </div>
-              <div class="node-select-info">
-                <div class="node-select-name">{{ nodeName || 'mon-noeud' }}</div>
-                <div class="node-select-loc">Nouveau · vient d'être enregistré</div>
-              </div>
-              <span class="new-badge">Nouveau</span>
+        <div class="next-actions-lbl">Que voulez-vous faire maintenant ?</div>
+
+        <div class="next-actions">
+          <div class="next-action" @click="navigateTo('/')">
+            <div class="next-action-icon icon-connect">
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="1.4"/><path d="M6 8h4M8 6v4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
             </div>
+            <div class="next-action-info">
+              <div class="next-action-title">Se connecter au noeud</div>
+              <div class="next-action-sub">Établir le tunnel WireGuard maintenant</div>
+            </div>
+            <svg class="next-chevron" width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M6 4l4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
           </div>
-        </div>
 
-        <div class="connect-info">
-          <div class="info-row-ob"><span class="info-lbl-ob">IP VPN</span><span class="info-val-ob">100.64.0.13/32</span></div>
-          <div class="info-row-ob"><span class="info-lbl-ob">Interface</span><span class="info-val-ob">umbra0</span></div>
-          <div class="info-row-ob"><span class="info-lbl-ob">Port</span><span class="info-val-ob">:51820 UDP</span></div>
+          <div class="next-action" @click="step = 2; nodeName = ''; category = 'sbc'">
+            <div class="next-action-icon icon-add">
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M8 2v12M2 8h12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+            </div>
+            <div class="next-action-info">
+              <div class="next-action-title">Ajouter un autre noeud</div>
+              <div class="next-action-sub">VPS, routeur, NAS, SBC...</div>
+            </div>
+            <svg class="next-chevron" width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M6 4l4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+          </div>
+
+          <div class="next-action" @click="navigateTo('/nodes')">
+            <div class="next-action-icon icon-share">
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><circle cx="12" cy="4" r="2" stroke="currentColor" stroke-width="1.3"/><circle cx="4" cy="8" r="2" stroke="currentColor" stroke-width="1.3"/><circle cx="12" cy="12" r="2" stroke="currentColor" stroke-width="1.3"/><path d="M6 7l4-2M6 9l4 2" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
+            </div>
+            <div class="next-action-info">
+              <div class="next-action-title">Inviter quelqu'un</div>
+              <div class="next-action-sub">Partager l'accès avec la famille ou l'équipe</div>
+            </div>
+            <svg class="next-chevron" width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M6 4l4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+          </div>
+
+          <div class="next-action" @click="navigateTo('/')">
+            <div class="next-action-icon icon-dashboard">
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><rect x="2" y="2" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.3"/><rect x="9" y="2" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.3"/><rect x="2" y="9" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.3"/><rect x="9" y="9" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.3"/></svg>
+            </div>
+            <div class="next-action-info">
+              <div class="next-action-title">Aller au dashboard</div>
+              <div class="next-action-sub">Explorer l'interface UMBRA</div>
+            </div>
+            <svg class="next-chevron" width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M6 4l4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+          </div>
         </div>
 
       </div>
 
-      <!-- Footer -->
       <div class="onboard-footer">
         <button class="btn-ghost" @click="navigateTo('/')">Passer</button>
         <button
@@ -130,7 +155,7 @@
             :disabled="step === 2 && !nodeName"
             @click="next"
         >
-          {{ step === 2 ? 'Continuer →' : 'Se connecter →' }}
+          {{ step === 2 ? 'Continuer →' : 'Aller au dashboard →' }}
         </button>
       </div>
 
@@ -212,7 +237,7 @@ function next() {
 
 /* Header */
 .onboard-header {
-  padding: 26px 30px 22px;
+  padding: 18px 30px 16px;
   border-bottom: 1px solid var(--border);
 }
 
@@ -233,7 +258,7 @@ function next() {
 /* Steps */
 .onboard-steps {
   display: flex;
-  margin-bottom: 20px;
+  margin-bottom: 14px;
 }
 
 .step {
@@ -266,17 +291,17 @@ function next() {
   flex-shrink: 0;
 }
 
-.step.done .step-num  { background: var(--accent); border-color: var(--accent); color: var(--bg); font-weight: 700; }
-.step.current .step-num { border-color: var(--accent); color: var(--accent); }
-.step.current { color: var(--text); }
-.step-label   { white-space: nowrap; }
+.step.done .step-num     { background: var(--accent); border-color: var(--accent); color: var(--bg); font-weight: 700; }
+.step.current .step-num  { border-color: var(--accent); color: var(--accent); }
+.step.current            { color: var(--text); }
+.step-label              { white-space: nowrap; }
 
 /* Body */
 .onboard-body {
-  padding: 26px 30px;
+  padding: 18px 30px;
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 14px;
 }
 
 .form-group { display: flex; flex-direction: column; gap: 7px; }
@@ -312,7 +337,7 @@ function next() {
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 12px 8px;
+  padding: 8px 6px;
   border-radius: var(--r);
   border: 1px solid var(--border2);
   background: var(--bg);
@@ -320,7 +345,7 @@ function next() {
   text-align: center;
   transition: all .15s;
 }
-.cat-opt:hover   { border-color: var(--border); }
+.cat-opt:hover    { border-color: var(--border); }
 .cat-opt.selected { border-color: var(--accent); background: rgba(79,255,176,.06); }
 
 .cat-opt-icon {
@@ -330,7 +355,7 @@ function next() {
   display: flex;
   align-items: center;
   justify-content: center;
-  margin-bottom: 8px;
+  margin-bottom: 5px;
 }
 
 .cat-sbc     { background: rgba(79,255,176,.12);  color: var(--accent);  }
@@ -349,11 +374,11 @@ function next() {
   background: var(--bg);
   border: 1px solid var(--border2);
   border-radius: var(--r);
-  padding: 14px 16px;
+  padding: 10px 14px;
   font-family: var(--font-mono);
   font-size: 11px;
   color: var(--text);
-  line-height: 1.9;
+  line-height: 1.7;
 }
 
 .cmd-copy {
@@ -375,37 +400,7 @@ function next() {
 
 .cmd-comment { color: var(--muted); }
 .cmd-accent  { color: var(--accent); }
-.cmd-token   { color: var(--accent2); }
-
-.fade-enter-active, .fade-leave-active { transition: opacity .2s, transform .2s; }
-.fade-enter-from, .fade-leave-to { opacity: 0; transform: translateY(-4px); }
-
-/* Waiting */
-.waiting-indicator {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 12px 14px;
-  background: rgba(79,168,255,.06);
-  border: 1px solid rgba(79,168,255,.2);
-  border-radius: var(--r);
-  font-size: 11px;
-  color: var(--pending);
-}
-
-.pulse-dot {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--pending);
-  animation: blink 1.2s infinite;
-  flex-shrink: 0;
-}
-
-@keyframes blink {
-  0%,100% { opacity: 1; }
-  50%     { opacity: .3; }
-}
+.cmd-accent2 { color: var(--accent2); }
 
 .cmd-placeholder {
   padding: 14px 16px;
@@ -418,7 +413,32 @@ function next() {
   text-align: center;
 }
 
-.cmd-accent2 { color: var(--accent2); }
+/* Waiting */
+.pulse-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--pending);
+  animation: blink 1.2s infinite;
+  flex-shrink: 0;
+}
+
+.waiting-indicator {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  background: rgba(79,168,255,.06);
+  border: 1px solid rgba(79,168,255,.2);
+  border-radius: var(--r);
+  font-size: 11px;
+  color: var(--pending);
+}
+
+@keyframes blink {
+  0%,100% { opacity: 1; }
+  50%     { opacity: .3; }
+}
 
 .platform-info {
   font-size: 10px;
@@ -442,68 +462,58 @@ function next() {
 }
 .success-banner strong { font-weight: 600; }
 
-.node-select-list {
+.next-actions-lbl {
+  font-size: 10px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: .1em;
+}
+
+.next-actions {
+  display: flex;
+  flex-direction: column;
   background: var(--bg);
   border: 1px solid var(--border);
   border-radius: var(--r);
   overflow: hidden;
 }
 
-.node-select-item {
+.next-action {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 12px 14px;
-  border: 2px solid transparent;
+  gap: 12px;
+  padding: 13px 16px;
+  border-bottom: 1px solid var(--border);
   cursor: pointer;
-  transition: all .15s;
+  transition: background .1s;
 }
-.node-select-item.selected { border-color: var(--accent); background: rgba(79,255,176,.04); }
+.next-action:last-child { border-bottom: none; }
+.next-action:hover      { background: var(--surface2); }
 
-.nicon {
-  width: 28px;
-  height: 28px;
-  border-radius: 6px;
+.next-action-icon {
+  width: 30px;
+  height: 30px;
+  border-radius: 7px;
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
 }
 
-.node-select-info { flex: 1; }
-.node-select-name { font-size: 12px; font-weight: 500; color: var(--text); }
-.node-select-loc  { font-size: 10px; color: var(--muted); margin-top: 1px; }
+.icon-connect   { background: rgba(79,255,176,.12);  color: var(--accent);  }
+.icon-add       { background: rgba(79,168,255,.12);  color: #4fa8ff;        }
+.icon-share     { background: rgba(123,110,246,.12); color: var(--accent2); }
+.icon-dashboard { background: rgba(255,183,79,.12);  color: var(--warning); }
 
-.new-badge {
-  font-size: 9px;
-  background: rgba(79,255,176,.1);
-  color: var(--accent);
-  border: 1px solid rgba(79,255,176,.2);
-  padding: 2px 7px;
-  border-radius: 10px;
-}
+.next-action-info  { flex: 1; }
+.next-action-title { font-size: 12px; font-weight: 500; color: var(--text); }
+.next-action-sub   { font-size: 10px; color: var(--muted); margin-top: 2px; }
 
-.connect-info {
-  background: var(--bg);
-  border: 1px solid var(--border);
-  border-radius: var(--r);
-  overflow: hidden;
-}
-
-.info-row-ob {
-  display: flex;
-  justify-content: space-between;
-  padding: 9px 14px;
-  border-bottom: 1px solid var(--border);
-  font-size: 11px;
-}
-.info-row-ob:last-child { border-bottom: none; }
-.info-lbl-ob { color: var(--muted); }
-.info-val-ob { color: var(--text); font-family: var(--font-mono); font-weight: 500; }
+.next-chevron { color: var(--muted); flex-shrink: 0; }
 
 /* Footer */
 .onboard-footer {
-  padding: 18px 30px;
+  padding: 14px 30px;
   border-top: 1px solid var(--border);
   display: flex;
   justify-content: space-between;
