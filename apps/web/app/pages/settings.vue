@@ -250,7 +250,7 @@
 </template>
 
 <script setup lang="ts">
-const theme     = ref('dark')
+const theme = useCookie('umbra-theme', { default: () => 'dark' })
 const lang      = ref('fr')
 const twofa     = ref(false)
 const autoUpdate = ref(true)
@@ -284,7 +284,6 @@ const notifications = ref([
 
 function setTheme(t: string) {
   theme.value = t
-  document.documentElement.setAttribute('data-theme', t === 'dark' ? '' : t)
 }
 
 type OrgRole = 'owner' | 'admin' | 'member'
