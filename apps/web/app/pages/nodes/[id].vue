@@ -112,8 +112,31 @@
               <div class="chart-sep-line" />
             </div>
 
-            <!-- Charts placeholder -->
-            <div class="charts-placeholder">Graphiques — à venir</div>
+            <!-- Charts -->
+            <div class="charts-section">
+              <NodeChart
+                  title="Bande passante"
+                  current-color="#4fffb0"
+                  :data="bandwidthData"
+                  :series="bandwidthSeries"
+                  :currentFmt="(d) => `↑ ${Number(d.up ?? 0).toFixed(1)} MB/s`"
+              />
+              <NodeChart
+                  title="CPU · Mémoire · Température"
+                  current-color="var(--text)"
+                  :data="systemData"
+                  :series="systemSeries"
+                  :showRefLine="true"
+                  :currentFmt="(d) => `${Number(d.cpu ?? 0).toFixed(1)}% · ${Number(d.ram ?? 0).toFixed(0)}% · ${Number(d.temp ?? 0).toFixed(0)}°C`"
+              />
+              <NodeChart
+                  title="Pairs connectés simultanément"
+                  current-color="#4fa8ff"
+                  :data="peersData"
+                  :series="peersSeries"
+                  :currentFmt="(d) => `${Math.round(d.peers ?? 0)} pairs`"
+              />
+            </div>
           </div>
         </div>
       </div>
@@ -527,6 +550,56 @@ const periodLabels: Record<string, string> = {
 }
 const periodLabel = computed(() => periodLabels[period.value])
 
+import NodeChart from '~/components/NodeChart.vue'
+import type { DataPoint, ChartSeries } from '~/components/NodeChart.vue'
+
+// ── Mock data generator ──
+function mockTimeSeries(keys: string[], ranges: Record<string, [number, number]>, points = 30): DataPoint[] {
+  const now = Date.now()
+  const interval = 2 * 60 * 1000 // 2 min intervals
+  return Array.from({ length: points }, (_, i) => {
+    const base: DataPoint = { ts: now - (points - i) * interval }
+    keys.forEach(k => {
+      const [min, max] = ranges[k]
+      const prev = i > 0 ? (base[k] ?? min) : min
+      // Smooth random walk
+      const delta = (Math.random() - 0.5) * (max - min) * 0.15
+      base[k] = Math.min(max, Math.max(min, (prev as number) + delta))
+    })
+    return base
+  })
+}
+
+const bandwidthData = mockTimeSeries(
+    ['up', 'down'],
+    { up: [0.5, 8], down: [1, 25] }
+)
+
+const systemData = mockTimeSeries(
+    ['cpu', 'ram', 'temp'],
+    { cpu: [5, 80], ram: [30, 75], temp: [42, 78] }
+)
+
+const peersData = mockTimeSeries(
+    ['peers'],
+    { peers: [1, 5] }
+)
+
+// Series config — matched to wireframe
+const bandwidthSeries: ChartSeries[] = [
+  { key: 'up',   label: '↑ Upload',   color: '#4fffb0', area: true,  unit: ' MB/s', opacity: 0.9, decimals: 1 },
+  { key: 'down', label: '↓ Download', color: '#7b6ef6', area: false, unit: ' MB/s', opacity: 0.6, decimals: 1 },
+]
+
+const systemSeries: ChartSeries[] = [
+  { key: 'cpu',  label: 'CPU',   color: '#4fffb0', unit: '%',  opacity: 0.9,  valueColor: 'var(--text)', decimals: 1 },
+  { key: 'ram',  label: 'RAM',   color: '#7b6ef6', unit: '%',  opacity: 0.7,  valueColor: 'var(--text)', decimals: 0 },
+  { key: 'temp', label: 'Temp.', color: '#ffb74f', unit: '°C', opacity: 0.75, valueColor: 'var(--text)', decimals: 0 },
+]
+
+const peersSeries: ChartSeries[] = [
+  { key: 'peers', label: 'Pairs actifs', color: '#4fa8ff', area: true, unit: '', step: true, opacity: 0.9, decimals: 0 },
+]
 </script>
 
 <style scoped>
@@ -1168,5 +1241,11 @@ const periodLabel = computed(() => periodLabels[period.value])
   padding: var(--sp-10);
   font-size: 11px;
   color: var(--muted);
+}
+
+.charts-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 </style>
