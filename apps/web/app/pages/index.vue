@@ -25,15 +25,7 @@
       <StatCard label="Latence moy."   :value="store.avgLatency ?? '—'" suffix="ms" sub="sur les noeuds actifs" />
     </div>
 
-    <div class="map-card mb">
-      <div class="map-header">
-        <span class="map-title">Carte des noeuds</span>
-        <span class="map-hint">Cliquer sur un noeud pour se connecter</span>
-      </div>
-      <div class="map-body">
-        <span class="map-placeholder">Carte — à venir</span>
-      </div>
-    </div>
+    <WorldMap :nodes="mapNodes" @connect="onMapConnect" />
 
     <div class="section-header">
       <span class="section-title">Noeuds</span>
@@ -66,6 +58,29 @@ const today = computed(() =>
 function onClickNode(node: Node) {
   navigateTo(`/nodes/${node.id}`)
 }
+
+import WorldMap from '~/components/WorldMap.vue'
+
+const mapNodes = [
+  { id: '0',  name: 'RPi maison',       category: 'sbc',     location: 'Genève, CH',      status: 'online'  as const, x: 23.6, y: 40.5, latency: 8,   cpu: 12 },
+  { id: '1',  name: 'VPS Hetzner',      category: 'vps',     location: 'Frankfurt, DE',   status: 'online'  as const, x: 25.4, y: 34.5, latency: 14,  cpu: 4  },
+  { id: '2',  name: 'VPS Tokyo',        category: 'vps',     location: 'Tokyo, JP',       status: 'online'  as const, x: 77.5, y: 37,   latency: 92,  cpu: 6  },
+  { id: '3',  name: 'NanoPi bureau',    category: 'sbc',     location: 'Paris, FR',       status: 'offline' as const, x: 21.4, y: 38                          },
+  { id: '4',  name: 'GL.iNet home',     category: 'router',  location: 'New York, US',    status: 'online'  as const, x: 13.5, y: 38.5, latency: 45,  cpu: 3  },
+  { id: '5',  name: 'Synology DS923+',  category: 'nas',     location: 'Sydney, AU',      status: 'online'  as const, x: 77,   y: 68,   latency: 210, cpu: 8  },
+  { id: '6',  name: 'VPS Vultr SP',     category: 'vps',     location: 'São Paulo, BR',   status: 'online'  as const, x: 23,   y: 69,   latency: 130, cpu: 5  },
+  { id: '7',  name: 'MacBook Pro M3',   category: 'desktop', location: 'Londres, UK',     status: 'offline' as const, x: 20,   y: 32                          },
+  { id: '8',  name: 'Orange Pi 5',      category: 'sbc',     location: 'Mumbai, IN',      status: 'warning' as const, x: 59.5, y: 49,   latency: 68,  cpu: 94 },
+  { id: '9',  name: 'VPS OVH',          category: 'vps',     location: 'Montréal, CA',    status: 'online'  as const, x: 11,   y: 33.5, latency: 38,  cpu: 2  },
+  { id: '10', name: 'GL.iNet travel',   category: 'router',  location: 'Nairobi, KE',     status: 'online'  as const, x: 34,   y: 58.5, latency: 85,  cpu: 7  },
+  { id: '11', name: 'VPS DigitalOcean', category: 'vps',     location: 'Singapour, SG',   status: 'online'  as const, x: 69.5, y: 54.5, latency: 55,  cpu: 9  },
+]
+
+function onMapConnect(node: typeof mapNodes[0]) {
+  console.log('connect to', node.name)
+  // TODO: brancher sur le store
+}
+
 </script>
 
 <style scoped>

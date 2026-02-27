@@ -42,6 +42,9 @@
     --offline:  #ff4f6b;
     --warning:  #ffb74f;
     --pending:  #4fa8ff;
+
+    --map-land: #1a1a20;
+    --map-sea:  #0d0d10;
 }
 
 /* ─── Light theme ────────────────────────────────────── */
@@ -61,6 +64,9 @@
     --offline:  #e03050;
     --warning:  #e07800;
     --pending:  #2277dd;
+
+    --map-land: #dcdce8;
+    --map-sea:  #eaeaf2;
 }
 
 /* ─── Mid theme ──────────────────────────────────────── */
@@ -80,4 +86,7 @@
     --offline:  #ff4f6b;
     --warning:  #ffb74f;
     --pending:  #4fa8ff;
+
+    --map-land: #dcdce8;
+    --map-sea:  #eaeaf2;
 }
