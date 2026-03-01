@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import type {Node} from '~/stores/nodes'
+import type { Node, NodeStatus } from '~/stores/nodes'
+import { categoryIcons } from '~/composables/useCategoryIcons'
 
-definePageMeta({layout: 'default'})
+definePageMeta({ layout: 'default' })
 
 const store = useNodesStore()
 onMounted(() => { if (!store.nodes.length) store.fetchNodes() })
@@ -14,19 +15,167 @@ const today = computed(() =>
   })
 )
 
-const mapPoints = computed(() =>
-  store.nodes
-    .filter(n => n.status !== 'offline')
-    .map(n => ({lat: n.lat, lng: n.lng, label: n.name}))
-)
+// ── Map coordinate system ──────────────────────────────────────────────────────
+// mapUtils.js uses Web Mercator (Google projection via proj4) with these bounds:
+const LAT_MIN = -56, LAT_MAX = 71
+const LNG_MIN = -179, LNG_MAX = 179
 
-function onConnect(node: Node) {
-  store.setConnected(node.id)
+function mercY(lat: number) {
+  // Web Mercator Y (same formula as proj4 GOOGLE)
+  return Math.log(Math.tan(Math.PI / 4 + (lat * Math.PI) / 360))
+}
+const M_Y_MAX   = mercY(LAT_MAX)
+const M_Y_RANGE = M_Y_MAX - mercY(LAT_MIN)
+
+// ── SVG viewBox detection ──────────────────────────────────────────────────────
+// The DottedMap SVG uses preserveAspectRatio="xMidYMid meet", so it centers
+// inside its container with blank margins. We read the actual viewBox to
+// compute the correct scaling/offset for our overlay.
+const mapBodyRef = ref<HTMLElement>()
+const svgViewBox = ref<{ w: number; h: number } | null>(null)
+const { width: bodyW, height: bodyH } = useElementSize(mapBodyRef)
+
+function initSvgViewBox() {
+  const svg = mapBodyRef.value?.querySelector('svg')
+  if (!svg) { setTimeout(initSvgViewBox, 200); return }
+  const vb = svg.viewBox.baseVal
+  if (vb.width && vb.height) svgViewBox.value = { w: vb.width, h: vb.height }
+}
+onMounted(() => nextTick(initSvgViewBox))
+
+// Convert lat/lng → pixel position inside map-body
+function pixelPos(lat: number, lng: number): { x: number; y: number } {
+  const vb = svgViewBox.value
+  const bw = bodyW.value || 800
+  const bh = bodyH.value || 270
+  if (!vb) {
+    return { x: bw * (lng + 180) / 360, y: bh * (90 - lat) / 180 }
+  }
+  // preserveAspectRatio="xMidYMid meet" → centered with scale = min ratio
+  const scale   = Math.min(bw / vb.w, bh / vb.h)
+  const renderW = vb.w * scale
+  const renderH = vb.h * scale
+  const xOff    = (bw - renderW) / 2
+  const yOff    = (bh - renderH) / 2
+  // SVG coordinate in viewBox space
+  const svgX = (lng - LNG_MIN) / (LNG_MAX - LNG_MIN) * vb.w
+  const svgY = (M_Y_MAX - mercY(lat)) / M_Y_RANGE * vb.h
+  return {
+    x: xOff + (svgX / vb.w) * renderW,
+    y: yOff + (svgY / vb.h) * renderH,
+  }
 }
 
-function onCut() {
-  store.disconnect()
+// ── Clustering ─────────────────────────────────────────────────────────────────
+interface ClusterData {
+  nodes: Node[]
+  x: number
+  y: number
+  status: NodeStatus
 }
+
+const STATUS_PRIORITY: Record<NodeStatus, number> = {
+  warning: 0, offline: 1, pending: 2, connected: 3, online: 4,
+}
+
+// Cluster nodes within the same region (~120 km radius)
+const CLUSTER_KM = 500
+
+function geoDistance(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const R    = 6371
+  const dLat = (lat2 - lat1) * Math.PI / 180
+  const dLng = (lng2 - lng1) * Math.PI / 180
+  const a    = Math.sin(dLat / 2) ** 2
+    + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLng / 2) ** 2
+  return R * 2 * Math.asin(Math.sqrt(a))
+}
+
+const clusters = computed<ClusterData[]>(() => {
+  const positions = store.nodes.map(n => ({ node: n, ...pixelPos(n.lat, n.lng) }))
+  const merged    = new Array(positions.length).fill(false)
+  const result: ClusterData[] = []
+
+  for (let i = 0; i < positions.length; i++) {
+    if (merged[i]) continue
+    const group = [positions[i]!]
+    merged[i] = true
+
+    for (let j = i + 1; j < positions.length; j++) {
+      if (merged[j]) continue
+      const ni = positions[i]!.node
+      const nj = positions[j]!.node
+      if (geoDistance(ni.lat, ni.lng, nj.lat, nj.lng) <= CLUSTER_KM) {
+        group.push(positions[j]!)
+        merged[j] = true
+      }
+    }
+
+    const cx = group.reduce((s, p) => s + p.x, 0) / group.length
+    const cy = group.reduce((s, p) => s + p.y, 0) / group.length
+    const worstStatus = group
+      .map(p => p.node.status)
+      .sort((a, b) => STATUS_PRIORITY[a] - STATUS_PRIORITY[b])[0]!
+
+    result.push({ nodes: group.map(p => p.node), x: cx, y: cy, status: worstStatus })
+  }
+
+  return result
+})
+
+// ── Tooltip ────────────────────────────────────────────────────────────────────
+const hoveredCluster = ref<ClusterData | null>(null)
+const tooltipStyle   = ref<Record<string, string>>({})
+
+// Delay-based close: allows moving mouse from marker → tooltip without flickering
+let closeTimer: ReturnType<typeof setTimeout> | null = null
+function cancelClose() { if (closeTimer) { clearTimeout(closeTimer); closeTimer = null } }
+function scheduleClose() { cancelClose(); closeTimer = setTimeout(() => { hoveredCluster.value = null }, 150) }
+
+function onClusterEnter(cluster: ClusterData, e: MouseEvent) {
+  cancelClose()
+  hoveredCluster.value = cluster
+  const rect  = (e.currentTarget as HTMLElement).getBoundingClientRect()
+  const cx    = Math.min(Math.max(rect.left + rect.width / 2, 115), window.innerWidth - 115)
+  const above = rect.top > 160
+  tooltipStyle.value = {
+    left:      `${cx}px`,
+    top:       above ? `${rect.top}px` : `${rect.bottom + 10}px`,
+    transform: above
+      ? 'translateX(-50%) translateY(calc(-100% - 10px))'
+      : 'translateX(-50%)',
+  }
+}
+
+// Click on a single node (marker click or single-node tooltip footer)
+function onClusterClick(cluster: ClusterData) {
+  if (cluster.nodes.length === 1) {
+    const node = cluster.nodes[0]!
+    if (node.status === 'connected') store.disconnect()
+    else if (node.status === 'online' || node.status === 'warning') store.setConnected(node.id)
+    cancelClose()
+    hoveredCluster.value = null
+  } else {
+    navigateTo('/nodes')
+  }
+}
+
+// Click on a row inside a multi-node cluster tooltip
+function onClusterNodeClick(node: Node) {
+  if (node.status === 'connected') store.disconnect()
+  else if (node.status === 'online' || node.status === 'warning') store.setConnected(node.id)
+  cancelClose()
+  hoveredCluster.value = null
+}
+
+async function goToNodes() {
+  cancelClose()
+  hoveredCluster.value = null
+  await nextTick()
+  navigateTo('/nodes')
+}
+
+function onConnect(node: Node) { store.setConnected(node.id) }
+function onCut()               { store.disconnect() }
 </script>
 
 <template>
@@ -60,9 +209,7 @@ function onCut() {
           <span style="color: var(--accent)">{{ store.onlineCount }}</span>
           <span class="stat-suffix">/{{ store.nodes.length }}</span>
         </div>
-        <div class="stat-sub">{{ store.nodes.length - store.onlineCount }} hors ligne · {{ store.warningCount }}
-          alerte
-        </div>
+        <div class="stat-sub">{{ store.nodes.length - store.onlineCount }} hors ligne · {{ store.warningCount }} alerte</div>
       </div>
       <div class="stat-card">
         <div class="stat-lbl">Appareils</div>
@@ -93,10 +240,46 @@ function onCut() {
         <span class="map-title">Carte des noeuds</span>
         <span class="map-hint">Clic pour se connecter</span>
       </div>
-      <div class="map-body">
-        <ClientOnly>
-          <DottedMap :points="mapPoints" :dot-size="0.3" class="w-full h-full"/>
-        </ClientOnly>
+      <div ref="mapBodyRef" class="map-body">
+        <!-- DottedMap: pointer-events disabled → prevents pan/zoom conflict with overlay -->
+        <div class="map-bg-layer">
+          <ClientOnly>
+            <DottedMap :points="[]" :dot-size="0.3" class="w-full h-full" />
+          </ClientOnly>
+        </div>
+
+        <!-- Marker overlay — uses pixel positions to match SVG projection -->
+        <div class="map-overlay">
+          <div
+            v-for="(cluster, idx) in clusters"
+            :key="idx"
+            class="map-marker"
+            :style="{ left: `${cluster.x}px`, top: `${cluster.y}px` }"
+            @mouseenter="onClusterEnter(cluster, $event)"
+            @mouseleave="scheduleClose()"
+            @click="onClusterClick(cluster)"
+          >
+            <!-- Single node -->
+            <template v-if="cluster.nodes.length === 1">
+              <div class="marker-dot" :class="`m-${cluster.status}`" />
+              <div
+                v-if="cluster.status !== 'offline' && cluster.status !== 'pending'"
+                class="marker-ring"
+                :class="`m-${cluster.status}`"
+              />
+            </template>
+
+            <!-- Cluster (2+ nodes) -->
+            <template v-else>
+              <div class="cluster-badge" :class="`m-${cluster.status}`">
+                <div class="cluster-inner" />
+              </div>
+              <div class="cluster-ring" :class="`m-${cluster.status}`" />
+              <div class="cluster-ring cluster-ring-delay" :class="`m-${cluster.status}`" />
+              <div class="cluster-count">{{ cluster.nodes.length > 9 ? '9+' : cluster.nodes.length }}</div>
+            </template>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -128,6 +311,81 @@ function onCut() {
     </div>
 
   </div>
+
+  <!-- Tooltip (teleported to body to avoid overflow clipping) -->
+  <ClientOnly>
+    <Teleport to="body">
+      <div
+        v-if="hoveredCluster"
+        class="map-tooltip"
+        :style="tooltipStyle"
+        @mouseenter="cancelClose()"
+        @mouseleave="scheduleClose()"
+      >
+
+        <!-- Single node -->
+        <template v-if="hoveredCluster.nodes.length === 1">
+          <div class="mtt-head">
+            <div class="nicon" :class="`cat-${hoveredCluster.nodes[0]!.category}`" style="width:22px;height:22px;flex-shrink:0">
+              <svg width="12" height="12" viewBox="0 0 16 16" fill="none" v-html="categoryIcons[hoveredCluster.nodes[0]!.category]" />
+            </div>
+            <div style="flex:1;min-width:0">
+              <div class="mtt-name">{{ hoveredCluster.nodes[0]!.name }}</div>
+            </div>
+            <StatusBadge :status="hoveredCluster.nodes[0]!.status" />
+          </div>
+          <div class="mtt-rows">
+            <div class="mtt-row">
+              <span class="mtt-lbl">Localisation</span>
+              <span class="mtt-val">{{ hoveredCluster.nodes[0]!.location }}</span>
+            </div>
+            <div class="mtt-row">
+              <span class="mtt-lbl">Latence</span>
+              <span class="mtt-val">{{ hoveredCluster.nodes[0]!.latency !== null ? `${hoveredCluster.nodes[0]!.latency}ms` : '—' }}</span>
+            </div>
+            <div class="mtt-row">
+              <span class="mtt-lbl">CPU</span>
+              <span class="mtt-val">{{ hoveredCluster.nodes[0]!.cpu !== null ? `${hoveredCluster.nodes[0]!.cpu}%` : '—' }}</span>
+            </div>
+          </div>
+          <div
+            class="mtt-foot"
+            :class="{ 'mtt-foot-action': hoveredCluster.nodes[0]!.status !== 'offline' && hoveredCluster.nodes[0]!.status !== 'pending' }"
+            @click="onClusterClick(hoveredCluster!)"
+          >
+            <span v-if="hoveredCluster.nodes[0]!.status === 'connected'" style="color:var(--accent)">Cliquer pour déconnecter</span>
+            <span v-else-if="hoveredCluster.nodes[0]!.status === 'offline'">Noeud hors ligne</span>
+            <span v-else-if="hoveredCluster.nodes[0]!.status === 'pending'">Connexion en attente…</span>
+            <span v-else>Cliquer pour se connecter</span>
+          </div>
+        </template>
+
+        <!-- Cluster (2+ nodes) -->
+        <template v-else>
+          <div class="mtt-head">
+            <div class="mtt-name">{{ hoveredCluster.nodes.length }} noeuds</div>
+          </div>
+          <div class="mtt-cluster-list">
+            <div
+              v-for="n in hoveredCluster.nodes"
+              :key="n.id"
+              class="mtt-cluster-row"
+              :class="{ 'mtt-cluster-row-action': n.status !== 'offline' && n.status !== 'pending' }"
+              @click.stop="onClusterNodeClick(n)"
+            >
+              <div class="nicon" :class="`cat-${n.category}`" style="width:18px;height:18px;flex-shrink:0">
+                <svg width="10" height="10" viewBox="0 0 16 16" fill="none" v-html="categoryIcons[n.category]" />
+              </div>
+              <span class="mtt-cluster-name">{{ n.name }}</span>
+              <StatusBadge :status="n.status" />
+            </div>
+          </div>
+          <div class="mtt-foot mtt-foot-action" @click="goToNodes()">Voir tous les noeuds →</div>
+        </template>
+
+      </div>
+    </Teleport>
+  </ClientOnly>
 
   <AddNodeModal v-if="showAddNode" @close="showAddNode = false" />
 </template>

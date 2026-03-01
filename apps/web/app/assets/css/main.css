@@ -633,7 +633,187 @@ button, input, select, textarea, a {
 
 .map-title { font-size: 12px; font-weight: 500; color: var(--text); }
 .map-hint  { font-size: 10px; color: var(--muted); }
-.map-body  { height: 270px; background: var(--bg); }
+.map-body  { height: 270px; background: var(--bg); position: relative; }
+
+/* DottedMap background — non-interactive, always at default zoom */
+.map-bg-layer { position: absolute; inset: 0; pointer-events: none; }
+
+/* ── Map markers overlay ─ */
+.map-overlay { position: absolute; inset: 0; pointer-events: none; }
+
+.map-marker {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  pointer-events: all;
+  cursor: pointer;
+}
+
+/* Single-node dot (9px, design charter spec) */
+.marker-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  border: 1.5px solid rgba(0,0,0,.5);
+  position: relative;
+  z-index: 1;
+}
+.marker-dot.m-online    { background: var(--accent); }
+.marker-dot.m-connected { background: var(--accent); box-shadow: 0 0 0 3px rgba(79,255,176,.25); }
+.marker-dot.m-warning   { background: var(--warning); }
+.marker-dot.m-offline   { background: rgba(255,79,107,.4); border-color: rgba(255,79,107,.4); }
+.marker-dot.m-pending   { background: var(--pending); }
+
+/* Pulse ring (inset -3px per design charter) */
+.marker-ring {
+  position: absolute;
+  inset: -3px;
+  border-radius: 50%;
+  border: 1.5px solid;
+  animation: ring-pulse 2s ease-out infinite;
+  pointer-events: none;
+}
+.marker-ring.m-online    { border-color: var(--accent); }
+.marker-ring.m-connected { border-color: var(--accent); animation-duration: 1s; }
+.marker-ring.m-warning   { border-color: var(--warning); }
+
+@keyframes ring-pulse {
+  0%   { opacity: .7; transform: scale(1); }
+  100% { opacity: 0;  transform: scale(1.6); }
+}
+
+/* Cluster marker */
+.cluster-badge {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: transparent;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  z-index: 1;
+}
+.cluster-inner {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+}
+.cluster-badge.m-online    .cluster-inner,
+.cluster-badge.m-connected .cluster-inner { background: var(--accent); }
+.cluster-badge.m-warning   .cluster-inner { background: var(--warning); }
+.cluster-badge.m-offline   .cluster-inner { background: var(--offline); }
+.cluster-badge.m-pending   .cluster-inner { background: var(--pending); }
+
+/* Cluster pulse rings (two staggered rings for distinction from single nodes) */
+.cluster-ring {
+  position: absolute;
+  inset: -3px;
+  border-radius: 50%;
+  border: 1.5px solid;
+  animation: ring-pulse 2.4s ease-out infinite;
+  pointer-events: none;
+}
+.cluster-ring-delay { animation-delay: .9s; }
+.cluster-ring.m-online,
+.cluster-ring.m-connected { border-color: var(--accent); }
+.cluster-ring.m-warning   { border-color: var(--warning); }
+.cluster-ring.m-offline   { border-color: var(--offline); }
+.cluster-ring.m-pending   { border-color: var(--pending); }
+
+/* Count badge (design charter: 14px, top -6px, right -8px, accent bg, 8px mono) */
+.cluster-count {
+  position: absolute;
+  top: -6px;
+  right: -8px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: var(--bg);
+  font-family: 'JetBrains Mono', monospace;
+  font-weight: 700;
+  font-size: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2;
+  pointer-events: none;
+}
+
+/* ── Map tooltip (fixed, teleported to body) ─ */
+.map-tooltip {
+  position: fixed;
+  z-index: 9999;
+  background: var(--surface);
+  border: 1px solid var(--border2);
+  border-radius: 8px;
+  box-shadow: 0 8px 32px rgba(0,0,0,.6);
+  width: 210px;
+  overflow: hidden;
+}
+
+.mtt-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px 8px;
+  border-bottom: 1px solid var(--border);
+}
+.mtt-name {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.mtt-rows {
+  padding: 8px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  border-bottom: 1px solid var(--border);
+}
+.mtt-row { display: flex; justify-content: space-between; align-items: center; }
+.mtt-lbl { font-size: 10px; color: var(--muted); }
+.mtt-val { font-size: 10px; color: var(--text); }
+.mtt-foot {
+  padding: 7px 12px;
+  font-size: 10px;
+  color: var(--muted);
+  text-align: center;
+}
+
+/* Cluster tooltip list */
+.mtt-cluster-list {
+  padding: 4px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  border-bottom: 1px solid var(--border);
+  max-height: 150px;
+  overflow-y: auto;
+}
+.mtt-cluster-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px;
+  border-radius: 5px;
+  transition: background .1s;
+}
+.mtt-cluster-row-action { cursor: pointer; }
+.mtt-cluster-row-action:hover { background: var(--surface2); }
+.mtt-cluster-name {
+  flex: 1;
+  font-size: 10px;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.mtt-foot-action { cursor: pointer; }
+.mtt-foot-action:hover { color: var(--text); }
 
 /* ─── Form elements ────────────────────────────────────── */
 .form-group { display: flex; flex-direction: column; gap: 6px; }
