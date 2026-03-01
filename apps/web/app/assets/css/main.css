@@ -658,10 +658,10 @@ button, input, select, textarea, a {
   z-index: 1;
 }
 .marker-dot.m-online    { background: var(--accent); }
-.marker-dot.m-connected { background: var(--accent); box-shadow: 0 0 0 3px rgba(79,255,176,.25); }
-.marker-dot.m-warning   { background: var(--warning); }
+.marker-dot.m-connected { background: var(--accent); box-shadow: 0 0 8px var(--accent), 0 0 16px rgba(79,255,176,.3); }
+.marker-dot.m-warning   { background: var(--warning); box-shadow: 0 0 6px var(--warning); }
 .marker-dot.m-offline   { background: rgba(255,79,107,.4); border-color: rgba(255,79,107,.4); }
-.marker-dot.m-pending   { background: var(--pending); }
+.marker-dot.m-pending   { background: var(--pending); animation: pblink 1.2s infinite; }
 
 /* Pulse ring (inset -3px per design charter) */
 .marker-ring {
@@ -672,9 +672,8 @@ button, input, select, textarea, a {
   animation: ring-pulse 2s ease-out infinite;
   pointer-events: none;
 }
-.marker-ring.m-online    { border-color: var(--accent); }
-.marker-ring.m-connected { border-color: var(--accent); animation-duration: 1s; }
-.marker-ring.m-warning   { border-color: var(--warning); }
+.marker-ring.m-online   { border-color: var(--accent); }
+.marker-ring.m-warning  { border-color: var(--warning); animation-duration: 1s; }
 
 @keyframes ring-pulse {
   0%   { opacity: .7; transform: scale(1); }

@@ -263,7 +263,7 @@ function onCut()               { store.disconnect() }
             <template v-if="cluster.nodes.length === 1">
               <div class="marker-dot" :class="`m-${cluster.status}`" />
               <div
-                v-if="cluster.status !== 'offline' && cluster.status !== 'pending'"
+                v-if="cluster.status === 'online' || cluster.status === 'warning'"
                 class="marker-ring"
                 :class="`m-${cluster.status}`"
               />

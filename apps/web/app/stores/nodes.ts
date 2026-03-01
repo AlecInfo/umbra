@@ -108,14 +108,14 @@ const MOCK_NODES: Node[] = [
   {
     id: '14', name: 'vps-sgp-01',
     ip: '100.64.0.14', location: 'Singapore, SG', country: 'SG', lat: 1.3521, lng: 103.8198,
-    status: 'online', category: 'vps',
+    status: 'warning', category: 'vps',
     latency: 201, cpu: 11, ram: 28, disk: 44, temp: null,
     uptime: 864_000, lastSeen: '2026-03-01T18:00:00.000Z',
   },
   {
     id: '15', name: 'vps-tok-01',
     ip: '100.64.0.15', location: 'Tokyo, JP', country: 'JP', lat: 35.6762, lng: 139.6503,
-    status: 'online', category: 'vps',
+    status: 'offline', category: 'vps',
     latency: 241, cpu: 7, ram: 22, disk: 16, temp: null,
     uptime: 1_728_000, lastSeen: '2026-03-01T18:00:00.000Z',
   },
@@ -134,6 +134,8 @@ export const useNodesStore = defineStore('nodes', () => {
 
   const nodes = ref<Node[]>([...MOCK_NODES])
   const loading = ref(false)
+  // Preserves the status before connecting so disconnect can restore it (e.g. warning → connected → warning)
+  const savedStatus = ref<Record<string, NodeStatus>>({})
 
   function fetchNodes() {
     nodes.value = [...MOCK_NODES]
@@ -141,20 +143,26 @@ export const useNodesStore = defineStore('nodes', () => {
 
   function setConnected(id: string) {
     connectedId.value = id
-    nodes.value = nodes.value.map(n => ({
-      ...n,
-      status: n.id === id
-        ? 'connected'
-        : n.status === 'connected' ? 'online' : n.status,
-    }))
+    nodes.value = nodes.value.map(n => {
+      if (n.id === id) {
+        savedStatus.value[id] = n.status
+        return { ...n, status: 'connected' }
+      }
+      if (n.status === 'connected') {
+        const orig = savedStatus.value[n.id] ?? 'online'
+        return { ...n, status: orig }
+      }
+      return n
+    })
   }
 
   function disconnect() {
     connectedId.value = null
-    nodes.value = nodes.value.map(n => ({
-      ...n,
-      status: n.status === 'connected' ? 'online' : n.status,
-    }))
+    nodes.value = nodes.value.map(n => {
+      if (n.status !== 'connected') return n
+      const orig = savedStatus.value[n.id] ?? 'online'
+      return { ...n, status: orig }
+    })
   }
 
   const connectedNode = computed(() =>
