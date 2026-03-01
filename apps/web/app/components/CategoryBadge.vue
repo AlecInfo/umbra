@@ -1,12 +1,5 @@
-<template>
-  <span class="cat-badge" :class="`cat-${category}`">
-    <svg width="13" height="13" viewBox="0 0 16 16" fill="none" v-html="icon" />
-    {{ label }}
-  </span>
-</template>
-
 <script setup lang="ts">
-import type { NodeCategory } from '@umbra/types'
+import type { NodeCategory } from '~/stores/nodes'
 
 const props = defineProps<{ category: NodeCategory }>()
 
@@ -25,12 +18,16 @@ const icons: Record<NodeCategory, string> = {
   router:  `<rect x="1" y="6" width="14" height="6" rx="1.5" stroke="currentColor" stroke-width="1.3"/><line x1="4" y1="6" x2="4" y2="4" stroke="currentColor" stroke-width="1.3"/><line x1="8" y1="6" x2="8" y2="2" stroke="currentColor" stroke-width="1.3"/><line x1="12" y1="6" x2="12" y2="4" stroke="currentColor" stroke-width="1.3"/><circle cx="5" cy="9.5" r="1" fill="currentColor"/><circle cx="9" cy="9.5" r="1" fill="currentColor"/>`,
   nas:     `<rect x="2" y="2" width="12" height="4" rx="1" stroke="currentColor" stroke-width="1.3"/><rect x="2" y="7" width="12" height="4" rx="1" stroke="currentColor" stroke-width="1.3"/><circle cx="4.5" cy="4" r=".8" fill="currentColor"/><circle cx="4.5" cy="9" r=".8" fill="currentColor"/>`,
   desktop: `<rect x="1" y="2" width="14" height="10" rx="1.5" stroke="currentColor" stroke-width="1.3"/><line x1="8" y1="12" x2="8" y2="15" stroke="currentColor" stroke-width="1.3"/><line x1="5" y1="15" x2="11" y2="15" stroke="currentColor" stroke-width="1.3"/>`,
-  other: `<circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="1.3"/><line x1="8" y1="5" x2="8" y2="8.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><circle cx="8" cy="11" r=".8" fill="currentColor" stroke="none"/>`,
+  other:   `<circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="1.3"/><line x1="8" y1="5" x2="8" y2="8.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><circle cx="8" cy="11" r=".8" fill="currentColor" stroke="none"/>`,
 }
-
-const label = computed(() => labels[props.category])
-const icon  = computed(() => icons[props.category])
 </script>
+
+<template>
+  <span class="cat-badge" :class="`cat-${props.category}`">
+    <svg width="13" height="13" viewBox="0 0 16 16" fill="none" v-html="icons[props.category]" />
+    {{ labels[props.category] }}
+  </span>
+</template>
 
 <style scoped>
 .cat-badge {
@@ -44,7 +41,7 @@ const icon  = computed(() => icons[props.category])
 }
 
 .cat-sbc     { background: rgba(79,255,176,.12);  color: var(--accent);  }
-.cat-vps     { background: rgba(79,168,255,.15);  color: #4fa8ff;        }
+.cat-vps     { background: rgba(79,168,255,.15);  color: var(--pending); }
 .cat-router  { background: rgba(255,183,79,.12);  color: var(--warning); }
 .cat-nas     { background: rgba(123,110,246,.15); color: var(--accent2); }
 .cat-desktop { background: rgba(200,200,220,.1);  color: var(--muted);   }

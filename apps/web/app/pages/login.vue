@@ -1,3 +1,32 @@
+<script setup lang="ts">
+definePageMeta({ layout: 'auth' })
+
+const colorMode = useColorMode()
+
+const email    = ref('')
+const password = ref('')
+const showPwd  = ref(false)
+const loading  = ref(false)
+const error    = ref('')
+
+const themes = [
+  { value: 'dark',  label: 'Dark'  },
+  { value: 'light', label: 'Light' },
+]
+
+async function login() {
+  if (!email.value || !password.value) {
+    error.value = 'Remplis tous les champs.'
+    return
+  }
+  loading.value = true
+  error.value   = ''
+  await new Promise(r => setTimeout(r, 800))
+  loading.value = false
+  navigateTo('/')
+}
+</script>
+
 <template>
   <div class="login-wrap">
 
@@ -20,10 +49,13 @@
 
       <!-- Theme toggle -->
       <div class="theme-toggle">
-        <button v-for="t in themes" :key="t.value"
-                class="theme-dot" :class="{ active: theme === t.value }"
-                :title="t.label"
-                @click="setTheme(t.value)"
+        <button
+          v-for="t in themes"
+          :key="t.value"
+          class="theme-dot"
+          :class="{ active: colorMode.value === t.value }"
+          :title="t.label"
+          @click="colorMode.preference = t.value"
         >
           <div class="dot-preview" :class="`prev-${t.value}`" />
         </button>
@@ -54,7 +86,6 @@
 
         <div class="divider">ou par email</div>
 
-        <!-- Email form -->
         <div class="form-fields">
           <div class="form-group">
             <label class="form-label">Email</label>
@@ -67,11 +98,11 @@
             </label>
             <div class="input-wrap">
               <input
-                  v-model="password"
-                  class="form-input"
-                  :type="showPwd ? 'text' : 'password'"
-                  placeholder="••••••••••••"
-                  @keyup.enter="login"
+                v-model="password"
+                class="form-input"
+                :type="showPwd ? 'text' : 'password'"
+                placeholder="••••••••••••"
+                @keyup.enter="login"
               />
               <button class="eye-btn" @click="showPwd = !showPwd">
                 <svg v-if="!showPwd" width="13" height="13" viewBox="0 0 16 16" fill="none">
@@ -102,311 +133,3 @@
 
   </div>
 </template>
-
-<script setup lang="ts">
-definePageMeta({ layout: 'auth' })
-
-const { theme, setTheme } = useTheme()
-
-const email    = ref('')
-const password = ref('')
-const showPwd  = ref(false)
-const loading  = ref(false)
-const error    = ref('')
-
-const themes = [
-  { value: 'dark',  label: 'Dark'  },
-  { value: 'mid',   label: 'Mid'   },
-  { value: 'light', label: 'Light' },
-]
-
-async function login() {
-  if (!email.value || !password.value) {
-    error.value = 'Remplis tous les champs.'
-    return
-  }
-  loading.value = true
-  error.value   = ''
-  // Mock — replace with real API call
-  await new Promise(r => setTimeout(r, 800))
-  loading.value = false
-  navigateTo('/')
-}
-</script>
-
-<style scoped>
-.login-wrap {
-  display: flex;
-  height: 100vh;
-  width: 100vw;
-}
-
-/* ── Left panel ── */
-.login-left {
-  flex: 1;
-  background: var(--bg);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 56px;
-  position: relative;
-  overflow: hidden;
-}
-
-.login-left::before {
-  content: 'UMBRA';
-  position: absolute;
-  font-family: var(--font-disp);
-  font-size: 165px;
-  font-weight: 800;
-  color: var(--text);
-  opacity: .04;
-  letter-spacing: -.02em;
-  left: -10px;
-  bottom: -20px;
-  line-height: 1;
-  pointer-events: none;
-  user-select: none;
-}
-
-.left-content { position: relative; z-index: 1; }
-
-.login-tagline {
-  font-family: var(--font-disp);
-  font-size: 32px;
-  font-weight: 800;
-  line-height: 1.2;
-  color: var(--text);
-  margin-bottom: 14px;
-}
-.accent { color: var(--accent); }
-
-.login-desc {
-  font-size: 12px;
-  color: var(--muted);
-  line-height: 1.8;
-  max-width: 300px;
-  margin-bottom: 32px;
-}
-
-.features { display: flex; flex-direction: column; gap: 10px; }
-
-.feature-item {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  font-size: 11px;
-  color: var(--muted);
-}
-
-.feature-dot {
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: var(--accent);
-  flex-shrink: 0;
-}
-
-/* ── Right panel ── */
-.login-right {
-  width: 420px;
-  min-width: 420px;
-  background: var(--surface);
-  border-left: 1px solid var(--border);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 48px 40px;
-  position: relative;
-}
-
-/* Theme toggle */
-.theme-toggle {
-  position: absolute;
-  top: 20px;
-  right: 20px;
-  display: flex;
-  gap: 6px;
-  align-items: center;
-}
-
-.theme-dot {
-  width: 22px;
-  height: 22px;
-  border-radius: 50%;
-  border: 1.5px solid var(--border2);
-  background: none;
-  cursor: pointer;
-  padding: 2px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: border-color .15s;
-}
-.theme-dot:hover { border-color: var(--text); }
-.theme-dot.active { border-color: var(--accent); }
-
-.dot-preview {
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-}
-.prev-dark  { background: #0e0f11; border: 1px solid #333; }
-.prev-mid   { background: #1a1d21; border: 1px solid #444; }
-.prev-light { background: #f0f2f5; border: 1px solid #ccc; }
-
-/* Form */
-.login-form { width: 100%; }
-
-.form-logo {
-  font-family: var(--font-disp);
-  font-size: 22px;
-  font-weight: 800;
-  color: var(--text);
-  margin-bottom: 4px;
-  letter-spacing: -.01em;
-}
-
-.form-sub {
-  font-size: 11px;
-  color: var(--muted);
-  margin-bottom: 28px;
-}
-
-/* OAuth */
-.oauth-group { display: flex; flex-direction: column; gap: 9px; margin-bottom: 0; }
-
-.oauth-btn {
-  width: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 9px;
-  padding: 10px;
-  background: var(--bg);
-  border: 1px solid var(--border2);
-  border-radius: var(--r);
-  font-family: var(--font-body);
-  font-size: 12px;
-  color: var(--text);
-  cursor: pointer;
-  transition: all .15s;
-}
-.oauth-btn:hover { border-color: var(--border); background: var(--surface2); }
-
-/* Divider */
-.divider {
-  display: flex;
-  align-items: center;
-  gap: 11px;
-  margin: 20px 0;
-  font-size: 10px;
-  color: var(--muted);
-  text-transform: uppercase;
-  letter-spacing: .1em;
-}
-.divider::before, .divider::after {
-  content: '';
-  flex: 1;
-  height: 1px;
-  background: var(--border);
-}
-
-/* Fields */
-.form-fields { display: flex; flex-direction: column; gap: 14px; margin-bottom: 20px; }
-
-.form-group { display: flex; flex-direction: column; gap: 6px; }
-
-.form-label {
-  display: flex;
-  justify-content: space-between;
-  font-size: 10px;
-  color: var(--muted);
-  text-transform: uppercase;
-  letter-spacing: .08em;
-}
-
-.form-link {
-  color: var(--accent);
-  cursor: pointer;
-  text-transform: none;
-  letter-spacing: 0;
-  font-size: 10px;
-  text-decoration: none;
-  transition: opacity .15s;
-}
-.form-link:hover { opacity: .75; }
-
-.input-wrap { position: relative; }
-
-.form-input {
-  width: 100%;
-  background: var(--bg);
-  border: 1px solid var(--border2);
-  border-radius: var(--r);
-  padding: 9px 12px;
-  font-family: var(--font-mono);
-  font-size: 12px;
-  color: var(--text);
-  outline: none;
-  transition: border-color .15s;
-  box-sizing: border-box;
-}
-.form-input:focus { border-color: var(--accent); }
-
-.eye-btn {
-  position: absolute;
-  right: 10px;
-  top: 50%;
-  transform: translateY(-50%);
-  background: none;
-  border: none;
-  color: var(--muted);
-  cursor: pointer;
-  padding: 2px;
-  transition: color .15s;
-}
-.eye-btn:hover { color: var(--text); }
-
-/* Submit */
-.btn-submit {
-  width: 100%;
-  padding: 10px;
-  background: var(--accent);
-  border: none;
-  border-radius: var(--r);
-  font-family: var(--font-mono);
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--bg);
-  cursor: pointer;
-  transition: filter .15s;
-  margin-bottom: 20px;
-}
-.btn-submit:hover    { filter: brightness(1.08); }
-.btn-submit:disabled { opacity: .4; cursor: not-allowed; }
-
-.loading-dots {
-  display: inline-block;
-  animation: blink 1s infinite;
-}
-@keyframes blink { 0%,100% { opacity: 1 } 50% { opacity: .3 } }
-
-/* Error */
-.error-msg {
-  font-size: 11px;
-  color: var(--offline);
-  background: rgba(255,79,107,.08);
-  border: 1px solid rgba(255,79,107,.2);
-  border-radius: var(--r);
-  padding: 8px 12px;
-  margin-bottom: 14px;
-}
-
-/* Footer */
-.form-footer {
-  text-align: center;
-  font-size: 11px;
-  color: var(--muted);
-}
-</style>
