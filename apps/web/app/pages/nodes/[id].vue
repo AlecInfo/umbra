@@ -132,6 +132,60 @@ const xFormatters: Record<string, (ts: number) => string> = {
 }
 const xFmt = computed(() => xFormatters[period.value] ?? fmtHHmm)
 
+// WireGuard peers
+const wgPeers = [
+  { id: '1', name: 'alecptt',  device: 'MacBook Pro',    pubkey: 'xK3mP2…n9Qa', ip: '100.64.0.10', latency: 4,    upMb: 240,  downGb: '1.2 GB', handshake: 'il y a 4s',   status: 'active',   avatar: 'A', color: 'linear-gradient(135deg,#4fffb0,#3b82f6)' },
+  { id: '2', name: 'marie',    device: 'iPhone 15',      pubkey: 'pR7kL4…m2Xj', ip: '100.64.0.11', latency: null, upMb: 18,   downGb: '95 MB',  handshake: 'il y a 2h',   status: 'inactive', avatar: 'M', color: 'linear-gradient(135deg,#ff6b6b,#ffa726)' },
+  { id: '3', name: 'thomas',   device: 'Linux Desktop',  pubkey: 'yN8vQ5…k6Wz', ip: '100.64.0.12', latency: 11,   upMb: 560,  downGb: '2.8 GB', handshake: 'il y a 28s',  status: 'active',   avatar: 'T', color: 'linear-gradient(135deg,#4fa8ff,#7b6ef6)' },
+  { id: '4', name: 'sam',      device: 'Raspberry Pi',   pubkey: 'qM2bN9…p5Ry', ip: '100.64.0.13', latency: null, upMb: 0,    downGb: '—',      handshake: '—',            status: 'inactive', avatar: 'S', color: 'var(--surface2)' },
+  { id: '5', name: 'backup',   device: 'VPS Hetzner',    pubkey: 'wX4cP8…r3Lm', ip: '100.64.0.14', latency: 22,   upMb: 1200, downGb: '8.4 GB', handshake: 'il y a 1min', status: 'active',   avatar: 'B', color: 'linear-gradient(135deg,#a78bfa,#7b6ef6)' },
+]
+const wgActiveCount = computed(() => wgPeers.filter(p => p.status === 'active').length)
+
+// Recent activity
+const recentActivity = [
+  {
+    id: 1, type: 'connect',
+    iconPath: `<circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="1.4"/><path d="M5 8l2 2 4-4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>`,
+    iconColor: 'var(--accent)', iconBg: 'rgba(79,255,176,.1)',
+    main: "alecptt s'est connecté depuis MacBook Pro",
+    sub: '100.64.0.10 · IP source 82.120.44.16 · WireGuard',
+    time: '14:28:04',
+  },
+  {
+    id: 2, type: 'disconnect',
+    iconPath: `<circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="1.4"/><path d="M10 6L6 10M6 6l4 4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>`,
+    iconColor: 'var(--offline)', iconBg: 'rgba(255,79,107,.1)',
+    main: "marie s'est déconnectée",
+    sub: 'Session de 1h 14min · 95 MB transférés',
+    time: '12:14:37',
+  },
+  {
+    id: 3, type: 'warning',
+    iconPath: `<path d="M8 2L14 13H2L8 2z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/><line x1="8" y1="7" x2="8" y2="10" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><circle cx="8" cy="12" r=".7" fill="currentColor"/>`,
+    iconColor: 'var(--warning)', iconBg: 'rgba(255,183,79,.1)',
+    main: 'Pic de température détecté',
+    sub: '68°C pendant 4 min · retour à la normale',
+    time: '11:02:15',
+  },
+  {
+    id: 4, type: 'update',
+    iconPath: `<circle cx="8" cy="8" r="2.5" stroke="currentColor" stroke-width="1.3"/><path d="M8 1v2M8 13v2M1 8h2M13 8h2M3.05 3.05l1.41 1.41M11.54 11.54l1.41 1.41M3.05 12.95l1.41-1.41M11.54 4.46l1.41-1.41" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>`,
+    iconColor: 'var(--pending)', iconBg: 'rgba(79,168,255,.1)',
+    main: 'Agent mis à jour vers v1.0.0',
+    sub: 'Mise à jour automatique depuis v0.9.4',
+    time: 'hier 08:30',
+  },
+  {
+    id: 5, type: 'register',
+    iconPath: `<rect x="2" y="2" width="12" height="12" rx="2" stroke="currentColor" stroke-width="1.4"/><path d="M5 8l2 2 4-4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>`,
+    iconColor: 'var(--accent)', iconBg: 'rgba(79,255,176,.1)',
+    main: "Noeud enregistré",
+    sub: "Première connexion de l'agent · token umbra_reg_a4f2...",
+    time: '11 fév.',
+  },
+]
+
 // Share modal
 type Permission = 'read' | 'connect' | 'manage' | 'admin'
 
@@ -357,6 +411,68 @@ const pendingMembers = computed(() => members.value.filter(m => m.status === 'pe
               </div>
             </ClientOnly>
 
+          </div>
+        </div>
+
+        <!-- WireGuard peers -->
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">Pairs WireGuard autorisés</div>
+            <span class="peers-count">{{ wgActiveCount }} / {{ wgPeers.length }} connectés</span>
+            <button class="btn-ghost-sm">Gérer</button>
+          </div>
+          <div class="peers-table">
+            <div class="peers-head">
+              <span>Pair</span>
+              <span>Clé publique</span>
+              <span>IP VPN</span>
+              <span>Latence</span>
+              <span>Trafic ↑↓</span>
+              <span>Handshake</span>
+              <span>Statut</span>
+            </div>
+            <div v-for="p in wgPeers" :key="p.id" class="peer-row">
+              <div class="peer-identity">
+                <div class="peer-avatar" :style="`background:${p.color}`">{{ p.avatar }}</div>
+                <div>
+                  <div class="peer-name">{{ p.name }}</div>
+                  <div class="peer-device">{{ p.device }}</div>
+                </div>
+              </div>
+              <span class="peer-key">{{ p.pubkey }}</span>
+              <span class="peer-ip">{{ p.ip }}</span>
+              <span class="peer-latency" :class="{ accent: p.latency !== null }">
+                {{ p.latency !== null ? `${p.latency} ms` : '—' }}
+              </span>
+              <div class="peer-traffic">
+                <span class="traffic-up">↑ {{ p.upMb >= 1000 ? `${(p.upMb/1000).toFixed(1)} GB` : `${p.upMb} MB` }}</span>
+                <span class="traffic-down">↓ {{ p.downGb }}</span>
+              </div>
+              <span class="peer-handshake">{{ p.handshake }}</span>
+              <span class="peer-status" :class="p.status === 'active' ? 'ps-active' : 'ps-inactive'">
+                <span class="peer-sdot" />{{ p.status === 'active' ? 'Actif' : 'Inactif' }}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Recent activity -->
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">Activité récente</div>
+            <span class="section-link" style="margin-left:auto;cursor:pointer">Tout voir →</span>
+          </div>
+          <div class="activity-list">
+            <div v-for="ev in recentActivity" :key="ev.id" class="activity-item">
+              <div class="activity-icon" :style="`background:${ev.iconBg};color:${ev.iconColor}`">
+                <svg width="13" height="13" viewBox="0 0 16 16" fill="none" v-html="ev.iconPath" />
+              </div>
+              <div class="activity-body">
+                <div class="activity-main">{{ ev.main }}</div>
+                <div class="activity-sub">{{ ev.sub }}</div>
+              </div>
+              <span class="activity-time">{{ ev.time }}</span>
+            </div>
           </div>
         </div>
 
