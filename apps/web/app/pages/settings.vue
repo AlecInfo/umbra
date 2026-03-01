@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import type { OrgMember, OrgRole } from '~/types/settings'
+
 definePageMeta({ layout: 'default' })
 
 const colorMode = useColorMode()
@@ -7,51 +9,22 @@ const twofa      = ref(false)
 const autoUpdate = ref(true)
 const heartbeat  = ref('30s')
 
-const themes = [
-  { value: 'dark',  label: 'Dark'  },
-  { value: 'light', label: 'Light' },
-]
-
-const langs = [
-  { value: 'fr', label: 'Français' },
-  { value: 'en', label: 'English'  },
-]
-
-const heartbeats = [
-  { value: '15s',  label: '15s'  },
-  { value: '30s',  label: '30s'  },
-  { value: '60s',  label: '1min' },
-  { value: '300s', label: '5min' },
-]
+const themes     = [{ value: 'dark', label: 'Dark' }, { value: 'light', label: 'Light' }]
+const langs      = [{ value: 'fr', label: 'Français' }, { value: 'en', label: 'English' }]
+const heartbeats = [{ value: '15s', label: '15s' }, { value: '30s', label: '30s' }, { value: '60s', label: '1min' }, { value: '300s', label: '5min' }]
+const roles: { value: OrgRole; label: string }[] = [{ value: 'member', label: 'Membre' }, { value: 'admin', label: 'Admin' }]
 
 const notifications = ref([
-  { key: 'crit',    label: 'Alertes critiques',        sub: 'Email immédiat pour chaque alerte critique',          enabled: true  },
-  { key: 'warn',    label: 'Alertes warning',           sub: 'Email pour les avertissements système',               enabled: true  },
-  { key: 'offline', label: 'Noeud hors ligne',          sub: 'Notification si un noeud devient injoignable',        enabled: true  },
-  { key: 'weekly',  label: 'Résumé hebdomadaire',       sub: 'Rapport récapitulatif chaque lundi matin',            enabled: false },
-  { key: 'update',  label: 'Mises à jour disponibles',  sub: "Notification lors de nouvelles versions de l'agent",  enabled: false },
+  { key: 'crit',    label: 'Alertes critiques',       sub: 'Email immédiat pour chaque alerte critique',         enabled: true  },
+  { key: 'warn',    label: 'Alertes warning',          sub: 'Email pour les avertissements système',              enabled: true  },
+  { key: 'offline', label: 'Noeud hors ligne',         sub: 'Notification si un noeud devient injoignable',       enabled: true  },
+  { key: 'weekly',  label: 'Résumé hebdomadaire',      sub: 'Rapport récapitulatif chaque lundi matin',           enabled: false },
+  { key: 'update',  label: 'Mises à jour disponibles', sub: "Notification lors de nouvelles versions de l'agent", enabled: false },
 ])
-
-type OrgRole = 'owner' | 'admin' | 'member'
-
-interface OrgMember {
-  id:     string
-  name:   string
-  email:  string
-  avatar: string
-  color:  string
-  role:   OrgRole
-  status: 'active' | 'pending'
-}
 
 const showInvite  = ref(false)
 const inviteEmail = ref('')
 const inviteRole  = ref<OrgRole>('member')
-
-const roles = [
-  { value: 'member', label: 'Membre' },
-  { value: 'admin',  label: 'Admin'  },
-]
 
 const orgMembers = ref<OrgMember[]>([
   { id: 'me', name: 'alecptt', email: 'alecptt@example.com', avatar: 'A', color: 'linear-gradient(135deg,var(--accent2),var(--accent))', role: 'owner',  status: 'active'  },
@@ -74,10 +47,6 @@ function sendInvite() {
   inviteEmail.value = ''
   showInvite.value  = false
 }
-
-function removeMember(id: string) {
-  orgMembers.value = orgMembers.value.filter(m => m.id !== id)
-}
 </script>
 
 <template>
@@ -90,18 +59,25 @@ function removeMember(id: string) {
       </div>
     </div>
 
-    <div class="settings-layout">
-      <div class="settings-col">
+    <div class="settings-wrap">
+
+      <nav class="settings-nav">
+        <a href="#apparence">Apparence</a>
+        <a href="#compte">Compte</a>
+        <a href="#notifications">Notifications</a>
+        <a href="#securite">Sécurité</a>
+        <a href="#equipe">Équipe</a>
+        <a href="#agent">Agent & réseau</a>
+        <a href="#danger">Zone de danger</a>
+      </nav>
+
+      <div class="settings-content">
 
         <!-- Apparence -->
-        <div class="card">
+        <div id="apparence" class="card">
           <div class="card-header"><div class="card-title">Apparence</div></div>
           <div class="card-body">
-            <div class="setting-row">
-              <div class="setting-info">
-                <div class="setting-lbl">Thème</div>
-                <div class="setting-sub">Couleurs de l'interface</div>
-              </div>
+            <SettingRow label="Thème" sub="Couleurs de l'interface">
               <div class="theme-group">
                 <button
                   v-for="t in themes"
@@ -114,117 +90,74 @@ function removeMember(id: string) {
                   {{ t.label }}
                 </button>
               </div>
-            </div>
-            <div class="setting-row">
-              <div class="setting-info">
-                <div class="setting-lbl">Langue</div>
-                <div class="setting-sub">Langue de l'interface</div>
-              </div>
-              <div class="seg-group">
-                <button
-                  v-for="l in langs"
-                  :key="l.value"
-                  class="seg-btn"
-                  :class="{ active: lang === l.value }"
-                  @click="lang = l.value"
-                >{{ l.label }}</button>
-              </div>
-            </div>
+            </SettingRow>
+            <SettingRow label="Langue" sub="Langue de l'interface">
+              <SegmentedControl v-model="lang" :options="langs" />
+            </SettingRow>
           </div>
         </div>
 
         <!-- Compte -->
-        <div class="card">
+        <div id="compte" class="card">
           <div class="card-header">
             <div class="card-title">Compte</div>
             <span class="plan-badge">Free</span>
           </div>
           <div class="card-body">
-            <div class="setting-row">
-              <div class="setting-info">
-                <div class="setting-lbl">Email</div>
-                <div class="setting-sub">alecptt@example.com</div>
-              </div>
+            <SettingRow label="Email" sub="alecptt@example.com">
               <button class="btn-ghost-sm">Modifier</button>
-            </div>
-            <div class="setting-row">
-              <div class="setting-info">
-                <div class="setting-lbl">Mot de passe</div>
-                <div class="setting-sub">Dernière modification il y a 3 mois</div>
-              </div>
+            </SettingRow>
+            <SettingRow label="Mot de passe" sub="Dernière modification il y a 3 mois">
               <button class="btn-ghost-sm">Modifier</button>
-            </div>
-            <div class="setting-row">
-              <div class="setting-info">
-                <div class="setting-lbl">Plan</div>
-                <div class="setting-sub">Free — 5 noeuds max, 3 utilisateurs</div>
-              </div>
+            </SettingRow>
+            <SettingRow label="Plan" sub="Free — 5 noeuds max, 3 utilisateurs">
               <button class="btn-accent-sm">Passer à Pro →</button>
-            </div>
+            </SettingRow>
           </div>
         </div>
 
         <!-- Notifications -->
-        <div class="card">
+        <div id="notifications" class="card">
           <div class="card-header"><div class="card-title">Notifications</div></div>
           <div class="card-body">
-            <div v-for="notif in notifications" :key="notif.key" class="setting-row">
-              <div class="setting-info">
-                <div class="setting-lbl">{{ notif.label }}</div>
-                <div class="setting-sub">{{ notif.sub }}</div>
-              </div>
-              <div class="toggle" :class="{ on: notif.enabled }" @click="notif.enabled = !notif.enabled">
-                <div class="toggle-thumb" />
-              </div>
-            </div>
+            <SettingRow
+              v-for="notif in notifications"
+              :key="notif.key"
+              :label="notif.label"
+              :sub="notif.sub"
+            >
+              <Toggle v-model="notif.enabled" />
+            </SettingRow>
           </div>
         </div>
 
         <!-- Sécurité -->
-        <div class="card">
+        <div id="securite" class="card">
           <div class="card-header"><div class="card-title">Sécurité</div></div>
           <div class="card-body">
-            <div class="setting-row">
-              <div class="setting-info">
-                <div class="setting-lbl">Authentification 2FA</div>
-                <div class="setting-sub">TOTP via application (Aegis, Bitwarden…)</div>
-              </div>
-              <div class="toggle" :class="{ on: twofa }" @click="twofa = !twofa">
-                <div class="toggle-thumb" />
-              </div>
-            </div>
-            <div class="setting-row">
-              <div class="setting-info">
-                <div class="setting-lbl">Sessions actives</div>
-                <div class="setting-sub">2 sessions — MacBook Pro, iPhone 15</div>
-              </div>
+            <SettingRow label="Authentification 2FA" sub="TOTP via application (Aegis, Bitwarden…)">
+              <Toggle v-model="twofa" />
+            </SettingRow>
+            <SettingRow label="Sessions actives" sub="2 sessions — MacBook Pro, iPhone 15">
               <button class="btn-ghost-sm">Gérer</button>
-            </div>
-            <div class="setting-row">
-              <div class="setting-info">
-                <div class="setting-lbl">Logs de connexion</div>
-                <div class="setting-sub">Historique des accès au compte</div>
-              </div>
+            </SettingRow>
+            <SettingRow label="Logs de connexion" sub="Historique des accès au compte">
               <button class="btn-ghost-sm">Voir →</button>
-            </div>
+            </SettingRow>
           </div>
         </div>
 
         <!-- Équipe -->
-        <div class="card">
+        <div id="equipe" class="card">
           <div class="card-header">
             <div class="card-title">Équipe</div>
             <span class="member-count">{{ orgMembers.length }} membres</span>
           </div>
           <div class="card-body">
 
-            <div class="setting-row">
-              <div class="setting-info">
-                <div class="setting-lbl">Inviter un membre</div>
-                <div class="setting-sub">Accès à tous les noeuds de l'organisation</div>
-              </div>
+            <SettingRow label="Inviter un membre" sub="Accès à tous les noeuds de l'organisation">
               <button class="btn-ghost-sm" @click="showInvite = !showInvite">+ Inviter</button>
-            </div>
+            </SettingRow>
 
             <div v-if="showInvite" class="invite-form">
               <div class="invite-row">
@@ -233,18 +166,9 @@ function removeMember(id: string) {
                   class="form-input"
                   placeholder="email@example.com"
                   type="email"
-                  style="flex: 1; width: auto"
                   @keyup.enter="sendInvite"
                 />
-                <div class="seg-group">
-                  <button
-                    v-for="r in roles"
-                    :key="r.value"
-                    class="seg-btn"
-                    :class="{ active: inviteRole === r.value }"
-                    @click="inviteRole = r.value as OrgRole"
-                  >{{ r.label }}</button>
-                </div>
+                <SegmentedControl v-model="inviteRole" :options="roles" />
                 <button class="btn-accent-sm" :disabled="!inviteEmail" @click="sendInvite">Envoyer</button>
               </div>
               <div class="role-hint">
@@ -254,89 +178,46 @@ function removeMember(id: string) {
             </div>
 
             <div class="org-members">
-              <div v-for="m in orgMembers" :key="m.id" class="org-member-row">
-                <div class="member-avatar" :style="`background: ${m.color}`">{{ m.avatar }}</div>
-                <div class="member-info">
-                  <div class="member-name">
-                    {{ m.name }}
-                    <span v-if="m.id === 'me'" class="you-badge">vous</span>
-                  </div>
-                  <div class="member-email">{{ m.email }}</div>
-                </div>
-                <div v-if="m.status === 'pending'" class="pending-chip">⏳ En attente</div>
-                <select
-                  v-else-if="m.role !== 'owner'"
-                  class="role-select"
-                  :value="m.role"
-                  @change="m.role = ($event.target as HTMLSelectElement).value as OrgRole"
-                >
-                  <option v-for="r in roles" :key="r.value" :value="r.value">{{ r.label }}</option>
-                </select>
-                <span v-else class="owner-badge">owner</span>
-                <button v-if="m.id !== 'me' && m.role !== 'owner'" class="remove-btn" @click="removeMember(m.id)">✕</button>
-                <div v-else class="remove-placeholder" />
-              </div>
+              <OrgMemberRow
+                v-for="m in orgMembers"
+                :key="m.id"
+                :member="m"
+                :is-me="m.id === 'me'"
+                :roles="roles"
+                @update:role="r => m.role = r"
+                @remove="orgMembers = orgMembers.filter(x => x.id !== m.id)"
+              />
             </div>
 
           </div>
         </div>
 
         <!-- Agent & réseau -->
-        <div class="card">
+        <div id="agent" class="card">
           <div class="card-header"><div class="card-title">Agent & réseau</div></div>
           <div class="card-body">
-            <div class="setting-row">
-              <div class="setting-info">
-                <div class="setting-lbl">Intervalle heartbeat</div>
-                <div class="setting-sub">Fréquence de rapport des agents</div>
-              </div>
-              <div class="seg-group">
-                <button
-                  v-for="h in heartbeats"
-                  :key="h.value"
-                  class="seg-btn"
-                  :class="{ active: heartbeat === h.value }"
-                  @click="heartbeat = h.value"
-                >{{ h.label }}</button>
-              </div>
-            </div>
-            <div class="setting-row">
-              <div class="setting-info">
-                <div class="setting-lbl">Auto-update des agents</div>
-                <div class="setting-sub">Mise à jour automatique vers la dernière version stable</div>
-              </div>
-              <div class="toggle" :class="{ on: autoUpdate }" @click="autoUpdate = !autoUpdate">
-                <div class="toggle-thumb" />
-              </div>
-            </div>
-            <div class="setting-row">
-              <div class="setting-info">
-                <div class="setting-lbl">Subnet VPN par défaut</div>
-                <div class="setting-sub">Plage d'adresses IP du réseau UMBRA</div>
-              </div>
+            <SettingRow label="Intervalle heartbeat" sub="Fréquence de rapport des agents">
+              <SegmentedControl v-model="heartbeat" :options="heartbeats" />
+            </SettingRow>
+            <SettingRow label="Auto-update des agents" sub="Mise à jour automatique vers la dernière version stable">
+              <Toggle v-model="autoUpdate" />
+            </SettingRow>
+            <SettingRow label="Subnet VPN par défaut" sub="Plage d'adresses IP du réseau UMBRA">
               <span class="mono-val">100.64.0.0/10</span>
-            </div>
+            </SettingRow>
           </div>
         </div>
 
         <!-- Zone de danger -->
-        <div class="card card-danger">
+        <div id="danger" class="card card-danger">
           <div class="card-header"><div class="card-title danger-title">Zone de danger</div></div>
           <div class="card-body">
-            <div class="setting-row">
-              <div class="setting-info">
-                <div class="setting-lbl">Supprimer tous les noeuds</div>
-                <div class="setting-sub">Révoque tous les agents et supprime les données associées</div>
-              </div>
+            <SettingRow label="Supprimer tous les noeuds" sub="Révoque tous les agents et supprime les données associées">
               <button class="btn-danger-sm">Supprimer</button>
-            </div>
-            <div class="setting-row">
-              <div class="setting-info">
-                <div class="setting-lbl">Supprimer le compte</div>
-                <div class="setting-sub">Action irréversible — toutes les données seront perdues</div>
-              </div>
+            </SettingRow>
+            <SettingRow label="Supprimer le compte" sub="Action irréversible — toutes les données seront perdues">
               <button class="btn-danger-sm">Supprimer</button>
-            </div>
+            </SettingRow>
           </div>
         </div>
 

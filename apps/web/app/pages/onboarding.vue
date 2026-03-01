@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { categoryIcons } from '~/composables/useCategoryIcons'
+
 definePageMeta({ layout: 'auth' })
 
 const step     = ref(2)
@@ -7,12 +9,12 @@ const category = ref('sbc')
 const copied   = ref(false)
 
 const categories = [
-  { value: 'sbc',     name: 'SBC',       desc: 'RPi, NanoPi, Orange Pi…',   icon: `<rect x="2" y="2" width="12" height="12" rx="2" stroke="currentColor" stroke-width="1.4"/><rect x="5" y="5" width="6" height="6" rx="1" stroke="currentColor" stroke-width="1.2"/><line x1="4" y1="0" x2="4" y2="2" stroke="currentColor" stroke-width="1.2"/><line x1="8" y1="0" x2="8" y2="2" stroke="currentColor" stroke-width="1.2"/><line x1="12" y1="0" x2="12" y2="2" stroke="currentColor" stroke-width="1.2"/>` },
-  { value: 'vps',     name: 'VPS / Cloud',desc: 'Hetzner, DigitalOcean…',    icon: `<rect x="1" y="3" width="14" height="4" rx="1.2" stroke="currentColor" stroke-width="1.3"/><rect x="1" y="9" width="14" height="4" rx="1.2" stroke="currentColor" stroke-width="1.3"/><circle cx="12.5" cy="5" r="1" fill="currentColor"/><circle cx="12.5" cy="11" r="1" fill="currentColor"/>` },
-  { value: 'router',  name: 'Routeur',   desc: 'GL.iNet, OpenWrt…',          icon: `<rect x="1" y="6" width="14" height="6" rx="1.5" stroke="currentColor" stroke-width="1.3"/><line x1="4" y1="6" x2="4" y2="4" stroke="currentColor" stroke-width="1.3"/><line x1="8" y1="6" x2="8" y2="2" stroke="currentColor" stroke-width="1.3"/><line x1="12" y1="6" x2="12" y2="4" stroke="currentColor" stroke-width="1.3"/>` },
-  { value: 'nas',     name: 'NAS',       desc: 'Synology, TrueNAS…',         icon: `<rect x="2" y="2" width="12" height="4" rx="1" stroke="currentColor" stroke-width="1.3"/><rect x="2" y="7" width="12" height="4" rx="1" stroke="currentColor" stroke-width="1.3"/><circle cx="4.5" cy="4" r=".8" fill="currentColor"/><circle cx="4.5" cy="9" r=".8" fill="currentColor"/>` },
-  { value: 'desktop', name: 'Desktop',   desc: 'Mac, Linux, PC…',            icon: `<rect x="1" y="2" width="14" height="10" rx="1.5" stroke="currentColor" stroke-width="1.3"/><line x1="8" y1="12" x2="8" y2="15" stroke="currentColor" stroke-width="1.3"/><line x1="5" y1="15" x2="11" y2="15" stroke="currentColor" stroke-width="1.3"/>` },
-  { value: 'other',   name: 'Autre',     desc: 'Machine personnalisée',       icon: `<circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="1.3"/><line x1="8" y1="5" x2="8" y2="9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><circle cx="8" cy="11.5" r=".8" fill="currentColor"/>` },
+  { value: 'sbc',     name: 'SBC',         desc: 'RPi, NanoPi, Orange Pi…'  },
+  { value: 'vps',     name: 'VPS / Cloud', desc: 'Hetzner, DigitalOcean…'   },
+  { value: 'router',  name: 'Routeur',     desc: 'GL.iNet, OpenWrt…'        },
+  { value: 'nas',     name: 'NAS',         desc: 'Synology, TrueNAS…'       },
+  { value: 'desktop', name: 'Desktop',     desc: 'Mac, Linux, PC…'          },
+  { value: 'other',   name: 'Autre',       desc: 'Machine personnalisée'    },
 ]
 
 function copyCmd() {
@@ -76,7 +78,7 @@ function next() {
               @click="category = c.value"
             >
               <div class="cat-opt-icon" :class="`cat-${c.value}`">
-                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" v-html="c.icon" />
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" v-html="categoryIcons[c.value]" />
               </div>
               <div class="cat-opt-name">{{ c.name }}</div>
               <div class="cat-opt-desc">{{ c.desc }}</div>
