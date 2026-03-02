@@ -86,7 +86,7 @@ function toggleTheme() {
       </aside>
 
       <!-- Content -->
-      <main class="app-content" :class="{ 'has-vpnbar': store.connectedNode }">
+      <main class="app-content">
         <slot />
       </main>
 
