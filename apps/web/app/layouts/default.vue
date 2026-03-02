@@ -2,7 +2,7 @@
 import { useNodesStore } from '~/stores/nodes'
 
 const store = useNodesStore()
-const route = useRoute()
+const route  = useRoute()
 const colorMode = useColorMode()
 
 const alertCount = computed(() => store.warningCount)
@@ -86,9 +86,18 @@ function toggleTheme() {
       </aside>
 
       <!-- Content -->
-      <main class="app-content">
+      <main class="app-content" :class="{ 'has-vpnbar': store.connectedNode }">
         <slot />
       </main>
+
+      <!-- VPN bar — fixed, ne déplace plus le contenu -->
+      <VpnBar
+        v-if="store.connectedNode"
+        :node="store.connectedNode"
+        upload="1.2 MB/s"
+        download="4.8 MB/s"
+        @cut="store.disconnect()"
+      />
 
     </div>
 </template>

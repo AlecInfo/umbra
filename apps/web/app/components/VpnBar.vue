@@ -19,7 +19,7 @@ const emit = defineEmits<{ cut: [node: Node] }>()
   <div class="vpn-bar">
     <div class="vpn-dot" />
     <div class="vpn-info">
-      <div class="vpn-name">{{ node.name }} — {{ node.location }}</div>
+      <NuxtLink :to="`/nodes/${node.id}`" class="vpn-name">{{ node.name }} — {{ node.location }}</NuxtLink>
       <div class="vpn-detail">{{ node.ip }} · WireGuard · umbra0</div>
     </div>
     <div class="vpn-stats">

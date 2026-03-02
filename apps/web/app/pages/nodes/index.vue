@@ -48,17 +48,6 @@ const categoryFilters = [
       <button class="btn-primary" @click="showAddNode = true">+ Nouveau noeud</button>
     </div>
 
-    <!-- VPN bar -->
-    <VpnBar
-      v-if="store.connectedNode"
-      :node="store.connectedNode"
-      upload="1.2 MB/s"
-      download="4.8 MB/s"
-      :show-cut="true"
-      class="mb"
-      @cut="store.disconnect()"
-    />
-
     <div class="filters mb">
       <!-- Status filter -->
       <div class="filter-group">

@@ -511,16 +511,25 @@ button, input, select, textarea, a {
 
 /* ─── VPN bar ──────────────────────────────────────────── */
 .vpn-bar {
+  position: fixed;
+  bottom: 20px;
+  left: calc(var(--sidebar-w) + 20px);
+  right: 20px;
+  z-index: 100;
   display: flex;
   align-items: center;
   gap: 14px;
-  background: rgba(79,255,176,.05);
-  border: 1px solid rgba(79,255,176,.18);
+  background: rgba(10,10,11,.85);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(79,255,176,.25);
   border-radius: var(--r);
   padding: 9px 14px;
   font-size: 11px;
-  margin-bottom: 20px;
+  box-shadow: 0 4px 24px rgba(0,0,0,.4);
 }
+
+.app-content.has-vpnbar { padding-bottom: 76px; }
 
 .vpn-dot {
   width: 7px;
@@ -1871,7 +1880,7 @@ button, input, select, textarea, a {
 .peers-head,
 .peer-row {
   display: grid;
-  grid-template-columns: 200px 110px 110px 70px 110px 110px 95px;
+  grid-template-columns: 160px 90px 90px 50px 70px 85px 95px;
   align-items: center;
   gap: 0 12px;
   padding: 0 16px;

@@ -1,4 +1,10 @@
 <script setup lang="ts">
+// TODO: Comment récupérer les données en temps réel ? WebSocket, Server-Sent Events, ou polling régulier ?
+// TODO: Comment le noeud communique-t-il son statut de connexion et ses métriques ? Via l'agent qui pousse les données vers le backend, ou via des requêtes régulières du frontend ?
+// TODO: Comment l'agent récupère-t-il les métriques système (CPU, RAM, disque, température, Uptime, Bp Upload/Download, latence VPN) ? Via des commandes système (ex: top, free, df, sensors) ou via une bibliothèque dédiée ?
+// TODO: Mettre les rpis dans des ipv6 2001 qui ne sont pas localisables géographiquement, pour éviter les confusions sur la localisation affichée
+
+
 import { categoryIcons } from '~/composables/useCategoryIcons'
 
 definePageMeta({ layout: 'default' })
@@ -285,16 +291,6 @@ const pendingMembers = computed(() => members.value.filter(m => m.status === 'pe
         </button>
       </div>
     </div>
-
-    <!-- VPN bar -->
-    <VpnBar
-      v-if="node.status === 'connected'"
-      :node="node"
-      upload="1.2 MB/s"
-      download="4.8 MB/s"
-      :show-cut="false"
-      class="mb"
-    />
 
     <!-- Main grid -->
     <div class="detail-grid">
