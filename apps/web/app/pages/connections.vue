@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { NodeCategory } from '~/stores/nodes'
+import { categoryIcons } from '~/composables/useCategoryIcons'
 
 definePageMeta({ layout: 'default' })
 
@@ -42,8 +43,6 @@ const statusFilters = computed(() => [
   { value: 'active', label: 'Actives',   count: connections.value.filter(c => c.status === 'active').length },
   { value: 'ended',  label: 'Terminées', count: connections.value.filter(c => c.status === 'ended').length },
 ])
-
-import { categoryIcons } from '~/composables/useCategoryIcons'
 
 const avatarColors: Record<string, string> = {
   alecptt: 'linear-gradient(135deg, var(--accent2), var(--accent))',
@@ -119,7 +118,7 @@ const avatarColors: Record<string, string> = {
       >
         <div class="user-cell">
           <div class="avatar" :style="`background: ${avatarColors[conn.user] ?? 'var(--surface2)'}`">
-            {{ conn.user[0].toUpperCase() }}
+            {{ conn.user[0]?.toUpperCase() }}
           </div>
           <div>
             <div class="user-name">{{ conn.user }}</div>

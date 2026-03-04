@@ -90,7 +90,7 @@ function signOut() {
               <div class="ms-profile-name">alecptt</div>
               <div class="ms-profile-email">alec@umbravpn.io</div>
             </div>
-            <div class="ms-plan-badge">Hobby</div>
+            <div class="ms-plan-badge">Free</div>
           </div>
 
           <div class="ms-divider" />
@@ -293,7 +293,7 @@ function signOut() {
             <!-- Plan card -->
             <div class="ms-sub-plan">
               <div class="ms-sub-plan-left">
-                <div class="ms-sub-plan-name">Hobby</div>
+                <div class="ms-sub-plan-name">Free</div>
                 <div class="ms-sub-plan-price">Gratuit · plan actuel</div>
               </div>
               <div class="ms-plan-badge" style="font-size:10px;padding:4px 10px">Actif</div>
@@ -303,9 +303,9 @@ function signOut() {
             <div class="ms-sub-usage">
               <div class="ms-sub-usage-row">
                 <span class="ms-sub-usage-lbl">Noeuds</span>
-                <span class="ms-sub-usage-val">2 / 3</span>
+                <span class="ms-sub-usage-val">2 / 5</span>
               </div>
-              <div class="ms-sub-usage-bar"><div class="ms-sub-usage-fill" style="width: 66%" /></div>
+              <div class="ms-sub-usage-bar"><div class="ms-sub-usage-fill" style="width: 40%" /></div>
 
               <div class="ms-sub-usage-row" style="margin-top:10px">
                 <span class="ms-sub-usage-lbl">Clés API</span>
@@ -319,11 +319,16 @@ function signOut() {
               <div class="ms-sub-plan-opt">
                 <div class="ms-sub-plan-opt-name">Pro</div>
                 <div class="ms-sub-plan-opt-price">8,90 €/mois</div>
-                <div class="ms-sub-plan-opt-feat">25 noeuds · 10 utilisateurs · 90j d'historique</div>
+                <div class="ms-sub-plan-opt-feat">25 noeuds · 10 utilisateurs · 90j</div>
               </div>
-              <div class="ms-sub-plan-opt team">
-                <div class="ms-sub-plan-opt-name">Team</div>
-                <div class="ms-sub-plan-opt-price">24,90 €/mois</div>
+              <div class="ms-sub-plan-opt lifetime">
+                <div class="ms-sub-plan-opt-name">Lifetime</div>
+                <div class="ms-sub-plan-opt-price">149 € unique</div>
+                <div class="ms-sub-plan-opt-feat">Fonctionnalités Pro à vie</div>
+              </div>
+              <div class="ms-sub-plan-opt business">
+                <div class="ms-sub-plan-opt-name">Business</div>
+                <div class="ms-sub-plan-opt-price">Sur devis</div>
                 <div class="ms-sub-plan-opt-feat">Illimité · SSO · SLA 99,9%</div>
               </div>
             </div>
@@ -780,10 +785,14 @@ function signOut() {
   display: flex; align-items: center; gap: 8px; cursor: pointer; transition: border-color .15s;
 }
 .ms-sub-plan-opt:active { border-color: var(--accent); }
-.ms-sub-plan-opt.team:active { border-color: var(--accent2); }
-.ms-sub-plan-opt-name { font-family: var(--font-disp); font-size: 12px; font-weight: 700; color: var(--text); flex-shrink: 0; width: 40px; }
+.ms-sub-plan-opt.lifetime { border-color: color-mix(in srgb, #ffb74f 25%, transparent); }
+.ms-sub-plan-opt.lifetime:active { border-color: #ffb74f; }
+.ms-sub-plan-opt.business { border-color: color-mix(in srgb, var(--accent2) 25%, transparent); }
+.ms-sub-plan-opt.business:active { border-color: var(--accent2); }
+.ms-sub-plan-opt-name { font-family: var(--font-disp); font-size: 12px; font-weight: 700; color: var(--text); flex-shrink: 0; width: 56px; }
 .ms-sub-plan-opt-price { font-size: 11px; font-weight: 700; color: var(--accent); flex-shrink: 0; width: 80px; }
-.ms-sub-plan-opt.team .ms-sub-plan-opt-price { color: var(--accent2); }
+.ms-sub-plan-opt.lifetime .ms-sub-plan-opt-price { color: #ffb74f; }
+.ms-sub-plan-opt.business .ms-sub-plan-opt-price { color: var(--accent2); }
 .ms-sub-plan-opt-feat { font-size: 10px; color: var(--muted); flex: 1; line-height: 1.3; }
 
 /* ══════════════════════════════════════════
