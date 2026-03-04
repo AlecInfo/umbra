@@ -81,9 +81,7 @@ async function register() {
 
         <div class="oauth-group">
           <button class="oauth-btn">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/>
-            </svg>
+            <UIcon name="i-lucide-github" style="width:16px;height:16px" />
             Continuer avec GitHub
           </button>
           <button class="oauth-btn">
@@ -118,13 +116,8 @@ async function register() {
                 placeholder="••••••••••••"
               />
               <button class="eye-btn" @click="showPwd = !showPwd">
-                <svg v-if="!showPwd" width="13" height="13" viewBox="0 0 16 16" fill="none">
-                  <circle cx="8" cy="8" r="3" stroke="currentColor" stroke-width="1.4"/>
-                  <path d="M1 8s3-5 7-5 7 5 7 5-3 5-7 5-7-5-7-5z" stroke="currentColor" stroke-width="1.4"/>
-                </svg>
-                <svg v-else width="13" height="13" viewBox="0 0 16 16" fill="none">
-                  <path d="M2 2l12 12M6.5 6.7A3 3 0 009.3 9.5M4.2 4.3C2.6 5.4 1 8 1 8s3 5 7 5c1.4 0 2.7-.4 3.8-1.2M6.5 3.1C7 3 7.5 3 8 3c4 0 7 5 7 5s-.8 1.4-2 2.7" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
-                </svg>
+                <UIcon v-if="showPwd" name="i-lucide-eye-off" style="width:14px;height:14px" />
+                <UIcon v-else name="i-lucide-eye" style="width:14px;height:14px" />
               </button>
             </div>
           </div>

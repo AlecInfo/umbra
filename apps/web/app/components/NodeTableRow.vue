@@ -42,13 +42,13 @@ function onAction() {
 
     <div class="nc">
       <div class="nicon" :class="`cat-${node.category}`" :style="iconStyle">
-        <svg width="15" height="15" viewBox="0 0 16 16" fill="none" v-html="categoryIcons[node.category]" />
+        <UIcon :name="categoryIcons[node.category]" style="width:15px;height:15px" />
       </div>
       <div>
         <div class="nname">{{ node.name }}</div>
         <div class="nid">
           {{ node.ip }}
-          <span v-if="node.status === 'warning'" class="warn-hint">⚠ CPU {{ node.cpu }}%</span>
+          <span v-if="node.status === 'warning'" class="warn-hint"><UIcon name="i-lucide-triangle-alert" style="width:9px;height:9px" /> CPU {{ node.cpu }}%</span>
         </div>
       </div>
     </div>
@@ -72,12 +72,8 @@ function onAction() {
         :disabled="node.status === 'offline' || node.status === 'pending'"
         @click.stop="onAction"
       >
-        <svg v-if="node.status === 'connected'" width="8" height="8" viewBox="0 0 8 8" fill="currentColor">
-          <rect width="8" height="8" rx="1"/>
-        </svg>
-        <svg v-else width="8" height="8" viewBox="0 0 8 8" fill="currentColor">
-          <path d="M2 1l5 3-5 3V1z"/>
-        </svg>
+        <UIcon v-if="node.status === 'connected'" name="i-lucide-square" style="width:8px;height:8px" />
+        <UIcon v-else name="i-lucide-play" style="width:8px;height:8px" />
         {{ node.status === 'connected' ? 'Couper' : 'Connecter' }}
       </button>
     </div>

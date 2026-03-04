@@ -86,20 +86,9 @@ function markAllRead() {
         @click="alert.read = true"
       >
         <div class="alert-icon" :class="`icon-${alert.severity}`">
-          <svg v-if="alert.severity === 'critical'" width="13" height="13" viewBox="0 0 16 16" fill="none">
-            <path d="M8 2L14.5 13H1.5L8 2z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/>
-            <line x1="8" y1="6" x2="8" y2="9.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
-            <circle cx="8" cy="11.5" r=".8" fill="currentColor"/>
-          </svg>
-          <svg v-else-if="alert.severity === 'warning'" width="13" height="13" viewBox="0 0 16 16" fill="none">
-            <circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="1.4"/>
-            <line x1="8" y1="5" x2="8" y2="8.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
-            <circle cx="8" cy="11" r=".8" fill="currentColor"/>
-          </svg>
-          <svg v-else width="13" height="13" viewBox="0 0 16 16" fill="none">
-            <circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="1.4"/>
-            <path d="M5 8l2 2 4-4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
-          </svg>
+          <UIcon v-if="alert.severity === 'critical'" name="i-lucide-triangle-alert" style="width:13px;height:13px" />
+          <UIcon v-else-if="alert.severity === 'warning'" name="i-lucide-circle-alert" style="width:13px;height:13px" />
+          <UIcon v-else name="i-lucide-circle-check" style="width:13px;height:13px" />
         </div>
 
         <div class="alert-body">

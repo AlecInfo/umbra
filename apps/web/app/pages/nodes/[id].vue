@@ -146,7 +146,7 @@ const wgActiveCount = computed(() => wgPeers.filter(p => p.status === 'active').
 const recentActivity = [
   {
     id: 1, type: 'connect',
-    iconPath: `<circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="1.4"/><path d="M5 8l2 2 4-4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>`,
+    icon: 'i-lucide-circle-check',
     iconColor: 'var(--accent)', iconBg: 'rgba(79,255,176,.1)',
     main: "alecptt s'est connecté depuis MacBook Pro",
     sub: '100.64.0.10 · IP source 82.120.44.16 · WireGuard',
@@ -154,7 +154,7 @@ const recentActivity = [
   },
   {
     id: 2, type: 'disconnect',
-    iconPath: `<circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="1.4"/><path d="M10 6L6 10M6 6l4 4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>`,
+    icon: 'i-lucide-circle-x',
     iconColor: 'var(--offline)', iconBg: 'rgba(255,79,107,.1)',
     main: "marie s'est déconnectée",
     sub: 'Session de 1h 14min · 95 MB transférés',
@@ -162,7 +162,7 @@ const recentActivity = [
   },
   {
     id: 3, type: 'warning',
-    iconPath: `<path d="M8 2L14 13H2L8 2z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/><line x1="8" y1="7" x2="8" y2="10" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><circle cx="8" cy="12" r=".7" fill="currentColor"/>`,
+    icon: 'i-lucide-triangle-alert',
     iconColor: 'var(--warning)', iconBg: 'rgba(255,183,79,.1)',
     main: 'Pic de température détecté',
     sub: '68°C pendant 4 min · retour à la normale',
@@ -170,7 +170,7 @@ const recentActivity = [
   },
   {
     id: 4, type: 'update',
-    iconPath: `<circle cx="8" cy="8" r="2.5" stroke="currentColor" stroke-width="1.3"/><path d="M8 1v2M8 13v2M1 8h2M13 8h2M3.05 3.05l1.41 1.41M11.54 11.54l1.41 1.41M3.05 12.95l1.41-1.41M11.54 4.46l1.41-1.41" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>`,
+    icon: 'i-lucide-rotate-cw',
     iconColor: 'var(--pending)', iconBg: 'rgba(79,168,255,.1)',
     main: 'Agent mis à jour vers v1.0.0',
     sub: 'Mise à jour automatique depuis v0.9.4',
@@ -178,7 +178,7 @@ const recentActivity = [
   },
   {
     id: 5, type: 'register',
-    iconPath: `<rect x="2" y="2" width="12" height="12" rx="2" stroke="currentColor" stroke-width="1.4"/><path d="M5 8l2 2 4-4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>`,
+    icon: 'i-lucide-square-check',
     iconColor: 'var(--accent)', iconBg: 'rgba(79,255,176,.1)',
     main: "Noeud enregistré",
     sub: "Première connexion de l'agent · token umbra_reg_a4f2...",
@@ -233,10 +233,10 @@ const showExternalInvite = computed(() => {
 })
 
 const permOptions = [
-  { value: 'read'    as Permission, label: 'Lecture',   desc: 'Voir les métriques',    icon: '👁️' },
-  { value: 'connect' as Permission, label: 'Connexion', desc: 'Se connecter',          icon: '➡️' },
-  { value: 'manage'  as Permission, label: 'Gestion',   desc: 'Modifier les réglages', icon: '⚙️' },
-  { value: 'admin'   as Permission, label: 'Admin',     desc: 'Partager et révoquer',  icon: '👑' },
+  { value: 'read'    as Permission, label: 'Lecture',   desc: 'Voir les métriques',    icon: 'i-lucide-eye',         color: '#4fa8ff' },
+  { value: 'connect' as Permission, label: 'Connexion', desc: 'Se connecter',          icon: 'i-lucide-plug',        color: '#4fffb0' },
+  { value: 'manage'  as Permission, label: 'Gestion',   desc: 'Modifier les réglages', icon: 'i-lucide-settings',    color: '#ffb74f' },
+  { value: 'admin'   as Permission, label: 'Admin',     desc: 'Partager et révoquer',  icon: 'i-lucide-chess-queen', color: '#7b6ef6' },
 ]
 
 function selectUser(user: typeof umbraUsers[0]) {
@@ -270,7 +270,7 @@ const pendingMembers = computed(() => members.value.filter(m => m.status === 'pe
       <div class="header-left">
         <div class="node-title">
           <div class="nicon" :class="`cat-${node.category}`">
-            <svg width="17" height="17" viewBox="0 0 16 16" fill="none" v-html="categoryIcon" />
+            <UIcon :name="categoryIcon" style="width:17px;height:17px" />
           </div>
           <span class="page-title">{{ node.name }}</span>
           <StatusBadge :status="node.status" />
@@ -455,7 +455,7 @@ const pendingMembers = computed(() => members.value.filter(m => m.status === 'pe
           <div class="activity-list">
             <div v-for="ev in recentActivity" :key="ev.id" class="activity-item">
               <div class="activity-icon" :style="`background:${ev.iconBg};color:${ev.iconColor}`">
-                <svg width="13" height="13" viewBox="0 0 16 16" fill="none" v-html="ev.iconPath" />
+                <UIcon :name="ev.icon" style="width:14px;height:14px" />
               </div>
               <div class="activity-body">
                 <div class="activity-main">{{ ev.main }}</div>
@@ -530,23 +530,23 @@ const pendingMembers = computed(() => members.value.filter(m => m.status === 'pe
           <div class="card-header"><div class="card-title">Actions</div></div>
           <div class="actions-body">
             <button class="action-btn">
-              <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M2 8a6 6 0 1 0 1-3.3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M2 4v4h4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              <UIcon name="i-lucide-rotate-ccw" style="width:13px;height:13px" />
               Redémarrer l'agent
             </button>
             <button class="action-btn">
-              <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><circle cx="5.5" cy="5.5" r="3" stroke="currentColor" stroke-width="1.4"/><line x1="7.5" y1="7.5" x2="14" y2="14" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><line x1="11.5" y1="12" x2="13" y2="10.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+              <UIcon name="i-lucide-key" style="width:13px;height:13px" />
               Régénérer les clés WG
             </button>
             <button class="action-btn">
-              <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M8 2v8M5 7l3 3 3-3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><rect x="2" y="11" width="12" height="3" rx="1" stroke="currentColor" stroke-width="1.3"/></svg>
+              <UIcon name="i-lucide-download" style="width:13px;height:13px" />
               Télécharger config .conf
             </button>
             <button class="action-btn">
-              <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><rect x="2" y="2" width="12" height="12" rx="1.5" stroke="currentColor" stroke-width="1.4"/><line x1="5" y1="6" x2="11" y2="6" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/><line x1="5" y1="9" x2="9" y2="9" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
+              <UIcon name="i-lucide-file-text" style="width:13px;height:13px" />
               Voir les logs
             </button>
             <button class="action-btn danger">
-              <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M2 4h12M6 4V2h4v2M5 4v9a1 1 0 001 1h4a1 1 0 001-1V4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+              <UIcon name="i-lucide-trash-2" style="width:13px;height:13px" />
               Supprimer le noeud
             </button>
           </div>
@@ -563,7 +563,7 @@ const pendingMembers = computed(() => members.value.filter(m => m.status === 'pe
             <div class="modal-title">Partager — {{ node.name }}</div>
             <div class="modal-sub">Gérer les accès à ce noeud</div>
           </div>
-          <button class="close-btn" @click="showShare = false">✕</button>
+          <button class="close-btn" @click="showShare = false"><UIcon name="i-lucide-x" style="width:12px;height:12px" /></button>
         </div>
         <div class="modal-body">
 
@@ -572,10 +572,7 @@ const pendingMembers = computed(() => members.value.filter(m => m.status === 'pe
             <label class="form-label">Ajouter un utilisateur</label>
             <div class="search-wrap">
               <div class="search-input-row">
-                <svg class="search-ico" width="12" height="12" viewBox="0 0 16 16" fill="none">
-                  <circle cx="6.5" cy="6.5" r="4.5" stroke="currentColor" stroke-width="1.4"/>
-                  <line x1="10" y1="10" x2="14" y2="14" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
-                </svg>
+                <UIcon name="i-lucide-search" class="search-ico" style="width:13px;height:13px" />
                 <input
                   v-model="searchQuery"
                   class="search-input"
@@ -614,7 +611,7 @@ const pendingMembers = computed(() => members.value.filter(m => m.status === 'pe
                 class="share-perm-opt" :class="{ selected: sharePerm === p.value }"
                 @click="sharePerm = p.value"
               >
-                <div class="perm-icon">{{ p.icon }}</div>
+                <div class="perm-icon" :style="`--perm-c: ${p.color}`"><UIcon :name="p.icon" style="width:16px;height:16px" /></div>
                 <div class="perm-name">{{ p.label }}</div>
                 <div class="perm-desc">{{ p.desc }}</div>
               </div>
@@ -634,7 +631,7 @@ const pendingMembers = computed(() => members.value.filter(m => m.status === 'pe
                 <select class="perm-select" :value="m.perm" @change="m.perm = ($event.target as HTMLSelectElement).value as Permission">
                   <option v-for="p in permOptions" :key="p.value" :value="p.value">{{ p.label }}</option>
                 </select>
-                <button class="revoke-btn" @click="revokeMember(m.id)">✕</button>
+                <button class="revoke-btn" @click="revokeMember(m.id)"><UIcon name="i-lucide-x" style="width:10px;height:10px" /></button>
               </div>
             </div>
           </div>
@@ -647,9 +644,9 @@ const pendingMembers = computed(() => members.value.filter(m => m.status === 'pe
                 <div class="pending-avatar">?</div>
                 <div class="member-info">
                   <div class="member-name">{{ m.email }}</div>
-                  <div class="member-email pending-lbl">⏳ Invitation envoyée · {{ m.perm }}</div>
+                  <div class="member-email pending-lbl"><UIcon name="i-lucide-hourglass" style="width:10px;height:10px" /> Invitation envoyée · {{ m.perm }}</div>
                 </div>
-                <button class="revoke-btn" @click="revokeMember(m.id)">✕</button>
+                <button class="revoke-btn" @click="revokeMember(m.id)"><UIcon name="i-lucide-x" style="width:10px;height:10px" /></button>
               </div>
             </div>
           </div>

@@ -25,7 +25,7 @@ defineEmits<{
       <div class="member-email">{{ member.email }}</div>
     </div>
 
-    <div v-if="member.status === 'pending'" class="pending-chip">⏳ En attente</div>
+    <div v-if="member.status === 'pending'" class="pending-chip"><UIcon name="i-lucide-hourglass" style="width:10px;height:10px" /> En attente</div>
     <select
       v-else-if="member.role !== 'owner'"
       class="role-select"
@@ -36,7 +36,7 @@ defineEmits<{
     </select>
     <span v-else class="owner-badge">owner</span>
 
-    <button v-if="!isMe && member.role !== 'owner'" class="remove-btn" @click="$emit('remove')">✕</button>
+    <button v-if="!isMe && member.role !== 'owner'" class="remove-btn" @click="$emit('remove')"><UIcon name="i-lucide-x" style="width:10px;height:10px" /></button>
     <div v-else class="remove-placeholder" />
   </div>
 </template>

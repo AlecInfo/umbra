@@ -102,9 +102,7 @@ function createKey() {
         <div class="page-sub">{{ keys.length }} clé{{ keys.length > 1 ? 's' : '' }} · accès programmatique à UMBRA</div>
       </div>
       <button class="btn-primary" @click="showCreate = true">
-        <svg width="12" height="12" viewBox="0 0 16 16" fill="none" style="margin-right: 6px">
-          <path d="M8 2v12M2 8h12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-        </svg>
+        <UIcon name="i-lucide-plus" style="width:12px;height:12px;margin-right:6px" />
         Nouvelle clé
       </button>
     </div>
@@ -123,11 +121,7 @@ function createKey() {
       <div v-for="key in keys" :key="key.id" class="key-row" :class="{ revoked: key.status === 'revoked' }">
         <div class="key-name-cell">
           <div class="key-icon">
-            <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
-              <circle cx="5.5" cy="5.5" r="3" stroke="currentColor" stroke-width="1.4"/>
-              <line x1="7.5" y1="7.5" x2="14" y2="14" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
-              <line x1="11.5" y1="12" x2="13" y2="10.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
-            </svg>
+            <UIcon name="i-lucide-key" style="width:12px;height:12px" />
           </div>
           <div>
             <div class="key-name">{{ key.name }}</div>
@@ -138,19 +132,11 @@ function createKey() {
         <div class="token-cell">
           <span class="token-val">{{ key.revealed ? key.token : key.tokenMasked }}</span>
           <button class="icon-btn" :title="key.revealed ? 'Masquer' : 'Révéler'" @click="key.revealed = !key.revealed">
-            <svg v-if="!key.revealed" width="11" height="11" viewBox="0 0 16 16" fill="none">
-              <circle cx="8" cy="8" r="3" stroke="currentColor" stroke-width="1.4"/>
-              <path d="M1 8s3-5 7-5 7 5 7 5-3 5-7 5-7-5-7-5z" stroke="currentColor" stroke-width="1.4"/>
-            </svg>
-            <svg v-else width="11" height="11" viewBox="0 0 16 16" fill="none">
-              <path d="M2 2l12 12M6.5 6.7A3 3 0 009.3 9.5M4.2 4.3C2.6 5.4 1 8 1 8s3 5 7 5c1.4 0 2.7-.4 3.8-1.2M6.5 3.1C7 3 7.5 3 8 3c4 0 7 5 7 5s-.8 1.4-2 2.7" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
-            </svg>
+            <UIcon v-if="!key.revealed" name="i-lucide-eye" style="width:11px;height:11px" />
+            <UIcon v-else name="i-lucide-eye-off" style="width:11px;height:11px" />
           </button>
           <button class="icon-btn" title="Copier" @click="copy(key.token)">
-            <svg width="11" height="11" viewBox="0 0 16 16" fill="none">
-              <rect x="5" y="5" width="9" height="9" rx="1.5" stroke="currentColor" stroke-width="1.4"/>
-              <path d="M4 11H3a1 1 0 01-1-1V3a1 1 0 011-1h7a1 1 0 011 1v1" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
-            </svg>
+            <UIcon name="i-lucide-copy" style="width:11px;height:11px" />
           </button>
         </div>
 
@@ -169,9 +155,7 @@ function createKey() {
         <div class="row-actions">
           <button v-if="key.status === 'active'" class="action-btn-sm danger" @click="revoke(key.id)">Révoquer</button>
           <button v-else class="action-btn-sm delete" @click="deleteKey(key.id)">
-            <svg width="11" height="11" viewBox="0 0 16 16" fill="none">
-              <path d="M2 4h12M6 4V2h4v2M5 4v9a1 1 0 001 1h4a1 1 0 001-1V4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
-            </svg>
+            <UIcon name="i-lucide-trash-2" style="width:11px;height:11px" />
             Supprimer
           </button>
         </div>
@@ -181,11 +165,7 @@ function createKey() {
     </div>
 
     <div class="info-box">
-      <svg width="13" height="13" viewBox="0 0 16 16" fill="none">
-        <circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="1.4"/>
-        <line x1="8" y1="7" x2="8" y2="11" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
-        <circle cx="8" cy="5" r=".8" fill="currentColor"/>
-      </svg>
+      <UIcon name="i-lucide-info" style="width:13px;height:13px" />
       <span>Les clés API permettent d'accéder à l'API UMBRA depuis vos scripts et applications. Gardez-les secrètes — elles ont les mêmes droits que votre compte.</span>
     </div>
 
@@ -194,7 +174,7 @@ function createKey() {
       <div class="modal">
         <div class="modal-header">
           <div class="modal-title">Nouvelle clé API</div>
-          <button class="close-btn" @click="showCreate = false">✕</button>
+          <button class="close-btn" @click="showCreate = false"><UIcon name="i-lucide-x" style="width:12px;height:12px" /></button>
         </div>
         <div class="modal-body">
           <div class="form-group">

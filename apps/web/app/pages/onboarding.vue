@@ -37,11 +37,11 @@ function next() {
       <div class="onboard-header">
         <div class="onboard-steps">
           <div class="step done">
-            <div class="step-num">✓</div>
+            <div class="step-num"><UIcon name="i-lucide-check" style="width:10px;height:10px" /></div>
             <div class="step-label">Compte</div>
           </div>
           <div class="step" :class="{ current: step === 2, done: step > 2 }">
-            <div class="step-num">{{ step > 2 ? '✓' : '2' }}</div>
+            <div class="step-num"><UIcon v-if="step > 2" name="i-lucide-check" style="width:10px;height:10px" /><template v-else>2</template></div>
             <div class="step-label">Noeud</div>
           </div>
           <div class="step" :class="{ current: step === 3 }">
@@ -78,7 +78,7 @@ function next() {
               @click="category = c.value"
             >
               <div class="cat-opt-icon" :class="`cat-${c.value}`">
-                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" v-html="categoryIcons[c.value]" />
+                <UIcon :name="categoryIcons[c.value]" style="width:16px;height:16px" />
               </div>
               <div class="cat-opt-name">{{ c.name }}</div>
               <div class="cat-opt-desc">{{ c.desc }}</div>
@@ -88,7 +88,10 @@ function next() {
 
         <template v-if="nodeName">
           <div class="cmd-block">
-            <button class="cmd-copy" @click="copyCmd">{{ copied ? '✓ Copié' : 'Copier' }}</button>
+            <button class="cmd-copy" @click="copyCmd">
+              <template v-if="copied"><UIcon name="i-lucide-check" style="width:10px;height:10px" /> Copié</template>
+              <template v-else>Copier</template>
+            </button>
             <span class="cmd-comment"># Coller dans le terminal de votre machine</span><br>
             curl -sSL https://get.umbra.network | bash -s -- \<br>
             &nbsp;&nbsp;--name=<span class="cmd-accent">{{ nodeName.replace(/\s/g, '-').toLowerCase() }}</span> \<br>
@@ -112,10 +115,7 @@ function next() {
       <!-- Step 3 -->
       <div v-else class="onboard-body">
         <div class="success-banner">
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-            <circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="1.4"/>
-            <path d="M5 8l2 2 4-4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
-          </svg>
+          <UIcon name="i-lucide-circle-check" style="width:16px;height:16px" />
           <strong>{{ nodeName }}</strong> est enregistré et en ligne
         </div>
 
@@ -124,46 +124,46 @@ function next() {
         <div class="next-actions">
           <div class="next-action" @click="navigateTo('/')">
             <div class="next-action-icon icon-connect">
-              <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="1.4"/><path d="M6 8h4M8 6v4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+              <UIcon name="i-lucide-plus" style="width:14px;height:14px" />
             </div>
             <div class="next-action-info">
               <div class="next-action-title">Se connecter au noeud</div>
               <div class="next-action-sub">Établir le tunnel WireGuard maintenant</div>
             </div>
-            <svg class="next-chevron" width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M6 4l4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+            <UIcon name="i-lucide-chevron-right" class="next-chevron" style="width:12px;height:12px" />
           </div>
 
           <div class="next-action" @click="step = 2; nodeName = ''; category = 'sbc'">
             <div class="next-action-icon icon-add">
-              <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M8 2v12M2 8h12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+              <UIcon name="i-lucide-plus" style="width:14px;height:14px" />
             </div>
             <div class="next-action-info">
               <div class="next-action-title">Ajouter un autre noeud</div>
               <div class="next-action-sub">VPS, routeur, NAS, SBC...</div>
             </div>
-            <svg class="next-chevron" width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M6 4l4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+            <UIcon name="i-lucide-chevron-right" class="next-chevron" style="width:12px;height:12px" />
           </div>
 
           <div class="next-action" @click="navigateTo('/settings')">
             <div class="next-action-icon icon-share">
-              <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><circle cx="12" cy="4" r="2" stroke="currentColor" stroke-width="1.3"/><circle cx="4" cy="8" r="2" stroke="currentColor" stroke-width="1.3"/><circle cx="12" cy="12" r="2" stroke="currentColor" stroke-width="1.3"/><path d="M6 7l4-2M6 9l4 2" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
+              <UIcon name="i-lucide-share-2" style="width:14px;height:14px" />
             </div>
             <div class="next-action-info">
               <div class="next-action-title">Inviter quelqu'un</div>
               <div class="next-action-sub">Partager l'accès avec la famille ou l'équipe</div>
             </div>
-            <svg class="next-chevron" width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M6 4l4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+            <UIcon name="i-lucide-chevron-right" class="next-chevron" style="width:12px;height:12px" />
           </div>
 
           <div class="next-action" @click="navigateTo('/')">
             <div class="next-action-icon icon-dashboard">
-              <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><rect x="2" y="2" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.3"/><rect x="9" y="2" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.3"/><rect x="2" y="9" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.3"/><rect x="9" y="9" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.3"/></svg>
+              <UIcon name="i-lucide-layout-dashboard" style="width:14px;height:14px" />
             </div>
             <div class="next-action-info">
               <div class="next-action-title">Aller au dashboard</div>
               <div class="next-action-sub">Explorer l'interface UMBRA</div>
             </div>
-            <svg class="next-chevron" width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M6 4l4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+            <UIcon name="i-lucide-chevron-right" class="next-chevron" style="width:12px;height:12px" />
           </div>
         </div>
       </div>

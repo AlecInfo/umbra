@@ -1,7 +1,7 @@
 <script setup lang="ts">
-definePageMeta({ layout: 'default' })
+import type { NodeCategory } from '~/stores/nodes'
 
-type NodeCategory = 'sbc' | 'vps' | 'router' | 'nas' | 'desktop' | 'other'
+definePageMeta({ layout: 'default' })
 
 interface Connection {
   id:       string
@@ -129,7 +129,7 @@ const avatarColors: Record<string, string> = {
 
         <div class="node-cell">
           <div class="nicon" :class="`cat-${conn.category}`">
-            <svg width="13" height="13" viewBox="0 0 16 16" fill="none" v-html="categoryIcons[conn.category]" />
+            <UIcon :name="categoryIcons[conn.category]" style="width:13px;height:13px" />
           </div>
           <div>
             <div class="node-name">{{ conn.node }}</div>

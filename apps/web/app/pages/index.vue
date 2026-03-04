@@ -68,10 +68,12 @@ function pixelPos(lat: number, lng: number): { x: number; y: number } {
 
 // ── Clustering ─────────────────────────────────────────────────────────────────
 interface ClusterData {
-  nodes: Node[]
-  x: number
-  y: number
-  status: NodeStatus
+  nodes:               Node[]
+  x:                   number
+  y:                   number
+  status:              NodeStatus
+  hasConnected:        boolean
+  connectedWasWarning: boolean
 }
 
 const STATUS_PRIORITY: Record<NodeStatus, number> = {
@@ -110,13 +112,23 @@ const clusters = computed<ClusterData[]>(() => {
       }
     }
 
-    const cx = group.reduce((s, p) => s + p.x, 0) / group.length
-    const cy = group.reduce((s, p) => s + p.y, 0) / group.length
-    const worstStatus = group
-      .map(p => p.node.status)
-      .sort((a, b) => STATUS_PRIORITY[a] - STATUS_PRIORITY[b])[0]!
+    const cx         = group.reduce((s, p) => s + p.x, 0) / group.length
+    const cy         = group.reduce((s, p) => s + p.y, 0) / group.length
+    const groupNodes = group.map(p => p.node)
 
-    result.push({ nodes: group.map(p => p.node), x: cx, y: cy, status: worstStatus })
+    // For single nodes use actual status (preserves 'connected' for glow).
+    // For clusters use savedStatus for connected nodes so ring colors stay accurate.
+    const effectiveStatus = (n: Node): NodeStatus =>
+      n.status === 'connected' ? (store.savedStatus[n.id] ?? 'online') : n.status
+    const worstStatus = groupNodes.length === 1
+      ? groupNodes[0]!.status
+      : groupNodes.map(effectiveStatus).sort((a, b) => STATUS_PRIORITY[a] - STATUS_PRIORITY[b])[0]!
+
+    const connectedNode        = groupNodes.find(n => n.status === 'connected')
+    const hasConnected         = !!connectedNode
+    const connectedWasWarning  = connectedNode ? store.savedStatus[connectedNode.id] === 'warning' : false
+
+    result.push({ nodes: groupNodes, x: cx, y: cy, status: worstStatus, hasConnected, connectedWasWarning })
   }
 
   return result
@@ -250,7 +262,12 @@ function onCut()               { store.disconnect() }
           >
             <!-- Single node -->
             <template v-if="cluster.nodes.length === 1">
-              <div class="marker-dot" :class="`m-${cluster.status}`" />
+              <div
+                class="marker-dot"
+                :class="cluster.status === 'connected' && store.savedStatus[cluster.nodes[0]!.id] === 'warning'
+                  ? 'm-connected-warn'
+                  : `m-${cluster.status}`"
+              />
               <div
                 v-if="cluster.status === 'online' || cluster.status === 'warning'"
                 class="marker-ring"
@@ -260,11 +277,11 @@ function onCut()               { store.disconnect() }
 
             <!-- Cluster (2+ nodes) -->
             <template v-else>
-              <div class="cluster-badge" :class="`m-${cluster.status}`">
+              <div class="cluster-badge" :class="[`m-${cluster.status}`, { 'has-connected': cluster.hasConnected && !cluster.connectedWasWarning, 'has-connected-warn': cluster.connectedWasWarning }]">
                 <div class="cluster-inner" />
               </div>
-              <div class="cluster-ring" :class="`m-${cluster.status}`" />
-              <div class="cluster-ring cluster-ring-delay" :class="`m-${cluster.status}`" />
+              <div v-if="!cluster.hasConnected" class="cluster-ring" :class="`m-${cluster.status}`" />
+              <div v-if="!cluster.hasConnected" class="cluster-ring cluster-ring-delay" :class="`m-${cluster.status}`" />
               <div class="cluster-count">{{ cluster.nodes.length > 9 ? '9+' : cluster.nodes.length }}</div>
             </template>
           </div>
@@ -316,7 +333,7 @@ function onCut()               { store.disconnect() }
         <template v-if="hoveredCluster.nodes.length === 1">
           <div class="mtt-head">
             <div class="nicon" :class="`cat-${hoveredCluster.nodes[0]!.category}`" style="width:22px;height:22px;flex-shrink:0">
-              <svg width="12" height="12" viewBox="0 0 16 16" fill="none" v-html="categoryIcons[hoveredCluster.nodes[0]!.category]" />
+              <UIcon :name="categoryIcons[hoveredCluster.nodes[0]!.category]" style="width:12px;height:12px" />
             </div>
             <div style="flex:1;min-width:0">
               <div class="mtt-name">{{ hoveredCluster.nodes[0]!.name }}</div>
@@ -363,7 +380,7 @@ function onCut()               { store.disconnect() }
               @click.stop="onClusterNodeClick(n)"
             >
               <div class="nicon" :class="`cat-${n.category}`" style="width:18px;height:18px;flex-shrink:0">
-                <svg width="10" height="10" viewBox="0 0 16 16" fill="none" v-html="categoryIcons[n.category]" />
+                <UIcon :name="categoryIcons[n.category]" style="width:10px;height:10px" />
               </div>
               <span class="mtt-cluster-name">{{ n.name }}</span>
               <StatusBadge :status="n.status" />
@@ -379,10 +396,3 @@ function onCut()               { store.disconnect() }
   <AddNodeModal v-if="showAddNode" @close="showAddNode = false" />
 </template>
 
-<style scoped>
-.stat-grid {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 12px;
-}
-</style>

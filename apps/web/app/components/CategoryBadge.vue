@@ -16,7 +16,7 @@ const labels: Record<NodeCategory, string> = {
 
 <template>
   <span class="cat-badge" :class="`cat-${props.category}`">
-    <svg width="13" height="13" viewBox="0 0 16 16" fill="none" v-html="categoryIcons[props.category]" />
+    <UIcon :name="categoryIcons[props.category]" style="width:13px;height:13px" />
     {{ labels[props.category] }}
   </span>
 </template>

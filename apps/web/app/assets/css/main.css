@@ -662,17 +662,17 @@ button, input, select, textarea, a {
   width: 9px;
   height: 9px;
   border-radius: 50%;
-  border: 1.5px solid rgba(0,0,0,.5);
   position: relative;
   z-index: 1;
 }
 .marker-dot.m-online    { background: var(--accent); }
-.marker-dot.m-connected { background: var(--accent); box-shadow: 0 0 8px var(--accent), 0 0 16px rgba(79,255,176,.3); }
-.marker-dot.m-warning   { background: var(--warning); box-shadow: 0 0 6px var(--warning); }
-.marker-dot.m-offline   { background: rgba(255,79,107,.4); border-color: rgba(255,79,107,.4); }
+.marker-dot.m-connected      { background: var(--accent);  box-shadow: 0 0 8px var(--accent),  0 0 18px var(--accent),  0 0 32px rgba(79,255,176,1);  }
+.marker-dot.m-connected-warn { background: var(--warning); box-shadow: 0 0 8px var(--warning), 0 0 18px var(--warning), 0 0 32px rgba(255,183,79,1);  }
+.marker-dot.m-warning   { background: var(--warning); }
+.marker-dot.m-offline   { background: rgba(255,79,107,.4); }
 .marker-dot.m-pending   { background: var(--pending); animation: pblink 1.2s infinite; }
 
-/* Pulse ring (inset -3px per design charter) */
+/* Pulse ring */
 .marker-ring {
   position: absolute;
   inset: -3px;
@@ -685,7 +685,7 @@ button, input, select, textarea, a {
 .marker-ring.m-warning  { border-color: var(--warning); animation-duration: 1s; }
 
 @keyframes ring-pulse {
-  0%   { opacity: .7; transform: scale(1); }
+  0%   { opacity: .7; transform: scale(1);   }
   100% { opacity: 0;  transform: scale(1.6); }
 }
 
@@ -702,8 +702,8 @@ button, input, select, textarea, a {
   z-index: 1;
 }
 .cluster-inner {
-  width: 7px;
-  height: 7px;
+  width: 9px;
+  height: 9px;
   border-radius: 50%;
 }
 .cluster-badge.m-online    .cluster-inner,
@@ -712,7 +712,7 @@ button, input, select, textarea, a {
 .cluster-badge.m-offline   .cluster-inner { background: var(--offline); }
 .cluster-badge.m-pending   .cluster-inner { background: var(--pending); }
 
-/* Cluster pulse rings (two staggered rings for distinction from single nodes) */
+/* Cluster pulse rings */
 .cluster-ring {
   position: absolute;
   inset: -3px;
@@ -727,6 +727,16 @@ button, input, select, textarea, a {
 .cluster-ring.m-warning   { border-color: var(--warning); }
 .cluster-ring.m-offline   { border-color: var(--offline); }
 .cluster-ring.m-pending   { border-color: var(--pending); }
+
+/* Cluster inner when a node is connected — stronger glow than solo */
+.cluster-badge.has-connected .cluster-inner {
+  background: var(--accent);
+  box-shadow: 0 0 10px var(--accent), 0 0 22px var(--accent), 0 0 40px rgba(79,255,176,1);
+}
+.cluster-badge.has-connected-warn .cluster-inner {
+  background: var(--warning);
+  box-shadow: 0 0 10px var(--warning), 0 0 22px var(--warning), 0 0 40px rgba(255,183,79,1);
+}
 
 /* Count badge (design charter: 14px, top -6px, right -8px, accent bg, 8px mono) */
 .cluster-count {
@@ -1564,7 +1574,7 @@ button, input, select, textarea, a {
 .info-box svg { color: var(--pending); flex-shrink: 0; margin-top: 1px; }
 
 /* Modal */
-.modal-overlay { position: fixed; inset: 0; z-index: 100; background: rgba(0,0,0,.6); display: flex; align-items: center; justify-content: center; }
+.modal-overlay { position: fixed; inset: 0; z-index: 200; background: rgba(0,0,0,.6); display: flex; align-items: center; justify-content: center; }
 .modal         { background: var(--surface); border: 1px solid var(--border2); border-radius: var(--r); width: 440px; box-shadow: 0 16px 48px rgba(0,0,0,.5); }
 .modal-header  { display: flex; align-items: center; justify-content: space-between; padding: 16px 20px; border-bottom: 1px solid var(--border); }
 .modal-title   { font-size: 13px; font-weight: 600; color: var(--text); }
@@ -1674,7 +1684,7 @@ button, input, select, textarea, a {
 
 .you-badge    { font-size: 8px; background: rgba(79,255,176,.1); color: var(--accent); border: 1px solid rgba(79,255,176,.2); padding: 1px 5px; border-radius: 3px; }
 .owner-badge  { font-size: 9px; font-family: var(--font-mono); background: rgba(255,183,79,.1); color: var(--warning); border: 1px solid rgba(255,183,79,.2); padding: 2px 7px; border-radius: 3px; }
-.pending-chip { font-size: 9px; color: var(--warning); font-family: var(--font-mono); }
+.pending-chip { font-size: 9px; color: var(--pending); font-family: var(--font-mono); }
 
 .role-select { font-family: var(--font-mono); font-size: 9px; background: var(--surface2); color: var(--muted); border: 1px solid var(--border2); border-radius: 3px; padding: 3px 6px; cursor: pointer; outline: none; }
 
@@ -1847,6 +1857,22 @@ button, input, select, textarea, a {
 
 .toggle-row { display: flex; align-items: center; gap: 7px; }
 
+/* ─── Responsive ───────────────────────────────────────── */
+
+/* Tablet — ≤1024px */
+@media (max-width: 1024px) {
+  .stat-grid { grid-template-columns: repeat(2, 1fr); }
+  .map-body  { height: 220px; }
+}
+
+/* Mobile — auth pages only (app users are redirected to /mobile) */
+@media (max-width: 768px) {
+  .login-left  { display: none; }
+  .login-wrap  { height: auto; min-height: 100vh; }
+  .login-right { width: 100%; min-width: 0; min-height: 100vh; height: auto; border-left: none; padding: 32px 24px; justify-content: center; }
+  .login-form  { margin: 0; }
+}
+
 /* ─── Node detail — action buttons ─────────────────────── */
 .actions-body {
   display: flex;
@@ -1880,7 +1906,7 @@ button, input, select, textarea, a {
 .peers-head,
 .peer-row {
   display: grid;
-  grid-template-columns: 160px 90px 90px 50px 70px 85px 95px;
+  grid-template-columns: 215px 110px 110px 75px 90px 100px 80px;
   align-items: center;
   gap: 0 12px;
   padding: 0 16px;
@@ -2082,8 +2108,8 @@ button, input, select, textarea, a {
 .share-perm-opt:hover    { border-color: var(--text); }
 .share-perm-opt.selected { border-color: var(--accent); background: rgba(79,255,176,.06); }
 
-.perm-icon { font-size: 14px; }
-.perm-name { font-size: 10px; font-weight: 600; color: var(--text); }
+.perm-icon { display: flex; align-items: center; justify-content: center; color: var(--perm-c); margin-bottom: 2px; }
+  .perm-name { font-size: 10px; font-weight: 600; color: var(--text); }
 .perm-desc { font-size: 9px; color: var(--muted); }
 
 /* ─── Share modal — members list ───────────────────────── */
@@ -2119,14 +2145,14 @@ button, input, select, textarea, a {
   border: 1px dashed var(--border2);
 }
 
-.pending-lbl  { color: var(--warning) !important; }
+.pending-lbl  { color: var(--pending) !important; }
 
 .perm-select {
   font-family: var(--font-mono);
   font-size: 9px;
-  background: rgba(79,168,255,.1);
-  color: var(--pending);
-  border: 1px solid rgba(79,168,255,.2);
+  background: rgba(255,183,79,.1);
+  color: var(--warning);
+  border: 1px solid rgba(255,183,79,.25);
   border-radius: 3px;
   padding: 2px 5px;
   cursor: pointer;

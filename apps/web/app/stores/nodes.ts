@@ -131,6 +131,8 @@ const MOCK_NODES: Node[] = [
 export const useNodesStore = defineStore('nodes', () => {
   // Persists the connected node ID in localStorage (restored client-side by the plugin)
   const connectedId = useLocalStorage<string | null>('umbra-connected-id', null)
+  // Persists the last used node ID so mobile can surface it quickly
+  const lastUsedId  = useLocalStorage<string | null>('umbra-last-used-id', null)
 
   const nodes = ref<Node[]>([...MOCK_NODES])
   const loading = ref(false)
@@ -141,8 +143,12 @@ export const useNodesStore = defineStore('nodes', () => {
     nodes.value = [...MOCK_NODES]
   }
 
+  const connectedAt = ref<number | null>(null)
+
   function setConnected(id: string) {
     connectedId.value = id
+    lastUsedId.value  = id
+    connectedAt.value = Date.now()
     nodes.value = nodes.value.map(n => {
       if (n.id === id) {
         savedStatus.value[id] = n.status
@@ -158,6 +164,7 @@ export const useNodesStore = defineStore('nodes', () => {
 
   function disconnect() {
     connectedId.value = null
+    connectedAt.value = null
     nodes.value = nodes.value.map(n => {
       if (n.status !== 'connected') return n
       const orig = savedStatus.value[n.id] ?? 'online'
@@ -170,7 +177,7 @@ export const useNodesStore = defineStore('nodes', () => {
   )
 
   const onlineCount = computed(() =>
-    nodes.value.filter(n => n.status === 'online' || n.status === 'connected').length
+    nodes.value.filter(n => n.status === 'online' || n.status === 'connected' || n.status === 'warning').length
   )
 
   const warningCount = computed(() =>
@@ -178,10 +185,10 @@ export const useNodesStore = defineStore('nodes', () => {
   )
 
   const avgLatency = computed(() => {
-    const active = nodes.value.filter(n => n.latency !== null && (n.status === 'online' || n.status === 'connected'))
+    const active = nodes.value.filter(n => n.latency !== null && (n.status === 'online' || n.status === 'connected' || n.status === 'warning'))
     if (!active.length) return null
     return Math.round(active.reduce((sum, n) => sum + n.latency!, 0) / active.length)
   })
 
-  return { nodes, loading, fetchNodes, setConnected, disconnect, connectedNode, onlineCount, warningCount, avgLatency }
+  return { nodes, loading, fetchNodes, setConnected, disconnect, connectedNode, onlineCount, warningCount, avgLatency, lastUsedId, connectedAt, savedStatus, connectedId }
 })

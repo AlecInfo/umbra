@@ -35,7 +35,7 @@ function copyCmd() {
           <div class="modal-title">Ajouter un noeud</div>
           <div class="modal-sub">Installez l'agent UMBRA sur votre machine</div>
         </div>
-        <button class="close-btn" @click="$emit('close')">✕</button>
+        <button class="close-btn" @click="$emit('close')"><UIcon name="i-lucide-x" style="width:12px;height:12px" /></button>
       </div>
 
       <div class="modal-body">
@@ -56,7 +56,7 @@ function copyCmd() {
               @click="category = c.value"
             >
               <div class="cat-opt-icon" :class="`cat-${c.value}`">
-                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" v-html="categoryIcons[c.value]" />
+                <UIcon :name="categoryIcons[c.value]" style="width:16px;height:16px" />
               </div>
               <div class="cat-opt-name">{{ c.name }}</div>
               <div class="cat-opt-desc">{{ c.desc }}</div>
@@ -66,7 +66,10 @@ function copyCmd() {
 
         <template v-if="nodeName">
           <div class="cmd-block">
-            <button class="cmd-copy" @click="copyCmd">{{ copied ? '✓ Copié' : 'Copier' }}</button>
+            <button class="cmd-copy" @click="copyCmd">
+              <template v-if="copied"><UIcon name="i-lucide-check" style="width:10px;height:10px" /> Copié</template>
+              <template v-else>Copier</template>
+            </button>
             <span class="cmd-comment"># Coller dans le terminal de votre machine</span><br>
             curl -sSL https://get.umbra.network | bash -s -- \<br>
             &nbsp;&nbsp;--name=<span class="cmd-accent">{{ slug }}</span> \<br>
