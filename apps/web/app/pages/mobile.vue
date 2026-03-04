@@ -210,7 +210,7 @@ function latencyColor(ms: number | null) {
           <!-- Header -->
           <div class="m-sheet-header">
             <span class="m-sheet-title">Noeuds disponibles</span>
-            <span class="m-sheet-count">{{ store.nodes.filter(n => n.status !== 'offline').length }} actifs</span>
+            <span class="m-sheet-count">{{ store.onlineCount }} actifs</span>
             <button class="m-icon-btn" @click="showModal = false">
               <UIcon name="i-lucide-x" style="width:14px;height:14px" />
             </button>

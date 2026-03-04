@@ -140,7 +140,8 @@ const wgPeers = [
   { id: '4', name: 'sam',      device: 'Raspberry Pi',   pubkey: 'qM2bN9…p5Ry', ip: '100.64.0.13', latency: null, upMb: 0,    downGb: '—',      handshake: '—',            status: 'inactive', avatar: 'S', color: 'var(--surface2)' },
   { id: '5', name: 'backup',   device: 'VPS Hetzner',    pubkey: 'wX4cP8…r3Lm', ip: '100.64.0.14', latency: 22,   upMb: 1200, downGb: '8.4 GB', handshake: 'il y a 1min', status: 'active',   avatar: 'B', color: 'linear-gradient(135deg,#a78bfa,#7b6ef6)' },
 ]
-const wgActiveCount = computed(() => wgPeers.filter(p => p.status === 'active').length)
+const wgPeersLocal  = ref([...wgPeers])
+const wgActiveCount = computed(() => wgPeersLocal.value.filter(p => p.status === 'active').length)
 
 // Recent activity
 const recentActivity = [
@@ -257,6 +258,87 @@ function revokeMember(id: string) {
 const activeMembers  = computed(() => members.value.filter(m => m.status === 'active'))
 const pendingMembers = computed(() => members.value.filter(m => m.status === 'pending'))
 
+// WireGuard config modal
+const showConfig    = ref(false)
+const cfgPort       = ref('51820')
+const cfgMtu        = ref('1420')
+const cfgDns        = ref('1.1.1.1, 8.8.8.8')
+const cfgAllowedIPs = ref('100.64.0.0/10')
+
+// Peers management modal
+const showPeersMgmt = ref(false)
+const newPeerKey    = ref('')
+const newPeerIp     = ref('')
+function removePeer(id: string) { wgPeersLocal.value = wgPeersLocal.value.filter(p => p.id !== id) }
+function addPeer() {
+  if (!newPeerKey.value || !newPeerIp.value) return
+  const key = newPeerKey.value
+  wgPeersLocal.value.push({
+    id: Date.now().toString(), name: 'Nouveau pair', device: 'Inconnu',
+    pubkey: key.length > 12 ? key.slice(0, 6) + '…' + key.slice(-4) : key,
+    ip: newPeerIp.value, latency: null, upMb: 0, downGb: '—', handshake: '—',
+    status: 'inactive', avatar: '?', color: 'var(--surface2)',
+  })
+  newPeerKey.value = ''
+  newPeerIp.value  = ''
+}
+
+// Activity — extended list + toggle
+const extendedActivity = [
+  ...recentActivity,
+  { id: 6, type: 'connect',    icon: 'i-lucide-circle-check',    iconColor: 'var(--accent)',  iconBg: 'rgba(79,255,176,.1)',  main: "thomas s'est connecté depuis Linux Desktop",   sub: '100.64.0.12 · IP source 91.242.18.30 · WireGuard', time: 'hier 16:44' },
+  { id: 7, type: 'disconnect', icon: 'i-lucide-circle-x',        iconColor: 'var(--offline)', iconBg: 'rgba(255,79,107,.1)',  main: "alecptt s'est déconnecté",                     sub: 'Session de 3h 02min · 1.2 GB transférés',          time: 'hier 11:22' },
+  { id: 8, type: 'warning',    icon: 'i-lucide-triangle-alert',  iconColor: 'var(--warning)', iconBg: 'rgba(255,183,79,.1)',  main: 'Espace disque élevé (91%)',                    sub: 'Seuil de 90% dépassé · 2.7 GB libres',             time: 'il y a 3j'  },
+]
+const showAllActivity = ref(false)
+const visibleActivity = computed(() => showAllActivity.value ? extendedActivity : recentActivity)
+
+// Copy pubkey
+const copiedKey = ref(false)
+function copyPubkey() {
+  navigator.clipboard.writeText('xK3mP2vTn8sFqLd4mBrJkHgYpWzXiCeN9Qa')
+  copiedKey.value = true
+  setTimeout(() => copiedKey.value = false, 2000)
+}
+
+// Action toast
+const actionMsg = ref<string | null>(null)
+function showAction(msg: string) {
+  actionMsg.value = msg
+  setTimeout(() => actionMsg.value = null, 3000)
+}
+
+// Actions
+function restartAgent() { showAction('Agent redémarré avec succès') }
+function downloadConf() {
+  if (!node.value) return
+  const conf = [
+    '[Interface]',
+    'PrivateKey = <PRIVATE_KEY>',
+    `Address = ${node.value.ip}/32`,
+    `DNS = ${cfgDns.value}`,
+    '',
+    '[Peer]',
+    'PublicKey = xK3mP2vTn8sFqLd4mBrJkHgYpWzXiCeN9Qa',
+    `AllowedIPs = ${cfgAllowedIPs.value}`,
+    'Endpoint = 203.0.113.42:51820',
+    'PersistentKeepalive = 25',
+  ].join('\n')
+  const blob = new Blob([conf], { type: 'text/plain' })
+  const url  = URL.createObjectURL(blob)
+  const a    = document.createElement('a')
+  a.href = url; a.download = `umbra-${node.value.name}.conf`; a.click()
+  URL.revokeObjectURL(url)
+}
+const showRegenConfirm  = ref(false)
+function regenKeys() { showRegenConfirm.value = false; showAction('Clés WireGuard régénérées · Reconnexion des pairs requise') }
+const showLogsModal     = ref(false)
+const showDeleteConfirm = ref(false)
+function deleteNode() {
+  if (!node.value) return
+  store.nodes = store.nodes.filter(n => n.id !== node.value!.id)
+  navigateTo('/nodes')
+}
 </script>
 
 <template>
@@ -280,7 +362,7 @@ const pendingMembers = computed(() => members.value.filter(m => m.status === 'pe
       </div>
       <div class="header-actions">
         <button class="btn-ghost" @click="showShare = true">Partager</button>
-        <button class="btn-ghost">Configurer</button>
+        <button class="btn-ghost" @click="showConfig = true">Configurer</button>
         <button
           class="btn-primary"
           :class="{ 'btn-danger': node.status === 'connected' }"
@@ -408,8 +490,8 @@ const pendingMembers = computed(() => members.value.filter(m => m.status === 'pe
         <div class="card">
           <div class="card-header">
             <div class="card-title">Pairs WireGuard autorisés</div>
-            <span class="peers-count">{{ wgActiveCount }} / {{ wgPeers.length }} connectés</span>
-            <button class="btn-ghost-sm">Gérer</button>
+            <span class="peers-count">{{ wgActiveCount }} / {{ wgPeersLocal.length }} connectés</span>
+            <button class="btn-ghost-sm" @click="showPeersMgmt = true">Gérer</button>
           </div>
           <div class="peers-table">
             <div class="peers-head">
@@ -421,7 +503,7 @@ const pendingMembers = computed(() => members.value.filter(m => m.status === 'pe
               <span>Handshake</span>
               <span>Statut</span>
             </div>
-            <div v-for="p in wgPeers" :key="p.id" class="peer-row">
+            <div v-for="p in wgPeersLocal" :key="p.id" class="peer-row">
               <div class="peer-identity">
                 <div class="peer-avatar" :style="`background:${p.color}`">{{ p.avatar }}</div>
                 <div>
@@ -450,10 +532,10 @@ const pendingMembers = computed(() => members.value.filter(m => m.status === 'pe
         <div class="card">
           <div class="card-header">
             <div class="card-title">Activité récente</div>
-            <span class="section-link" style="margin-left:auto;cursor:pointer">Tout voir →</span>
+            <span class="section-link" style="margin-left:auto;cursor:pointer" @click="showAllActivity = !showAllActivity">{{ showAllActivity ? 'Réduire ↑' : 'Tout voir →' }}</span>
           </div>
           <div class="activity-list">
-            <div v-for="ev in recentActivity" :key="ev.id" class="activity-item">
+            <div v-for="ev in visibleActivity" :key="ev.id" class="activity-item">
               <div class="activity-icon" :style="`background:${ev.iconBg};color:${ev.iconColor}`">
                 <UIcon :name="ev.icon" style="width:14px;height:14px" />
               </div>
@@ -498,7 +580,7 @@ const pendingMembers = computed(() => members.value.filter(m => m.status === 'pe
             <div class="info-row"><span class="info-lbl">DNS</span><span class="info-val">1.1.1.1, 8.8.8.8</span></div>
             <div class="info-row">
               <span class="info-lbl">Clé publique</span>
-              <span class="info-val">xK3mP2…n9Qa <button class="copy-btn" title="Copier">⧉</button></span>
+              <span class="info-val">xK3mP2…n9Qa <button class="copy-btn" :title="copiedKey ? 'Copié !' : 'Copier'" @click="copyPubkey"><UIcon :name="copiedKey ? 'i-lucide-check' : 'i-lucide-copy'" style="width:10px;height:10px" /></button></span>
             </div>
             <div class="info-row"><span class="info-lbl">Pairs</span><span class="info-val">3 autorisés · 2 actifs</span></div>
           </div>
@@ -529,23 +611,23 @@ const pendingMembers = computed(() => members.value.filter(m => m.status === 'pe
         <div class="card">
           <div class="card-header"><div class="card-title">Actions</div></div>
           <div class="actions-body">
-            <button class="action-btn">
+            <button class="action-btn" @click="restartAgent">
               <UIcon name="i-lucide-rotate-ccw" style="width:13px;height:13px" />
               Redémarrer l'agent
             </button>
-            <button class="action-btn">
+            <button class="action-btn" @click="showRegenConfirm = true">
               <UIcon name="i-lucide-key" style="width:13px;height:13px" />
               Régénérer les clés WG
             </button>
-            <button class="action-btn">
+            <button class="action-btn" @click="downloadConf">
               <UIcon name="i-lucide-download" style="width:13px;height:13px" />
               Télécharger config .conf
             </button>
-            <button class="action-btn">
+            <button class="action-btn" @click="showLogsModal = true">
               <UIcon name="i-lucide-file-text" style="width:13px;height:13px" />
               Voir les logs
             </button>
-            <button class="action-btn danger">
+            <button class="action-btn danger" @click="showDeleteConfirm = true">
               <UIcon name="i-lucide-trash-2" style="width:13px;height:13px" />
               Supprimer le noeud
             </button>
@@ -660,6 +742,151 @@ const pendingMembers = computed(() => members.value.filter(m => m.status === 'pe
       </div>
     </div>
 
+    <!-- Action toast -->
+    <Transition name="toast">
+      <div v-if="actionMsg" class="action-toast">
+        <UIcon name="i-lucide-circle-check" style="width:13px;height:13px;color:var(--accent)" />
+        {{ actionMsg }}
+      </div>
+    </Transition>
+
+    <!-- WireGuard Config modal -->
+    <div v-if="showConfig" class="modal-overlay" @click.self="showConfig = false">
+      <div class="modal">
+        <div class="modal-header">
+          <div><div class="modal-title">Configurer WireGuard</div><div class="modal-sub">Interface umbra0 — {{ node.name }}</div></div>
+          <button class="close-btn" @click="showConfig = false"><UIcon name="i-lucide-x" style="width:12px;height:12px" /></button>
+        </div>
+        <div class="modal-body">
+          <div class="cfg-grid">
+            <div class="form-group">
+              <label class="form-label">Port UDP</label>
+              <input v-model="cfgPort" class="form-input" placeholder="51820" />
+            </div>
+            <div class="form-group">
+              <label class="form-label">MTU</label>
+              <input v-model="cfgMtu" class="form-input" placeholder="1420" />
+            </div>
+            <div class="form-group" style="grid-column: span 2">
+              <label class="form-label">DNS</label>
+              <input v-model="cfgDns" class="form-input" placeholder="1.1.1.1, 8.8.8.8" />
+            </div>
+            <div class="form-group" style="grid-column: span 2">
+              <label class="form-label">AllowedIPs</label>
+              <input v-model="cfgAllowedIPs" class="form-input" placeholder="100.64.0.0/10" />
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn-ghost-sm" @click="showConfig = false">Annuler</button>
+          <button class="btn-accent-sm" @click="showConfig = false; showAction('Configuration WireGuard sauvegardée')">Sauvegarder</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- WG Peers management modal -->
+    <div v-if="showPeersMgmt" class="modal-overlay" @click.self="showPeersMgmt = false">
+      <div class="modal">
+        <div class="modal-header">
+          <div><div class="modal-title">Pairs WireGuard</div><div class="modal-sub">{{ wgPeersLocal.length }} pairs autorisés · {{ wgActiveCount }} actifs</div></div>
+          <button class="close-btn" @click="showPeersMgmt = false"><UIcon name="i-lucide-x" style="width:12px;height:12px" /></button>
+        </div>
+        <div class="modal-body">
+          <div class="peers-mgmt-list">
+            <div v-for="p in wgPeersLocal" :key="p.id" class="peers-mgmt-row">
+              <div class="peer-avatar" :style="`background:${p.color}`">{{ p.avatar }}</div>
+              <div class="peers-mgmt-info">
+                <div class="peer-name">{{ p.name }}</div>
+                <div class="peer-device">{{ p.device }} · {{ p.ip }}</div>
+              </div>
+              <span class="peer-status" :class="p.status === 'active' ? 'ps-active' : 'ps-inactive'" style="margin-right:8px">
+                <span class="peer-sdot" />{{ p.status === 'active' ? 'Actif' : 'Inactif' }}
+              </span>
+              <button class="revoke-btn" @click="removePeer(p.id)"><UIcon name="i-lucide-x" style="width:10px;height:10px" /></button>
+            </div>
+          </div>
+          <div class="form-group" style="margin-top:14px">
+            <label class="form-label">Ajouter un pair</label>
+            <div class="peers-add-row">
+              <input v-model="newPeerKey" class="form-input" placeholder="Clé publique WireGuard" style="flex:2" />
+              <input v-model="newPeerIp"  class="form-input" placeholder="IP VPN (100.64.x.x)" style="flex:1" />
+              <button class="btn-accent-sm" :disabled="!newPeerKey || !newPeerIp" @click="addPeer">Ajouter</button>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn-ghost-sm" @click="showPeersMgmt = false">Fermer</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Logs modal -->
+    <div v-if="showLogsModal" class="modal-overlay" @click.self="showLogsModal = false">
+      <div class="modal">
+        <div class="modal-header">
+          <div><div class="modal-title">Logs — {{ node.name }}</div><div class="modal-sub">Activité et événements récents</div></div>
+          <button class="close-btn" @click="showLogsModal = false"><UIcon name="i-lucide-x" style="width:12px;height:12px" /></button>
+        </div>
+        <div class="modal-body" style="max-height:360px;overflow-y:auto">
+          <div class="activity-list">
+            <div v-for="ev in extendedActivity" :key="ev.id" class="activity-item">
+              <div class="activity-icon" :style="`background:${ev.iconBg};color:${ev.iconColor}`">
+                <UIcon :name="ev.icon" style="width:14px;height:14px" />
+              </div>
+              <div class="activity-body">
+                <div class="activity-main">{{ ev.main }}</div>
+                <div class="activity-sub">{{ ev.sub }}</div>
+              </div>
+              <span class="activity-time">{{ ev.time }}</span>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn-ghost-sm" @click="showLogsModal = false">Fermer</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Regen keys confirm -->
+    <div v-if="showRegenConfirm" class="modal-overlay" @click.self="showRegenConfirm = false">
+      <div class="modal confirm-modal">
+        <div class="modal-header">
+          <div class="modal-title">Régénérer les clés WireGuard ?</div>
+          <button class="close-btn" @click="showRegenConfirm = false"><UIcon name="i-lucide-x" style="width:12px;height:12px" /></button>
+        </div>
+        <div class="modal-body">
+          <div class="confirm-warn">
+            <UIcon name="i-lucide-triangle-alert" style="width:14px;height:14px;flex-shrink:0" />
+            Tous les pairs actuellement connectés seront déconnectés et devront se reconnecter.
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn-ghost-sm" @click="showRegenConfirm = false">Annuler</button>
+          <button class="btn-danger-sm" @click="regenKeys">Régénérer les clés</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Delete node confirm -->
+    <div v-if="showDeleteConfirm" class="modal-overlay" @click.self="showDeleteConfirm = false">
+      <div class="modal confirm-modal">
+        <div class="modal-header">
+          <div class="modal-title">Supprimer {{ node.name }} ?</div>
+          <button class="close-btn" @click="showDeleteConfirm = false"><UIcon name="i-lucide-x" style="width:12px;height:12px" /></button>
+        </div>
+        <div class="modal-body">
+          <div class="confirm-warn">
+            <UIcon name="i-lucide-triangle-alert" style="width:14px;height:14px;flex-shrink:0" />
+            Le noeud sera révoqué et toutes ses données supprimées. Cette action est irréversible.
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn-ghost-sm" @click="showDeleteConfirm = false">Annuler</button>
+          <button class="btn-danger-sm" @click="deleteNode">Supprimer définitivement</button>
+        </div>
+      </div>
+    </div>
+
   </div>
 
   <div v-else-if="store.loading" class="state-msg">Chargement...</div>
@@ -668,4 +895,36 @@ const pendingMembers = computed(() => members.value.filter(m => m.status === 'pe
 
 <style scoped>
 .detail-page { display: flex; flex-direction: column; }
+
+.cfg-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+.peers-mgmt-list { display: flex; flex-direction: column; gap: 2px; }
+.peers-mgmt-row { display: flex; align-items: center; gap: 10px; padding: 8px 4px; border-bottom: 1px solid var(--border); }
+.peers-mgmt-row:last-child { border-bottom: none; }
+.peers-mgmt-info { flex: 1; min-width: 0; }
+
+.peers-add-row { display: flex; gap: 8px; align-items: center; }
+
+.confirm-modal { max-width: 420px; }
+.confirm-warn {
+  display: flex; align-items: flex-start; gap: 10px;
+  padding: 12px 14px; border-radius: var(--r);
+  background: color-mix(in srgb, var(--warning) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--warning) 25%, transparent);
+  color: var(--warning); font-size: 12px; line-height: 1.5;
+}
+
+.action-toast {
+  position: fixed; bottom: 24px; right: 24px;
+  background: var(--surface); border: 1px solid var(--border2);
+  border-radius: var(--r); padding: 10px 16px;
+  font-size: 12px; color: var(--text);
+  display: flex; align-items: center; gap: 8px;
+  box-shadow: 0 4px 20px rgba(0,0,0,.3);
+  z-index: 300;
+}
+.toast-enter-active { transition: all .25s cubic-bezier(.22,1,.36,1); }
+.toast-leave-active { transition: all .2s ease; }
+.toast-enter-from   { opacity: 0; transform: translateY(8px); }
+.toast-leave-to     { opacity: 0; transform: translateY(4px); }
 </style>

@@ -1118,6 +1118,32 @@ button, input, select, textarea, a {
   margin-bottom: 14px;
 }
 
+.success-msg {
+  font-size: 11px;
+  color: var(--accent);
+  background: rgba(79,255,176,.08);
+  border: 1px solid rgba(79,255,176,.2);
+  border-radius: var(--r);
+  padding: 8px 12px;
+  margin-bottom: 14px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.oauth-notice {
+  font-size: 11px;
+  color: var(--muted);
+  background: var(--surface2);
+  border: 1px solid var(--border2);
+  border-radius: var(--r);
+  padding: 8px 12px;
+  margin-bottom: 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .form-footer {
   text-align: center;
   font-size: 11px;
@@ -1514,7 +1540,7 @@ button, input, select, textarea, a {
 .key-name      { font-size: 12px; font-weight: 500; color: var(--text); }
 .key-created   { font-size: 9px; color: var(--muted); margin-top: 1px; }
 
-.token-cell { display: flex; align-items: center; gap: 6px; min-width: 0; padding-right: 12px; }
+.token-cell { display: flex; align-items: center; gap: 6px; min-width: 0; padding-right: 12px; overflow: hidden; }
 .token-val  {
   font-family: var(--font-mono);
   font-size: 10px;
@@ -1529,6 +1555,8 @@ button, input, select, textarea, a {
   min-width: 0;
   flex: 1;
 }
+.token-cell-revealed { overflow-x: auto; }
+.token-cell-revealed .token-val { overflow-x: auto; text-overflow: unset; flex-shrink: 0; cursor: text; user-select: all; }
 
 .icon-btn       { background: none; border: none; color: var(--muted); cursor: pointer; padding: 3px; border-radius: 3px; transition: color .15s; display: flex; align-items: center; }
 .icon-btn:hover { color: var(--text); }

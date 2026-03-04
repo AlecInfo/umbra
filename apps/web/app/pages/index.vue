@@ -292,7 +292,7 @@ function onCut()               { store.disconnect() }
     <!-- Nodes section -->
     <div class="section-header">
       <span class="section-title">Noeuds</span>
-      <NuxtLink to="/nodes" class="section-link">Voir tout →</NuxtLink>
+      <NuxtLink to="/nodes" class="section-link">Voir tout ({{ store.nodes.length }}) →</NuxtLink>
     </div>
 
     <!-- Node table -->
@@ -306,7 +306,7 @@ function onCut()               { store.disconnect() }
         <span></span>
       </div>
       <NodeTableRow
-        v-for="node in store.nodes"
+        v-for="node in store.nodes.slice(0, 5)"
         :key="node.id"
         :node="node"
         @click="navigateTo(`/nodes/${node.id}`)"

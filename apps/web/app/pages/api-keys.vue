@@ -61,8 +61,11 @@ const expirations = [
   { value: 'never', label: 'Jamais'   },
 ]
 
-function copy(token: string) {
+const copiedId = ref<string | null>(null)
+function copy(id: string, token: string) {
   navigator.clipboard.writeText(token)
+  copiedId.value = id
+  setTimeout(() => copiedId.value = null, 2000)
 }
 
 function revoke(id: string) {
@@ -129,14 +132,15 @@ function createKey() {
           </div>
         </div>
 
-        <div class="token-cell">
+        <div class="token-cell" :class="{ 'token-cell-revealed': key.revealed }">
           <span class="token-val">{{ key.revealed ? key.token : key.tokenMasked }}</span>
           <button class="icon-btn" :title="key.revealed ? 'Masquer' : 'Révéler'" @click="key.revealed = !key.revealed">
-            <UIcon v-if="!key.revealed" name="i-lucide-eye" style="width:11px;height:11px" />
-            <UIcon v-else name="i-lucide-eye-off" style="width:11px;height:11px" />
+            <UIcon v-if="key.revealed"  name="i-lucide-eye"     style="width:11px;height:11px" />
+            <UIcon v-else               name="i-lucide-eye-off" style="width:11px;height:11px" />
           </button>
-          <button class="icon-btn" title="Copier" @click="copy(key.token)">
-            <UIcon name="i-lucide-copy" style="width:11px;height:11px" />
+          <button class="icon-btn" :title="copiedId === key.id ? 'Copié !' : 'Copier'" @click="copy(key.id, key.token)">
+            <UIcon v-if="copiedId === key.id" name="i-lucide-check" style="width:11px;height:11px;color:var(--accent)" />
+            <UIcon v-else                      name="i-lucide-copy"  style="width:11px;height:11px" />
           </button>
         </div>
 
