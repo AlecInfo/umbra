@@ -70,7 +70,7 @@ const tempColor = computed(() => {
   if (t < 40) return 'var(--pending)'
   return 'var(--accent)'
 })
-const tempStyle = computed(() => `color: ${tempColor.value}`)
+const tempStyle = computed(() => ({ color: tempColor.value }))
 
 const ramTotal = 4
 const ramUsed  = computed(() => node.value?.ram ? ((node.value.ram / 100) * ramTotal).toFixed(2) : '—')
@@ -133,59 +133,15 @@ const xFormatters: Record<string, (ts: number) => string> = {
 const xFmt = computed(() => xFormatters[period.value] ?? fmtHHmm)
 
 // WireGuard peers
-const wgPeers = [
+const wgPeersLocal = ref([
   { id: '1', name: 'alecptt',  device: 'MacBook Pro',    pubkey: 'xK3mP2…n9Qa', ip: '100.64.0.10', latency: 4,    upMb: 240,  downGb: '1.2 GB', handshake: 'il y a 4s',   status: 'active',   avatar: 'A', color: 'linear-gradient(135deg,#4fffb0,#3b82f6)' },
   { id: '2', name: 'marie',    device: 'iPhone 15',      pubkey: 'pR7kL4…m2Xj', ip: '100.64.0.11', latency: null, upMb: 18,   downGb: '95 MB',  handshake: 'il y a 2h',   status: 'inactive', avatar: 'M', color: 'linear-gradient(135deg,#ff6b6b,#ffa726)' },
   { id: '3', name: 'thomas',   device: 'Linux Desktop',  pubkey: 'yN8vQ5…k6Wz', ip: '100.64.0.12', latency: 11,   upMb: 560,  downGb: '2.8 GB', handshake: 'il y a 28s',  status: 'active',   avatar: 'T', color: 'linear-gradient(135deg,#4fa8ff,#7b6ef6)' },
   { id: '4', name: 'sam',      device: 'Raspberry Pi',   pubkey: 'qM2bN9…p5Ry', ip: '100.64.0.13', latency: null, upMb: 0,    downGb: '—',      handshake: '—',            status: 'inactive', avatar: 'S', color: 'var(--surface2)' },
   { id: '5', name: 'backup',   device: 'VPS Hetzner',    pubkey: 'wX4cP8…r3Lm', ip: '100.64.0.14', latency: 22,   upMb: 1200, downGb: '8.4 GB', handshake: 'il y a 1min', status: 'active',   avatar: 'B', color: 'linear-gradient(135deg,#a78bfa,#7b6ef6)' },
-]
-const wgPeersLocal  = ref([...wgPeers])
+])
 const wgActiveCount = computed(() => wgPeersLocal.value.filter(p => p.status === 'active').length)
 
-// Recent activity
-const recentActivity = [
-  {
-    id: 1, type: 'connect',
-    icon: 'i-lucide-circle-check',
-    iconColor: 'var(--accent)', iconBg: 'rgba(79,255,176,.1)',
-    main: "alecptt s'est connecté depuis MacBook Pro",
-    sub: '100.64.0.10 · IP source 82.120.44.16 · WireGuard',
-    time: '14:28:04',
-  },
-  {
-    id: 2, type: 'disconnect',
-    icon: 'i-lucide-circle-x',
-    iconColor: 'var(--offline)', iconBg: 'rgba(255,79,107,.1)',
-    main: "marie s'est déconnectée",
-    sub: 'Session de 1h 14min · 95 MB transférés',
-    time: '12:14:37',
-  },
-  {
-    id: 3, type: 'warning',
-    icon: 'i-lucide-triangle-alert',
-    iconColor: 'var(--warning)', iconBg: 'rgba(255,183,79,.1)',
-    main: 'Pic de température détecté',
-    sub: '68°C pendant 4 min · retour à la normale',
-    time: '11:02:15',
-  },
-  {
-    id: 4, type: 'update',
-    icon: 'i-lucide-rotate-cw',
-    iconColor: 'var(--pending)', iconBg: 'rgba(79,168,255,.1)',
-    main: 'Agent mis à jour vers v1.0.0',
-    sub: 'Mise à jour automatique depuis v0.9.4',
-    time: 'hier 08:30',
-  },
-  {
-    id: 5, type: 'register',
-    icon: 'i-lucide-square-check',
-    iconColor: 'var(--accent)', iconBg: 'rgba(79,255,176,.1)',
-    main: "Noeud enregistré",
-    sub: "Première connexion de l'agent · token umbra_reg_a4f2...",
-    time: '11 fév.',
-  },
-]
 
 // Share modal
 type Permission = 'read' | 'connect' | 'manage' | 'admin'
@@ -283,15 +239,19 @@ function addPeer() {
   newPeerIp.value  = ''
 }
 
-// Activity — extended list + toggle
+// Activity log (first 5 shown by default, all when expanded)
 const extendedActivity = [
-  ...recentActivity,
+  { id: 1, type: 'connect',    icon: 'i-lucide-circle-check',   iconColor: 'var(--accent)',  iconBg: 'rgba(79,255,176,.1)',  main: "alecptt s'est connecté depuis MacBook Pro",   sub: '100.64.0.10 · IP source 82.120.44.16 · WireGuard', time: '14:28:04'  },
+  { id: 2, type: 'disconnect', icon: 'i-lucide-circle-x',       iconColor: 'var(--offline)', iconBg: 'rgba(255,79,107,.1)',  main: "marie s'est déconnectée",                     sub: 'Session de 1h 14min · 95 MB transférés',           time: '12:14:37'  },
+  { id: 3, type: 'warning',    icon: 'i-lucide-triangle-alert', iconColor: 'var(--warning)', iconBg: 'rgba(255,183,79,.1)',  main: 'Pic de température détecté',                  sub: '68°C pendant 4 min · retour à la normale',         time: '11:02:15'  },
+  { id: 4, type: 'update',     icon: 'i-lucide-rotate-cw',      iconColor: 'var(--pending)', iconBg: 'rgba(79,168,255,.1)',  main: 'Agent mis à jour vers v1.0.0',                sub: 'Mise à jour automatique depuis v0.9.4',             time: 'hier 08:30'},
+  { id: 5, type: 'register',   icon: 'i-lucide-square-check',   iconColor: 'var(--accent)',  iconBg: 'rgba(79,255,176,.1)',  main: "Noeud enregistré",                            sub: "Première connexion de l'agent · token umbra_reg_a4f2...", time: '11 fév.' },
   { id: 6, type: 'connect',    icon: 'i-lucide-circle-check',    iconColor: 'var(--accent)',  iconBg: 'rgba(79,255,176,.1)',  main: "thomas s'est connecté depuis Linux Desktop",   sub: '100.64.0.12 · IP source 91.242.18.30 · WireGuard', time: 'hier 16:44' },
   { id: 7, type: 'disconnect', icon: 'i-lucide-circle-x',        iconColor: 'var(--offline)', iconBg: 'rgba(255,79,107,.1)',  main: "alecptt s'est déconnecté",                     sub: 'Session de 3h 02min · 1.2 GB transférés',          time: 'hier 11:22' },
   { id: 8, type: 'warning',    icon: 'i-lucide-triangle-alert',  iconColor: 'var(--warning)', iconBg: 'rgba(255,183,79,.1)',  main: 'Espace disque élevé (91%)',                    sub: 'Seuil de 90% dépassé · 2.7 GB libres',             time: 'il y a 3j'  },
 ]
 const showAllActivity = ref(false)
-const visibleActivity = computed(() => showAllActivity.value ? extendedActivity : recentActivity)
+const visibleActivity = computed(() => showAllActivity.value ? extendedActivity : extendedActivity.slice(0, 5))
 
 // Copy pubkey
 const copiedKey = ref(false)
@@ -303,8 +263,6 @@ function copyPubkey() {
 
 const { notify } = useNotifications()
 
-function showAction(msg: string) { notify(msg, 'success') }
-
 // Actions
 const restarting = ref(false)
 
@@ -314,19 +272,16 @@ const updateAvailable = ref(false)   // mock: pas de mise à jour dispo par déf
 const latestVersion   = '1.2.0'
 const currentVersion  = '1.0.0'
 
-watch(autoUpdate, (val) => {
-  // Quand on désactive, on simule une update disponible pour tester l'UI
-  if (!val) updateAvailable.value = true
-  else updateAvailable.value = false
-})
+watch(autoUpdate, (val) => { updateAvailable.value = !val })
 
 function doUpdate() {
   notify('Mise à jour vers v' + latestVersion + ' lancée…', 'info')
   updateAvailable.value = false
 }
+let restartTimer: ReturnType<typeof setTimeout> | null = null
 function restartAgent() {
   restarting.value = true
-  setTimeout(() => {
+  restartTimer = setTimeout(() => {
     restarting.value = false
     if (node.value?.status === 'connected') {
       notify('Agent redémarré — connexion peut être instable momentanément', 'warning')
@@ -335,6 +290,7 @@ function restartAgent() {
     }
   }, 2500)
 }
+onUnmounted(() => { if (restartTimer) clearTimeout(restartTimer) })
 function downloadConf() {
   if (!node.value) return
   const conf = [
@@ -354,14 +310,15 @@ function downloadConf() {
   const a    = document.createElement('a')
   a.href = url; a.download = `umbra-${node.value.name}.conf`; a.click()
   URL.revokeObjectURL(url)
+  notify(`Config téléchargée — umbra-${node.value.name}.conf`, 'success')
 }
 const showRegenConfirm  = ref(false)
-function regenKeys() { showRegenConfirm.value = false; showAction('Clés WireGuard régénérées · Reconnexion des pairs requise') }
+function regenKeys() { showRegenConfirm.value = false; notify('Clés WireGuard régénérées · Reconnexion des pairs requise', 'warning') }
 const showLogsModal     = ref(false)
 const showDeleteConfirm = ref(false)
 function deleteNode() {
   if (!node.value) return
-  store.nodes = store.nodes.filter(n => n.id !== node.value!.id)
+  store.deleteNode(node.value.id)
   navigateTo('/nodes')
 }
 </script>
@@ -383,7 +340,7 @@ function deleteNode() {
           <StatusBadge :status="node.status" />
           <CategoryBadge :category="node.category" />
         </div>
-        <div class="page-sub">{{ node.ip }} · {{ node.location }} · Agent v1.0.0</div>
+        <div class="page-sub">{{ node.ip }} · Raspberry Pi 4B · Ubuntu 24.04 LTS · Agent v{{ currentVersion }}</div>
       </div>
       <div class="header-actions">
         <button class="btn-ghost" @click="showShare = true">Partager</button>
@@ -681,6 +638,7 @@ function deleteNode() {
               <UIcon name="i-lucide-file-text" style="width:13px;height:13px" />
               Voir les logs
             </button>
+            <div class="actions-separator" />
             <button class="action-btn danger" @click="showDeleteConfirm = true">
               <UIcon name="i-lucide-trash-2" style="width:13px;height:13px" />
               Supprimer le noeud
@@ -834,7 +792,7 @@ function deleteNode() {
         </div>
         <div class="modal-footer">
           <button class="btn-ghost-sm" @click="showConfig = false">Annuler</button>
-          <button class="btn-accent-sm" @click="showConfig = false; showAction('Configuration WireGuard sauvegardée')">Sauvegarder</button>
+          <button class="btn-accent-sm" @click="showConfig = false; notify('Configuration WireGuard sauvegardée', 'success')">Sauvegarder</button>
         </div>
       </div>
     </div>

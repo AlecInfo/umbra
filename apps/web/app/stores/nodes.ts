@@ -172,6 +172,11 @@ export const useNodesStore = defineStore('nodes', () => {
     })
   }
 
+  function deleteNode(id: string) {
+    if (connectedId.value === id) disconnect()
+    nodes.value = nodes.value.filter(n => n.id !== id)
+  }
+
   const connectedNode = computed(() =>
     nodes.value.find(n => n.status === 'connected') ?? null
   )
@@ -190,5 +195,5 @@ export const useNodesStore = defineStore('nodes', () => {
     return Math.round(active.reduce((sum, n) => sum + n.latency!, 0) / active.length)
   })
 
-  return { nodes, loading, fetchNodes, setConnected, disconnect, connectedNode, onlineCount, warningCount, avgLatency, lastUsedId, connectedAt, savedStatus, connectedId }
+  return { nodes, loading, fetchNodes, setConnected, disconnect, deleteNode, connectedNode, onlineCount, warningCount, avgLatency, lastUsedId, connectedAt, savedStatus, connectedId }
 })

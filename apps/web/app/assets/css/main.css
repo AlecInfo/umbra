@@ -1941,6 +1941,8 @@ body:has(.vpn-bar) .notif-stack { bottom: 84px; }
   --vis-tooltip-title-border-bottom: 1px solid var(--border)  !important;
   --vis-tooltip-box-shadow:          0 4px 14px rgba(0,0,0,.1) !important;
 }
+.light .notif        { box-shadow: 0 2px 12px rgba(0,0,0,.1); }
+.light .infotip-bubble { box-shadow: 0 2px 12px rgba(0,0,0,.12); }
 
 /* ─── Node detail — right column ───────────────────────── */
 .card-body--tight { padding: 6px 16px; }
@@ -1980,6 +1982,7 @@ body:has(.vpn-bar) .notif-stack { bottom: 84px; }
   gap: 8px;
   padding: 12px 16px;
 }
+.actions-separator { height: 1px; background: var(--border); margin: 2px 0; }
 
 .action-btn {
   display: inline-flex;

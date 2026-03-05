@@ -5,7 +5,6 @@ const store = useNodesStore()
 const route  = useRoute()
 const colorMode = useColorMode()
 
-const alertCount = computed(() => store.warningCount)
 
 const navGroups = [
   {
@@ -60,7 +59,7 @@ function toggleTheme() {
             >
               <UIcon :name="link.icon" style="width:14px;height:14px;flex-shrink:0" />
               <span>{{ link.label }}</span>
-              <span v-if="link.badge && alertCount > 0" class="nav-badge">{{ alertCount }}</span>
+              <span v-if="link.badge && store.warningCount > 0" class="nav-badge">{{ store.warningCount }}</span>
             </NuxtLink>
           </template>
         </nav>

@@ -1,6 +1,4 @@
 <script setup lang="ts">
-import { useNotifications } from '~/composables/useNotifications'
-
 const { notifications, dismiss } = useNotifications()
 
 const icons: Record<string, string> = {
