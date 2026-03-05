@@ -301,15 +301,40 @@ function copyPubkey() {
   setTimeout(() => copiedKey.value = false, 2000)
 }
 
-// Action toast
-const actionMsg = ref<string | null>(null)
-function showAction(msg: string) {
-  actionMsg.value = msg
-  setTimeout(() => actionMsg.value = null, 3000)
-}
+const { notify } = useNotifications()
+
+function showAction(msg: string) { notify(msg, 'success') }
 
 // Actions
-function restartAgent() { showAction('Agent redémarré avec succès') }
+const restarting = ref(false)
+
+// Agent auto-update
+const autoUpdate      = ref(true)
+const updateAvailable = ref(false)   // mock: pas de mise à jour dispo par défaut
+const latestVersion   = '1.2.0'
+const currentVersion  = '1.0.0'
+
+watch(autoUpdate, (val) => {
+  // Quand on désactive, on simule une update disponible pour tester l'UI
+  if (!val) updateAvailable.value = true
+  else updateAvailable.value = false
+})
+
+function doUpdate() {
+  notify('Mise à jour vers v' + latestVersion + ' lancée…', 'info')
+  updateAvailable.value = false
+}
+function restartAgent() {
+  restarting.value = true
+  setTimeout(() => {
+    restarting.value = false
+    if (node.value?.status === 'connected') {
+      notify('Agent redémarré — connexion peut être instable momentanément', 'warning')
+    } else {
+      notify('Agent redémarré avec succès', 'success')
+    }
+  }, 2500)
+}
 function downloadConf() {
   if (!node.value) return
   const conf = [
@@ -575,14 +600,26 @@ function deleteNode() {
           </div>
           <div class="card-body card-body--tight">
             <div class="info-row"><span class="info-lbl">IP VPN</span><span class="info-val">{{ node.ip }}/32</span></div>
-            <div class="info-row"><span class="info-lbl">Port</span><span class="info-val">:51820 UDP</span></div>
-            <div class="info-row"><span class="info-lbl">MTU</span><span class="info-val">1420</span></div>
-            <div class="info-row"><span class="info-lbl">DNS</span><span class="info-val">1.1.1.1, 8.8.8.8</span></div>
             <div class="info-row">
-              <span class="info-lbl">Clé publique</span>
+              <span class="info-lbl">Port<InfoTip text="Port UDP sur lequel WireGuard écoute sur ce nœud. 51820 par défaut." /></span>
+              <span class="info-val">:51820 UDP</span>
+            </div>
+            <div class="info-row">
+              <span class="info-lbl">MTU<InfoTip text="Taille maximale d'un paquet réseau en octets. 1420 par défaut. À réduire (ex: 1280) en cas de fragmentation sur certains FAI ou VPN imbriqués." /></span>
+              <span class="info-val">1420</span>
+            </div>
+            <div class="info-row">
+              <span class="info-lbl">DNS<InfoTip text="Serveurs DNS utilisés par ce nœud quand le tunnel VPN est actif." /></span>
+              <span class="info-val">1.1.1.1, 8.8.8.8</span>
+            </div>
+            <div class="info-row">
+              <span class="info-lbl">Clé publique<InfoTip text="Identifiant cryptographique de ce nœud dans le réseau WireGuard. Partagée avec les pairs pour établir les tunnels chiffrés." /></span>
               <span class="info-val">xK3mP2…n9Qa <button class="copy-btn" :title="copiedKey ? 'Copié !' : 'Copier'" @click="copyPubkey"><UIcon :name="copiedKey ? 'i-lucide-check' : 'i-lucide-copy'" style="width:10px;height:10px" /></button></span>
             </div>
-            <div class="info-row"><span class="info-lbl">Pairs</span><span class="info-val">3 autorisés · 2 actifs</span></div>
+            <div class="info-row">
+              <span class="info-lbl">Pairs<InfoTip text="Autres nœuds du réseau Umbra autorisés à se connecter à cette interface WireGuard." /></span>
+              <span class="info-val">3 autorisés · 2 actifs</span>
+            </div>
           </div>
         </div>
 
@@ -592,18 +629,31 @@ function deleteNode() {
           <div class="card-body card-body--tight">
             <div class="info-row">
               <span class="info-lbl">Version</span>
-              <span class="info-val">v1.0.0 <span class="badge-green">à jour</span></span>
-            </div>
-            <div class="info-row"><span class="info-lbl">Dernier heartbeat</span><span class="info-val accent">il y a 2s</span></div>
-            <div class="info-row"><span class="info-lbl">Intervalle</span><span class="info-val">30s</span></div>
-            <div class="info-row">
-              <span class="info-lbl">Auto-update</span>
-              <span class="info-val toggle-row">
-                <span class="accent">Actif</span>
-                <span class="toggle on"><span class="toggle-thumb" /></span>
+              <span class="info-val">
+                v{{ currentVersion }}
+                <span v-if="!updateAvailable" class="badge-green">à jour</span>
+                <span v-else class="badge-warning">v{{ latestVersion }} disponible</span>
               </span>
             </div>
-            <div class="info-row"><span class="info-lbl">JWT expire</span><span class="info-val">dans 82j</span></div>
+            <div class="info-row">
+              <span class="info-lbl">Dernier heartbeat<InfoTip text="Signal envoyé périodiquement par l'agent au serveur pour confirmer qu'il est en ligne." /></span>
+              <span class="info-val accent">il y a 2s</span>
+            </div>
+            <div class="info-row">
+              <span class="info-lbl">Intervalle<InfoTip text="Fréquence à laquelle l'agent envoie ses heartbeats et remonte ses métriques." /></span>
+              <span class="info-val">30s</span>
+            </div>
+            <div class="info-row">
+              <span class="info-lbl">Auto-update<InfoTip text="L'agent se met à jour automatiquement dès qu'une nouvelle version est disponible." /></span>
+              <span class="info-val toggle-row" style="cursor:pointer" @click="autoUpdate = !autoUpdate">
+                <span :class="autoUpdate ? 'accent' : 'muted'">{{ autoUpdate ? 'Actif' : 'Inactif' }}</span>
+                <span class="toggle" :class="{ on: autoUpdate }"><span class="toggle-thumb" /></span>
+              </span>
+            </div>
+            <div class="info-row">
+              <span class="info-lbl">JWT expire<InfoTip text="Durée de validité du token d'authentification utilisé par l'agent pour communiquer avec le serveur Umbra." position="bottom" /></span>
+              <span class="info-val">dans 82j</span>
+            </div>
           </div>
         </div>
 
@@ -611,9 +661,13 @@ function deleteNode() {
         <div class="card">
           <div class="card-header"><div class="card-title">Actions</div></div>
           <div class="actions-body">
-            <button class="action-btn" @click="restartAgent">
-              <UIcon name="i-lucide-rotate-ccw" style="width:13px;height:13px" />
-              Redémarrer l'agent
+            <button v-if="updateAvailable" class="action-btn update" @click="doUpdate">
+              <UIcon name="i-lucide-arrow-up-circle" style="width:13px;height:13px" />
+              Mettre à jour vers v{{ latestVersion }}
+            </button>
+            <button class="action-btn" :disabled="restarting" @click="restartAgent">
+              <UIcon name="i-lucide-rotate-ccw" style="width:13px;height:13px" :class="{ 'icon-spin': restarting }" />
+              {{ restarting ? 'Redémarrage…' : 'Redémarrer l\'agent' }}
             </button>
             <button class="action-btn" @click="showRegenConfirm = true">
               <UIcon name="i-lucide-key" style="width:13px;height:13px" />
@@ -742,13 +796,6 @@ function deleteNode() {
       </div>
     </div>
 
-    <!-- Action toast -->
-    <Transition name="toast">
-      <div v-if="actionMsg" class="action-toast">
-        <UIcon name="i-lucide-circle-check" style="width:13px;height:13px;color:var(--accent)" />
-        {{ actionMsg }}
-      </div>
-    </Transition>
 
     <!-- WireGuard Config modal -->
     <div v-if="showConfig" class="modal-overlay" @click.self="showConfig = false">
@@ -760,19 +807,27 @@ function deleteNode() {
         <div class="modal-body">
           <div class="cfg-grid">
             <div class="form-group">
-              <label class="form-label">Port UDP</label>
+              <label class="form-label">
+                <span class="form-label-text">Port UDP<InfoTip text="Port sur lequel WireGuard écoute. 51820 par défaut. À changer si ce port est bloqué par un firewall ou un opérateur." position="bottom" /></span>
+              </label>
               <input v-model="cfgPort" class="form-input" placeholder="51820" />
             </div>
             <div class="form-group">
-              <label class="form-label">MTU</label>
+              <label class="form-label">
+                <span class="form-label-text">MTU<InfoTip text="Taille maximale d'un paquet en octets. 1420 par défaut. À réduire (ex: 1280) en cas de paquets droppés silencieusement (PPPoE, VPN imbriqués)." position="bottom" /></span>
+              </label>
               <input v-model="cfgMtu" class="form-input" placeholder="1420" />
             </div>
             <div class="form-group" style="grid-column: span 2">
-              <label class="form-label">DNS</label>
+              <label class="form-label">
+                <span class="form-label-text">DNS<InfoTip text="Serveurs DNS actifs quand le tunnel VPN est établi. Peut être un DNS public (1.1.1.1) ou un DNS interne au réseau Umbra." position="bottom" /></span>
+              </label>
               <input v-model="cfgDns" class="form-input" placeholder="1.1.1.1, 8.8.8.8" />
             </div>
             <div class="form-group" style="grid-column: span 2">
-              <label class="form-label">AllowedIPs</label>
+              <label class="form-label">
+                <span class="form-label-text">AllowedIPs<InfoTip text="Préfixes IP routés dans le tunnel. 100.64.0.0/10 = réseau Umbra uniquement (split tunnel). 0.0.0.0/0 = tout le trafic passe par ce nœud (exit node / full tunnel)." position="bottom" /></span>
+              </label>
               <input v-model="cfgAllowedIPs" class="form-input" placeholder="100.64.0.0/10" />
             </div>
           </div>
@@ -906,6 +961,25 @@ function deleteNode() {
 .peers-add-row { display: flex; gap: 8px; align-items: center; }
 
 .confirm-modal { max-width: 420px; }
+@keyframes spin { to { transform: rotate(-360deg); } }
+.icon-spin { animation: spin 1s linear infinite; display: inline-block; }
+
+.restart-msg {
+  display: flex; align-items: flex-start; gap: 8px;
+  padding: 8px 12px; border-radius: var(--r);
+  font-size: 11px; line-height: 1.4; margin-top: 2px;
+}
+.restart-msg-ok {
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 20%, transparent);
+  color: var(--accent);
+}
+.restart-msg-warn {
+  background: color-mix(in srgb, var(--warning) 8%, transparent);
+  border: 1px solid color-mix(in srgb, var(--warning) 20%, transparent);
+  color: var(--warning);
+}
+
 .confirm-warn {
   display: flex; align-items: flex-start; gap: 10px;
   padding: 12px 14px; border-radius: var(--r);
@@ -914,17 +988,4 @@ function deleteNode() {
   color: var(--warning); font-size: 12px; line-height: 1.5;
 }
 
-.action-toast {
-  position: fixed; bottom: 24px; right: 24px;
-  background: var(--surface); border: 1px solid var(--border2);
-  border-radius: var(--r); padding: 10px 16px;
-  font-size: 12px; color: var(--text);
-  display: flex; align-items: center; gap: 8px;
-  box-shadow: 0 4px 20px rgba(0,0,0,.3);
-  z-index: 300;
-}
-.toast-enter-active { transition: all .25s cubic-bezier(.22,1,.36,1); }
-.toast-leave-active { transition: all .2s ease; }
-.toast-enter-from   { opacity: 0; transform: translateY(8px); }
-.toast-leave-to     { opacity: 0; transform: translateY(4px); }
 </style>

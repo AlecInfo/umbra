@@ -81,6 +81,8 @@ function toggleTheme() {
         <slot />
       </main>
 
+      <AppNotifications />
+
       <!-- VPN bar — fixed, ne déplace plus le contenu -->
       <VpnBar
         v-if="store.connectedNode"
