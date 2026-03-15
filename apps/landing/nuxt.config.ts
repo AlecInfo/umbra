@@ -19,11 +19,17 @@ export default defineNuxtConfig({
         { property: 'og:title', content: 'UMBRA — Client VPN open-source auto-hébergé | WireGuard' },
         { property: 'og:description', content: 'Reprends le contrôle de ton réseau. Tes données ne transitent que par des serveurs que tu contrôles.' },
         { property: 'og:type', content: 'website' },
+        { property: 'og:url', content: 'https://umbravpn.io' },
+        { property: 'og:site_name', content: 'UMBRA' },
+        { property: 'og:image', content: 'https://umbravpn.io/og-image.png' },
         { name: 'twitter:card', content: 'summary_large_image' },
+        { name: 'twitter:image', content: 'https://umbravpn.io/og-image.png' },
         { name: 'viewport', content: 'width=device-width, initial-scale=1' },
         { charset: 'utf-8' }
       ],
       link: [
+        { rel: 'apple-touch-icon', sizes: '180x180', href: '/apple-touch-icon.png' },
+        { rel: 'icon', type: 'image/png', sizes: '32x32', href: '/favicon-32x32.png' },
         { rel: 'preconnect', href: 'https://fonts.googleapis.com' },
         { rel: 'preconnect', href: 'https://fonts.gstatic.com', crossorigin: '' },
         {

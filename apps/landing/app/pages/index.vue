@@ -16,29 +16,54 @@ const heroSent = ref(false)
 const ctaEmail = ref('')
 const ctaSent = ref(false)
 
-
-function submitHero() {
+async function submitHero() {
   if (!heroEmail.value) return
-  heroSent.value = true
-  toast.add({
-    title: lang.value === 'fr' ? 'Tu es sur la liste !' : 'You\'re on the list!',
-    description: lang.value === 'fr' ? 'On te prévient dès que c\'est prêt.' : 'We\'ll let you know when it\'s ready.',
-    icon: 'i-lucide-mail-check',
-    color: 'success',
-    duration: 5000
-  })
+  try {
+    await $fetch('/api/waitlist', { method: 'POST', body: { email: heroEmail.value } })
+    heroSent.value = true
+    toast.add({
+      title: lang.value === 'fr' ? 'Tu es sur la liste !' : 'You\'re on the list!',
+      description: lang.value === 'fr' ? 'On te prévient dès que c\'est prêt.' : 'We\'ll let you know when it\'s ready.',
+      icon: 'i-lucide-mail-check',
+      color: 'success',
+      duration: 5000
+    })
+  } catch (err: unknown) {
+    const fetchErr = err as { data?: { error?: string } }
+    const msg = fetchErr?.data?.error || (lang.value === 'fr' ? 'Une erreur est survenue.' : 'Something went wrong.')
+    toast.add({
+      title: lang.value === 'fr' ? 'Erreur' : 'Error',
+      description: msg,
+      icon: 'i-lucide-alert-triangle',
+      color: 'error',
+      duration: 5000
+    })
+  }
 }
 
-function submitCta() {
+async function submitCta() {
   if (!ctaEmail.value) return
-  ctaSent.value = true
-  toast.add({
-    title: lang.value === 'fr' ? 'Tu es sur la liste !' : 'You\'re on the list!',
-    description: lang.value === 'fr' ? 'Aucun spam — juste un ping quand c\'est prêt.' : 'No spam — just a ping when ready.',
-    icon: 'i-lucide-mail-check',
-    color: 'success',
-    duration: 5000
-  })
+  try {
+    await $fetch('/api/waitlist', { method: 'POST', body: { email: ctaEmail.value } })
+    ctaSent.value = true
+    toast.add({
+      title: lang.value === 'fr' ? 'Tu es sur la liste !' : 'You\'re on the list!',
+      description: lang.value === 'fr' ? 'Aucun spam — juste un ping quand c\'est prêt.' : 'No spam — just a ping when ready.',
+      icon: 'i-lucide-mail-check',
+      color: 'success',
+      duration: 5000
+    })
+  } catch (err: unknown) {
+    const fetchErr = err as { data?: { error?: string } }
+    const msg = fetchErr?.data?.error || (lang.value === 'fr' ? 'Une erreur est survenue.' : 'Something went wrong.')
+    toast.add({
+      title: lang.value === 'fr' ? 'Erreur' : 'Error',
+      description: msg,
+      icon: 'i-lucide-alert-triangle',
+      color: 'error',
+      duration: 5000
+    })
+  }
 }
 
 // ── Reveal animation (IntersectionObserver global) ───────────────
@@ -56,8 +81,12 @@ function setupReveal() {
   document.querySelectorAll('.reveal').forEach(el => revealObs!.observe(el))
 }
 
-onMounted(() => { nextTick(setupReveal) })
-onUnmounted(() => { revealObs?.disconnect() })
+onMounted(() => {
+  nextTick(setupReveal)
+})
+onUnmounted(() => {
+  revealObs?.disconnect()
+})
 </script>
 
 <template>
@@ -86,7 +115,12 @@ onUnmounted(() => { revealObs?.disconnect() })
               style="max-width:460px"
               @submit.prevent="submitHero"
             >
+              <label
+                for="hero-email"
+                class="sr-only"
+              >Email</label>
               <input
+                id="hero-email"
                 v-model="heroEmail"
                 class="l-email-inp"
                 type="email"
@@ -665,7 +699,12 @@ onUnmounted(() => { revealObs?.disconnect() })
         style="max-width:460px"
         @submit.prevent="submitCta"
       >
+        <label
+          for="cta-email"
+          class="sr-only"
+        >Email</label>
         <input
+          id="cta-email"
           v-model="ctaEmail"
           class="l-email-inp"
           type="email"
