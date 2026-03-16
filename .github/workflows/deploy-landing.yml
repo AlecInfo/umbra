@@ -2,11 +2,9 @@ name: Deploy Landing
 
 on:
   push:
-    branches: [main]
-    paths:
-      - 'apps/landing/**'
-      - 'pnpm-lock.yaml'
-      - '.github/workflows/deploy-landing.yml'
+    tags:
+      - 'v*'
+  workflow_dispatch:
 
 jobs:
   deploy:
