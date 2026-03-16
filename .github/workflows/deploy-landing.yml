@@ -30,7 +30,7 @@ jobs:
       - name: Deploy via SCP
         uses: appleboy/scp-action@v0.1.7
         with:
-          host: 57-109168.ssh.hosting-ik.com
+          host: ${{ secrets.INFOMANIAK_SSH_HOST }}
           username: ${{ secrets.INFOMANIAK_SSH_USER }}
           password: ${{ secrets.INFOMANIAK_SSH_PASSWORD }}
           source: apps/landing/.output/*
@@ -40,7 +40,7 @@ jobs:
       - name: Restart Node.js
         uses: appleboy/ssh-action@v1.2.0
         with:
-          host: 57-109168.ssh.hosting-ik.com
+          host: ${{ secrets.INFOMANIAK_SSH_HOST }}
           username: ${{ secrets.INFOMANIAK_SSH_USER }}
           password: ${{ secrets.INFOMANIAK_SSH_PASSWORD }}
           script: |
