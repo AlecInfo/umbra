@@ -34,16 +34,28 @@ onUnmounted(() => {
     :class="{ scrolled }"
   >
     <div class="l-nav-inner">
-      <a
-        href="/"
+      <NuxtLink
+        to="/"
         class="l-logo"
-      >UMBRA<span class="dot">.</span></a>
+      >
+        UMBRA<span class="dot">.</span>
+      </NuxtLink>
       <div class="l-nav-links">
-        <a href="/#problem">{{ t('nav_why') }}</a>
-        <a href="/#terminal">{{ t('nav_terminal') }}</a>
-        <a href="/#how">{{ t('nav_how') }}</a>
-        <a href="/#opensource">{{ t('nav_opensource') }}</a>
-        <a href="/#pricing">{{ t('nav_pricing') }}</a>
+        <NuxtLink to="/#problem">
+          {{ t('nav_why') }}
+        </NuxtLink>
+        <NuxtLink to="/#terminal">
+          {{ t('nav_terminal') }}
+        </NuxtLink>
+        <NuxtLink to="/#how">
+          {{ t('nav_how') }}
+        </NuxtLink>
+        <NuxtLink to="/#opensource">
+          {{ t('nav_opensource') }}
+        </NuxtLink>
+        <NuxtLink to="/#pricing">
+          {{ t('nav_pricing') }}
+        </NuxtLink>
       </div>
       <div class="l-nav-right">
         <div class="btn-lang">
@@ -66,10 +78,12 @@ onUnmounted(() => {
         >
           {{ isDark ? '☀' : '☾' }}
         </button>
-        <a
-          href="/#waitlist"
+        <NuxtLink
+          to="/#waitlist"
           class="btn-primary"
-        >{{ t('nav_cta') }}</a>
+        >
+          {{ t('nav_cta') }}
+        </NuxtLink>
       </div>
       <button
         class="l-nav-ham"
@@ -86,31 +100,43 @@ onUnmounted(() => {
     class="l-mob-menu"
     :class="{ open: mobileOpen }"
   >
-    <a
-      href="/#problem"
+    <NuxtLink
+      to="/#problem"
       @click="mobileOpen = false"
-    >{{ t('nav_why') }}</a>
-    <a
-      href="/#terminal"
+    >
+      {{ t('nav_why') }}
+    </NuxtLink>
+    <NuxtLink
+      to="/#terminal"
       @click="mobileOpen = false"
-    >{{ t('nav_terminal') }}</a>
-    <a
-      href="/#how"
+    >
+      {{ t('nav_terminal') }}
+    </NuxtLink>
+    <NuxtLink
+      to="/#how"
       @click="mobileOpen = false"
-    >{{ t('nav_how') }}</a>
-    <a
-      href="/#opensource"
+    >
+      {{ t('nav_how') }}
+    </NuxtLink>
+    <NuxtLink
+      to="/#opensource"
       @click="mobileOpen = false"
-    >{{ t('nav_opensource') }}</a>
-    <a
-      href="/#pricing"
+    >
+      {{ t('nav_opensource') }}
+    </NuxtLink>
+    <NuxtLink
+      to="/#pricing"
       @click="mobileOpen = false"
-    >{{ t('nav_pricing') }}</a>
-    <a
-      href="/#waitlist"
+    >
+      {{ t('nav_pricing') }}
+    </NuxtLink>
+    <NuxtLink
+      to="/#waitlist"
       class="btn-primary"
       @click="mobileOpen = false"
-    >{{ t('nav_cta') }}</a>
+    >
+      {{ t('nav_cta') }}
+    </NuxtLink>
     <div class="l-mob-controls">
       <div class="btn-lang">
         <span

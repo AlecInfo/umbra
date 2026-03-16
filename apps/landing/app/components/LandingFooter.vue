@@ -45,32 +45,54 @@ function toggleTheme() {
           <div class="l-footer-col-title">
             {{ t('footer_col1') }}
           </div>
-          <a href="/#problem">{{ t('nav_why') }}</a>
-          <a href="/#pricing">{{ t('nav_pricing') }}</a>
-          <a href="/#how">{{ t('nav_how') }}</a>
-          <a href="#">{{ t('footer_changelog') }}</a>
+          <NuxtLink to="/#problem">
+            {{ t('nav_why') }}
+          </NuxtLink>
+          <NuxtLink to="/#pricing">
+            {{ t('nav_pricing') }}
+          </NuxtLink>
+          <NuxtLink to="/#how">
+            {{ t('nav_how') }}
+          </NuxtLink>
+          <NuxtLink to="/#how">
+            {{ t('footer_changelog') }}
+          </NuxtLink>
         </div>
         <div class="l-footer-col">
           <div class="l-footer-col-title">
             {{ t('footer_col2') }}
           </div>
-          <a href="#">{{ t('footer_docs') }}</a>
-          <a href="#">{{ t('footer_api') }}</a>
+          <NuxtLink to="/">
+            {{ t('footer_docs') }}
+          </NuxtLink>
+          <NuxtLink to="/">
+            {{ t('footer_api') }}
+          </NuxtLink>
           <a
             href="https://github.com/umbravpn"
             target="_blank"
             rel="noopener"
           >GitHub</a>
-          <a href="#">{{ t('footer_agent') }}</a>
+          <NuxtLink to="/">
+            {{ t('footer_agent') }}
+          </NuxtLink>
         </div>
         <div class="l-footer-col">
           <div class="l-footer-col-title">
             {{ t('footer_col3') }}
           </div>
-          <a href="#">{{ t('footer_about') }}</a>
-          <a href="/#waitlist">{{ t('footer_contact') }}</a>
-          <NuxtLink to="/privacy">{{ t('footer_privacy') }}</NuxtLink>
-          <NuxtLink to="/terms">{{ t('footer_terms') }}</NuxtLink>
+          <NuxtLink to="/">
+            {{ t('footer_about') }}
+          </NuxtLink>
+          <NuxtLink to="/#waitlist">
+            {{ t('footer_contact') }}
+          </NuxtLink>
+          <NuxtLink to="/privacy">
+            {{ t('footer_privacy') }}
+          </NuxtLink>
+          <NuxtLink to="/terms">
+            {{ t('footer_terms') }}
+          </NuxtLink>
         </div>
       </div>
     </div>
@@ -79,8 +101,12 @@ function toggleTheme() {
         {{ t('footer_copy') }}
       </div>
       <div class="l-footer-links">
-        <NuxtLink to="/privacy">{{ t('footer_privacy') }}</NuxtLink>
-        <NuxtLink to="/terms">{{ t('footer_terms') }}</NuxtLink>
+        <NuxtLink to="/privacy">
+          {{ t('footer_privacy') }}
+        </NuxtLink>
+        <NuxtLink to="/terms">
+          {{ t('footer_terms') }}
+        </NuxtLink>
       </div>
     </div>
   </footer>

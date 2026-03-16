@@ -1,5 +1,4 @@
 <script setup lang="ts">
-
 const globeRef = ref<HTMLCanvasElement>()
 const overlayRef = ref<HTMLCanvasElement>()
 
@@ -50,8 +49,9 @@ const ARC_PTS_3D: V3[][] = ARC_PAIRS.map(([i, j]) => {
 })
 
 // ── Globe state ────────────────────────────────────────────────────
-let phi = 0.5
+let phi = 4
 let initDpr = 1
+let initialized = false
 let destroyGlobe: (() => void) | undefined
 const pulses = ARC_PAIRS.map((_, i) => ({ t: i * 0.1 }))
 
@@ -173,6 +173,8 @@ function drawOverlay(W: number, H: number, dpr: number) {
 
 // ── Init ───────────────────────────────────────────────────────────
 async function initGlobe() {
+  if (window.innerWidth <= 900) return
+
   const canvas = globeRef.value
   if (!canvas) return
 
@@ -213,6 +215,7 @@ async function initGlobe() {
   })
 
   destroyGlobe = globe.destroy
+  initialized = true
 }
 
 function cleanup() {
@@ -225,6 +228,12 @@ function cleanup() {
 // Cobe fixes its WebGL projection at init time, so we destroy + recreate
 // it when DPR changes — equivalent to F5 at the new zoom level.
 function onResize() {
+  // If globe was skipped on mobile and viewport is now wide enough, initialize it
+  if (!initialized && window.innerWidth > 900) {
+    nextTick(initGlobe)
+    return
+  }
+
   const newDpr = window.devicePixelRatio || 1
   if (newDpr !== initDpr) {
     cleanup()

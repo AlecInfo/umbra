@@ -7,6 +7,8 @@ export type Lang = 'fr' | 'en'
 
 const TR: Record<Lang, Record<string, string>> = {
   fr: {
+    banner_text: 'UMBRA est en développement actif', banner_cta: 'Rejoindre la bêta →',
+
     nav_why: 'Pourquoi UMBRA', nav_terminal: 'CLI', nav_how: 'Comment ça marche',
     nav_opensource: 'Open-source', nav_pricing: 'Tarifs', nav_cta: 'Rejoindre la waitlist →',
 
@@ -92,6 +94,8 @@ const TR: Record<Lang, Record<string, string>> = {
     footer_copy: '© 2025-2026 UMBRA · Open-source · Politique de confidentialité'
   },
   en: {
+    banner_text: 'UMBRA is in active development', banner_cta: 'Join the beta →',
+
     nav_why: 'Why UMBRA', nav_terminal: 'CLI', nav_how: 'How it works',
     nav_opensource: 'Open-source', nav_pricing: 'Pricing', nav_cta: 'Join the waitlist →',
 

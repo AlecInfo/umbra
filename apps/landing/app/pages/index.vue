@@ -91,6 +91,7 @@ onUnmounted(() => {
 
 <template>
   <div>
+    <LandingBanner />
     <LandingNav />
 
     <!-- ─── S1 HERO ──────────────────────────────────────── -->

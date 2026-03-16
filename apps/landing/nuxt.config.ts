@@ -2,8 +2,13 @@
 export default defineNuxtConfig({
   modules: [
     '@nuxt/eslint',
-    '@nuxt/ui'
+    '@nuxt/ui',
+    '@nuxtjs/sitemap'
   ],
+
+  site: {
+    url: 'https://umbravpn.io'
+  },
 
   devtools: {
     enabled: true
