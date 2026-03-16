@@ -1,7 +1,7 @@
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs'
 import { resolve } from 'node:path'
 
-const dataDir = resolve(process.cwd(), 'server', 'data')
+const dataDir = resolve('/tmp', 'umbra-waitlist')
 const dataFile = resolve(dataDir, 'waitlist.json')
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
@@ -13,14 +13,14 @@ interface WaitlistEntry {
 }
 
 function readEntries(): WaitlistEntry[] {
-  if (!existsSync(dataDir)) {
-    mkdirSync(dataDir, { recursive: true })
-  }
-  if (!existsSync(dataFile)) {
-    writeFileSync(dataFile, '[]', 'utf-8')
-    return []
-  }
   try {
+    if (!existsSync(dataDir)) {
+      mkdirSync(dataDir, { recursive: true })
+    }
+    if (!existsSync(dataFile)) {
+      writeFileSync(dataFile, '[]', 'utf-8')
+      return []
+    }
     const raw = readFileSync(dataFile, 'utf-8')
     return JSON.parse(raw)
   } catch {
@@ -29,10 +29,14 @@ function readEntries(): WaitlistEntry[] {
 }
 
 function writeEntries(entries: WaitlistEntry[]) {
-  if (!existsSync(dataDir)) {
-    mkdirSync(dataDir, { recursive: true })
+  try {
+    if (!existsSync(dataDir)) {
+      mkdirSync(dataDir, { recursive: true })
+    }
+    writeFileSync(dataFile, JSON.stringify(entries, null, 2), 'utf-8')
+  } catch {
+    // silently fail — don't crash the server
   }
-  writeFileSync(dataFile, JSON.stringify(entries, null, 2), 'utf-8')
 }
 
 export default defineEventHandler(async (event) => {

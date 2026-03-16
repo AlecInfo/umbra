@@ -81,7 +81,7 @@ function toggleTheme() {
           <div class="l-footer-col-title">
             {{ t('footer_col3') }}
           </div>
-          <NuxtLink to="/">
+          <NuxtLink to="/about">
             {{ t('footer_about') }}
           </NuxtLink>
           <a href="mailto:contact@umbravpn.io">

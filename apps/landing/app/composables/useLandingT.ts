@@ -91,7 +91,22 @@ const TR: Record<Lang, Record<string, string>> = {
     footer_col1: 'Produit', footer_col2: 'Développeurs', footer_col3: 'Société',
     footer_docs: 'Documentation', footer_api: 'Référence API', footer_agent: 'Agent', footer_changelog: 'Changelog',
     footer_about: 'À propos', footer_contact: 'Contact', footer_privacy: 'Vie privée', footer_terms: 'Conditions',
-    footer_copy: '© 2025-2026 UMBRA · Open-source · Politique de confidentialité'
+    footer_copy: '© 2025-2026 UMBRA · Open-source · Politique de confidentialité',
+
+    about_title: 'À propos d\'UMBRA',
+    about_intro: 'UMBRA est né d\'une frustration simple : pourquoi confier son trafic réseau à des entreprises quand on peut le gérer soi-même ?',
+    about_origin_title: 'L\'origine',
+    about_origin: 'En tant qu\'étudiant en informatique, je voulais pouvoir déployer mes propres nœuds VPN là où je le souhaitais — chez moi, sur un VPS, chez des proches — avec une vraie garantie de vie privée. Les solutions existantes comme Tailscale ou Headscale sont solides techniquement, mais il leur manque une interface intuitive et des fonctionnalités que j\'attendais au quotidien.',
+    about_what_title: 'Ce qu\'UMBRA apporte',
+    about_what: 'UMBRA combine le meilleur de WireGuard et Headscale avec un dashboard web pensé pour être réellement agréable à utiliser. Monitoring en temps réel, gestion des nœuds, alertes, et une expérience utilisateur soignée — tout ce qui manquait aux outils existants.',
+    about_why_title: 'Pourquoi auto-hébergé ?',
+    about_why: 'Avec un VPN commercial, tu fais confiance à un tiers pour tout ton trafic. UMBRA inverse le modèle : tes données ne transitent que par des machines que tu contrôles. Pas de logs tiers, pas de données revendues, pas de point de défaillance central.',
+    about_how_title: 'Comment ça marche ?',
+    about_how: 'Installe l\'agent UMBRA sur n\'importe quelle machine (Raspberry Pi, VPS, NAS, routeur). L\'agent se connecte automatiquement au réseau mesh et tu gères tout depuis le dashboard. WireGuard assure le chiffrement, Headscale gère la coordination.',
+    about_open_title: 'Open-source',
+    about_open: 'UMBRA est entièrement open-source. Le code est disponible sur ',
+    about_contact_title: 'Contact',
+    about_contact: 'Pour toute question, contacte-nous à '
   },
   en: {
     banner_text: 'UMBRA is in active development', banner_cta: 'Join the beta →',
@@ -178,7 +193,22 @@ const TR: Record<Lang, Record<string, string>> = {
     footer_col1: 'Product', footer_col2: 'Developers', footer_col3: 'Company',
     footer_docs: 'Documentation', footer_api: 'API reference', footer_agent: 'Agent', footer_changelog: 'Changelog',
     footer_about: 'About', footer_contact: 'Contact', footer_privacy: 'Privacy', footer_terms: 'Terms',
-    footer_copy: '© 2025-2026 UMBRA · Open-source · Privacy Policy'
+    footer_copy: '© 2025-2026 UMBRA · Open-source · Privacy Policy',
+
+    about_title: 'About UMBRA',
+    about_intro: 'UMBRA was born from a simple frustration: why hand over your network traffic to corporations when you can manage it yourself?',
+    about_origin_title: 'The origin',
+    about_origin: 'As a computer science student, I wanted to deploy my own VPN nodes wherever I chose — at home, on a VPS, at a friend\'s place — with a real privacy guarantee. Existing solutions like Tailscale or Headscale are technically solid, but they lack an intuitive interface and features I needed day to day.',
+    about_what_title: 'What UMBRA brings',
+    about_what: 'UMBRA combines the best of WireGuard and Headscale with a web dashboard designed to be genuinely pleasant to use. Real-time monitoring, node management, alerts, and a polished user experience — everything the existing tools were missing.',
+    about_why_title: 'Why self-hosted?',
+    about_why: 'With a commercial VPN, you trust a third party with all your traffic. UMBRA flips the model: your data only flows through machines you control. No third-party logs, no data reselling, no central point of failure.',
+    about_how_title: 'How does it work?',
+    about_how: 'Install the UMBRA agent on any machine (Raspberry Pi, VPS, NAS, router). The agent connects to the mesh network automatically and you manage everything from the dashboard. WireGuard handles encryption, Headscale handles coordination.',
+    about_open_title: 'Open-source',
+    about_open: 'UMBRA is fully open-source. The code is available on ',
+    about_contact_title: 'Contact',
+    about_contact: 'For any questions, reach us at '
   }
 }
 
