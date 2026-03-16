@@ -184,12 +184,12 @@ const TR: Record<Lang, Record<string, string>> = {
 
 export function useLandingT() {
   const langCookie = useCookie<Lang>('umbra-lang', {
-    default: () => 'fr',
+    default: () => 'en',
     maxAge: 60 * 60 * 24 * 365,
     path: '/'
   })
   // useState partage l'état entre SSR et client, et entre composants
-  const lang = useState<Lang>('umbra-lang', () => langCookie.value ?? 'fr')
+  const lang = useState<Lang>('umbra-lang', () => langCookie.value ?? 'en')
 
   function t(k: string): string {
     return TR[lang.value][k] ?? k
