@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - 'apps/landing/**'
+      - '.github/workflows/deploy-landing.yml'
 
 jobs:
   deploy:
