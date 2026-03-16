@@ -32,9 +32,9 @@ useHead({ title: 'UMBRA — Terms of Service' })
         <p>
           For any questions, contact us at
           <a
-            href="/#waitlist"
+            href="mailto:contact@umbravpn.io"
             style="color:var(--accent)"
-          >the contact form</a>.
+          >contact@umbravpn.io</a>.
         </p>
       </div>
     </div>

@@ -84,9 +84,9 @@ function toggleTheme() {
           <NuxtLink to="/">
             {{ t('footer_about') }}
           </NuxtLink>
-          <NuxtLink to="/#waitlist">
+          <a href="mailto:contact@umbravpn.io">
             {{ t('footer_contact') }}
-          </NuxtLink>
+          </a>
           <NuxtLink to="/privacy">
             {{ t('footer_privacy') }}
           </NuxtLink>

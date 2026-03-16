@@ -24,9 +24,9 @@ useHead({ title: 'UMBRA — Privacy Policy' })
         <p>
           Your email is used solely to notify you when UMBRA launches. You can unsubscribe at any time by contacting us at
           <a
-            href="/#waitlist"
+            href="mailto:contact@umbravpn.io"
             style="color:var(--accent)"
-          >the contact form</a>.
+          >contact@umbravpn.io</a>.
         </p>
         <h2 class="legal-h2">
           3. Self-hosted product
@@ -38,9 +38,9 @@ useHead({ title: 'UMBRA — Privacy Policy' })
         <p>
           For any questions regarding this policy, contact us at
           <a
-            href="/#waitlist"
+            href="mailto:contact@umbravpn.io"
             style="color:var(--accent)"
-          >the contact form</a>.
+          >contact@umbravpn.io</a>.
         </p>
       </div>
     </div>
