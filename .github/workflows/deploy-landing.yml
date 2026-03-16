@@ -27,24 +27,14 @@ jobs:
       - name: Build landing
         run: pnpm --filter landing exec nuxi build
 
-      - name: Deploy via SCP
-        uses: appleboy/scp-action@v0.1.7
-        with:
-          host: ${{ secrets.INFOMANIAK_SSH_HOST }}
-          username: ${{ secrets.INFOMANIAK_SSH_USER }}
-          password: ${{ secrets.INFOMANIAK_SSH_PASSWORD }}
-          source: apps/landing/.output/*
-          target: sites/umbravpn.io/
-          strip_components: 3
-
-      - name: Restart Node.js
-        uses: appleboy/ssh-action@v1.2.0
-        with:
-          host: ${{ secrets.INFOMANIAK_SSH_HOST }}
-          username: ${{ secrets.INFOMANIAK_SSH_USER }}
-          password: ${{ secrets.INFOMANIAK_SSH_PASSWORD }}
-          script: |
-            cd sites/umbravpn.io
-            if command -v pm2 &> /dev/null; then
-              pm2 restart all
-            fi
+      - name: Deploy via rsync
+        run: |
+          sudo apt-get install -y sshpass
+          sshpass -p "$SSH_PASS" rsync -avz --delete \
+            -e "ssh -o StrictHostKeyChecking=no" \
+            apps/landing/.output/ \
+            "$SSH_USER@$SSH_HOST:sites/umbravpn.io/"
+        env:
+          SSH_HOST: ${{ secrets.INFOMANIAK_SSH_HOST }}
+          SSH_USER: ${{ secrets.INFOMANIAK_SSH_USER }}
+          SSH_PASS: ${{ secrets.INFOMANIAK_SSH_PASSWORD }}
