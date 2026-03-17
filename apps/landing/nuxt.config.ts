@@ -43,6 +43,9 @@ export default defineNuxtConfig({
           href: 'https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Syne:wght@700;800&display=swap'
         }
       ],
+      script: [
+        { src: 'https://cloud.umami.is/script.js', defer: true, 'data-website-id': '26d4bc75-2dc2-4f7e-9c32-a143420dbaf4' }
+      ],
       style: [
         { children: 'body{background:#0a0a0f}' }
       ]
