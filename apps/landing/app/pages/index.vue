@@ -112,8 +112,7 @@ onUnmounted(() => {
           </p>
           <div class="l-hero-email-wrap">
             <form
-              class="l-email-form"
-              style="max-width:460px"
+              class="l-email-form l-hero-form"
               @submit.prevent="submitHero"
             >
               <label
