@@ -69,7 +69,7 @@ function toggleTheme() {
             {{ t('footer_api') }}
           </NuxtLink>
           <a
-            href="https://github.com/umbravpn"
+            href="https://github.com/AlecInfo/umbra"
             target="_blank"
             rel="noopener"
           >GitHub</a>

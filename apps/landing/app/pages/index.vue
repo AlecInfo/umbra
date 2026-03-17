@@ -571,7 +571,7 @@ onUnmounted(() => {
           </div>
           <div class="l-os-cta-row">
             <a
-              href="https://github.com/umbravpn"
+              href="https://github.com/AlecInfo/umbra"
               target="_blank"
               rel="noopener"
               class="btn-primary lg"
