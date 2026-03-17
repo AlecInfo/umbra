@@ -56,7 +56,17 @@ export default defineNuxtConfig({
   },
 
   routeRules: {
-    '/': { prerender: true }
+    '/': { prerender: true },
+    '/about': { prerender: true },
+    '/privacy': { prerender: true },
+    '/terms': { prerender: true },
+    '/_nuxt/**': { headers: { 'cache-control': 'public, max-age=31536000, immutable' } },
+    '/favicon.**': { headers: { 'cache-control': 'public, max-age=604800' } },
+    '/og-image.png': { headers: { 'cache-control': 'public, max-age=604800' } }
+  },
+
+  nitro: {
+    compressPublicAssets: true
   },
 
   compatibilityDate: '2025-01-15',
