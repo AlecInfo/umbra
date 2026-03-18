@@ -20,6 +20,7 @@ export default defineNuxtConfig({
     head: {
       title: 'UMBRA — Open-source self-hosted VPN client | WireGuard',
       meta: [
+        { name: 'google-site-verification', content: 'UsingBJtmIJfRNwbflBN9xbW0brPx1GuHDIcSroxDl8' },
         { name: 'description', content: 'Take back control of your network. UMBRA is an open-source self-hosted VPN manager built on WireGuard. Your data only flows through servers you control.' },
         { name: 'keywords', content: 'umbra, umbra vpn, umbravpn, self-hosted vpn, wireguard manager, open-source vpn, vpn mesh network, headscale, wireguard gui, vpn manager' },
         { property: 'og:title', content: 'UMBRA — Open-source self-hosted VPN manager' },
