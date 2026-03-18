@@ -1,5 +1,8 @@
 <script setup lang="ts">
 useHead({ title: 'UMBRA — Terms of Service' })
+useSeoMeta({
+  description: 'UMBRA terms of service. Conditions for using our open-source self-hosted VPN manager.'
+})
 </script>
 
 <template>

@@ -1,4 +1,11 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
-  <rect width="32" height="32" rx="6" fill="#0a0a0f"/>
-  <text x="16" y="23" text-anchor="middle" font-family="system-ui,-apple-system,sans-serif" font-weight="800" font-size="20" fill="#4fffb0">U</text>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="96" fill="#0a0a0f"/>
+  <g transform="translate(0,512) scale(0.1,-0.1)" fill="#4fffb0" stroke="none">
+    <path d="M610 2938 c0 -727 6 -780 101 -972 194 -390 602 -585 1374 -657 173
+-16 725 -16 920 0 597 50 988 184 1226 421 120 118 198 245 238 385 38 132 41
+188 41 813 l0 612 -423 -2 -422 -3 -6 -555 c-6 -600 -4 -582 -62 -696 -38 -73
+-93 -132 -175 -185 -94 -62 -214 -100 -402 -131 -130 -20 -178 -23 -460 -23
+-332 0 -439 10 -630 55 -232 56 -390 192 -447 386 -15 52 -18 126 -23 604 l-5
+545 -422 3 -423 2 0 -602z"/>
+  </g>
 </svg>

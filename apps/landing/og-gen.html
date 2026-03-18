@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Syne:wght@800&family=JetBrains+Mono:wght@400;500&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    width: 1200px;
+    height: 630px;
+    background: #0a0a0b;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    position: relative;
+  }
+
+  /* Multicolor glow — green blob */
+  body::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-55%, -55%);
+    width: 900px;
+    height: 600px;
+    background: radial-gradient(ellipse at 40% 50%, rgba(79,255,176,0.10) 0%, rgba(123,110,246,0.06) 50%, transparent 72%);
+    filter: blur(60px);
+    pointer-events: none;
+  }
+
+  /* Multicolor glow — purple blob */
+  body::after {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: radial-gradient(ellipse at 65% 40%, rgba(123,110,246,0.05) 0%, transparent 55%);
+    pointer-events: none;
+  }
+
+  .title {
+    font-family: 'Syne', sans-serif;
+    font-weight: 800;
+    font-size: 120px;
+    letter-spacing: -0.035em;
+    line-height: 1;
+    color: #e8e8f0;
+    text-align: center;
+    position: relative;
+  }
+
+  .dot {
+    color: #4fffb0;
+  }
+
+  .subtitle {
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 500;
+    font-size: 22px;
+    color: #4fffb0;
+    margin-top: 24px;
+    letter-spacing: -0.01em;
+    position: relative;
+  }
+
+  .tags {
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 400;
+    font-size: 14px;
+    color: rgba(232,232,240,0.4);
+    margin-top: 16px;
+    letter-spacing: 0.02em;
+    position: relative;
+  }
+
+  .url-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 32px;
+    position: relative;
+  }
+
+  .url-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: #4fffb0;
+    box-shadow: 0 0 8px rgba(79,255,176,0.5);
+  }
+
+  .url {
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 400;
+    font-size: 15px;
+    color: rgba(232,232,240,0.5);
+  }
+</style>
+</head>
+<body>
+  <div class="title">UMBRA<span class="dot">.</span></div>
+  <div class="subtitle">Self-hosted VPN manager</div>
+  <div class="tags">Open-source · WireGuard · Your infrastructure</div>
+  <div class="url-row">
+    <span class="url-dot"></span>
+    <span class="url">umbravpn.io</span>
+  </div>
+</body>
+</html>

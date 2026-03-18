@@ -1,6 +1,9 @@
 <script setup lang="ts">
 const { t } = useLandingT()
 useHead({ title: 'UMBRA — About' })
+useSeoMeta({
+  description: 'Learn about UMBRA, the open-source self-hosted VPN manager built on WireGuard. Our mission: give everyone control over their network infrastructure.'
+})
 </script>
 
 <template>

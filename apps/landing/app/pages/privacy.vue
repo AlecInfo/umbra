@@ -1,5 +1,8 @@
 <script setup lang="ts">
 useHead({ title: 'UMBRA — Privacy Policy' })
+useSeoMeta({
+  description: 'UMBRA privacy policy. How we handle your data when you use our open-source self-hosted VPN manager.'
+})
 </script>
 
 <template>
