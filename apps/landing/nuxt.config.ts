@@ -101,6 +101,13 @@ export default defineNuxtConfig({
     '/og-image.png': { headers: { 'cache-control': 'public, max-age=604800' } }
   },
 
+  runtimeConfig: {
+    smtpHost: process.env.SMTP_HOST || 'mail.infomaniak.com',
+    smtpPort: process.env.SMTP_PORT || '587',
+    smtpUser: process.env.SMTP_USER || '',
+    smtpPass: process.env.SMTP_PASS || ''
+  },
+
   nitro: {
     compressPublicAssets: true
   },

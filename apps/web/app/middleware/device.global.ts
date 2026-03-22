@@ -3,7 +3,7 @@
 export default defineNuxtRouteMiddleware((to) => {
   if (!import.meta.client) return
 
-  const authRoutes = ['/login', '/register', '/onboarding']
+  const authRoutes = ['/login', '/register', '/onboarding', '/landing']
   if (authRoutes.includes(to.path)) return
 
   const isMobile = window.innerWidth <= 768

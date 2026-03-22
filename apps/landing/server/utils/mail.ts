@@ -1,17 +1,26 @@
 import nodemailer from 'nodemailer'
+import type { Transporter } from 'nodemailer'
 
-const transporter = nodemailer.createTransport({
-  host: process.env.SMTP_HOST || 'mail.infomaniak.com',
-  port: Number(process.env.SMTP_PORT) || 587,
-  secure: false,
-  auth: {
-    user: process.env.SMTP_USER || 'contact@umbravpn.io',
-    pass: process.env.SMTP_PASS || ''
-  },
-  tls: {
-    ciphers: 'SSLv3'
+let transporter: Transporter | null = null
+
+function getTransporter() {
+  if (!transporter) {
+    const config = useRuntimeConfig()
+    transporter = nodemailer.createTransport({
+      host: config.smtpHost || 'mail.infomaniak.com',
+      port: Number(config.smtpPort) || 587,
+      secure: false,
+      auth: {
+        user: config.smtpUser,
+        pass: config.smtpPass
+      },
+      tls: {
+        ciphers: 'SSLv3'
+      }
+    })
   }
-})
+  return transporter
+}
 
 interface SendMailOptions {
   to: string
@@ -20,8 +29,9 @@ interface SendMailOptions {
 }
 
 export async function sendMail({ to, subject, html }: SendMailOptions) {
-  await transporter.sendMail({
-    from: '"UMBRA" <contact@umbravpn.io>',
+  const config = useRuntimeConfig()
+  await getTransporter().sendMail({
+    from: `"UMBRA" <${config.smtpUser || 'contact@umbravpn.io'}>`,
     to,
     subject,
     html

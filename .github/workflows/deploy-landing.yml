@@ -36,3 +36,13 @@ jobs:
           SSH_HOST: ${{ secrets.INFOMANIAK_SSH_HOST }}
           SSH_USER: ${{ secrets.INFOMANIAK_SSH_USER }}
           SSH_PASS: ${{ secrets.INFOMANIAK_SSH_PASSWORD }}
+
+      - name: Restart server
+        run: |
+          sshpass -p "$SSH_PASS" ssh -o StrictHostKeyChecking=no \
+            "$SSH_USER@$SSH_HOST" \
+            "pkill -f 'node server/index.mjs' || true"
+        env:
+          SSH_HOST: ${{ secrets.INFOMANIAK_SSH_HOST }}
+          SSH_USER: ${{ secrets.INFOMANIAK_SSH_USER }}
+          SSH_PASS: ${{ secrets.INFOMANIAK_SSH_PASSWORD }}
