@@ -59,6 +59,15 @@ button { font-family: var(--font-mono); cursor: pointer; border: none; backgroun
 ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
 
 /* ═══════════════════════════════════════════════════════════════
+   Toaster override — force fixed positioning
+   ═══════════════════════════════════════════════════════════════ */
+[data-slot="viewport"][data-sonner-toaster],
+[data-slot="viewport"] {
+  position: fixed !important;
+  z-index: 9999 !important;
+}
+
+/* ═══════════════════════════════════════════════════════════════
    Keyframes
    ═══════════════════════════════════════════════════════════════ */
 @keyframes fade-up    { from { opacity:0; transform:translateY(24px); } to { opacity:1; transform:translateY(0); } }

@@ -29,7 +29,18 @@ async function submitHero() {
       duration: 5000
     })
   } catch (err: unknown) {
-    const fetchErr = err as { data?: { error?: string } }
+    const fetchErr = err as { status?: number, data?: { error?: string } }
+    if (fetchErr?.status === 409) {
+      heroSent.value = true
+      toast.add({
+        title: lang.value === 'fr' ? 'Tu es déjà sur la liste !' : 'You\'re already on the list!',
+        description: lang.value === 'fr' ? 'On te prévient dès que c\'est prêt.' : 'We\'ll let you know when it\'s ready.',
+        icon: 'i-lucide-mail-check',
+        color: 'success',
+        duration: 5000
+      })
+      return
+    }
     const msg = fetchErr?.data?.error || (lang.value === 'fr' ? 'Une erreur est survenue.' : 'Something went wrong.')
     toast.add({
       title: lang.value === 'fr' ? 'Erreur' : 'Error',
@@ -54,7 +65,18 @@ async function submitCta() {
       duration: 5000
     })
   } catch (err: unknown) {
-    const fetchErr = err as { data?: { error?: string } }
+    const fetchErr = err as { status?: number, data?: { error?: string } }
+    if (fetchErr?.status === 409) {
+      ctaSent.value = true
+      toast.add({
+        title: lang.value === 'fr' ? 'Tu es déjà sur la liste !' : 'You\'re already on the list!',
+        description: lang.value === 'fr' ? 'Aucun spam — juste un ping quand c\'est prêt.' : 'No spam — just a ping when ready.',
+        icon: 'i-lucide-mail-check',
+        color: 'success',
+        duration: 5000
+      })
+      return
+    }
     const msg = fetchErr?.data?.error || (lang.value === 'fr' ? 'Une erreur est survenue.' : 'Something went wrong.')
     toast.add({
       title: lang.value === 'fr' ? 'Erreur' : 'Error',

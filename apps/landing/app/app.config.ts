@@ -5,6 +5,19 @@ export default defineAppConfig({
       neutral: 'slate'
     },
 
+    // ── UToast / UToaster ────────────────────────────────────────
+    toaster: {
+      position: 'bottom-right' as const
+    },
+    toast: {
+      slots: {
+        root: 'font-mono text-[13px] bg-[var(--surface)] border border-[var(--border)] rounded-[var(--r)] shadow-lg backdrop-blur-sm',
+        title: 'text-[var(--text)] font-semibold',
+        description: 'text-[var(--muted)]',
+        close: 'text-[var(--muted)] hover:text-[var(--text)]'
+      }
+    },
+
     // ── UButton ────────────────────────────────────────────────
     // Variantes personnalisées pour la landing, utilisant les
     // CSS variables du design system via Tailwind arbitrary values.
