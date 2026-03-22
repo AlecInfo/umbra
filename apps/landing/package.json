@@ -15,6 +15,7 @@
     "@iconify-json/simple-icons": "^1.2.72",
     "@nuxt/ui": "^4.5.1",
     "cobe": "^0.6.5",
+    "nodemailer": "^8.0.3",
     "nuxt": "^4.3.1",
     "tailwindcss": "^4.2.1"
   },
@@ -22,7 +23,9 @@
     "@nuxt/eslint": "^1.15.2",
     "@nuxtjs/sitemap": "^7.6.0",
     "@types/node": "^25.5.0",
+    "@types/nodemailer": "^7.0.11",
     "eslint": "^10.0.2",
+    "puppeteer": "^24.39.1",
     "typescript": "^5.9.3",
     "vue-tsc": "^3.2.5"
   },
