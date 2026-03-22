@@ -37,7 +37,7 @@ export function waitlistConfirmationHtml(email: string, lang: string = 'fr'): st
           <!-- Logo -->
           <tr>
             <td style="padding-bottom:32px;">
-              <img src="https://umbravpn.io/email-logo.png" alt="UMBRA" width="140" height="36" style="display:block;border:0;" />
+              <img src="https://umbravpn.io/email-logo.png" alt="UMBRA" width="160" height="22" style="display:block;border:0;" />
             </td>
           </tr>
           <!-- Title -->
