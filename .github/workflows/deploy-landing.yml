@@ -24,6 +24,8 @@ jobs:
 
       - name: Build landing
         run: pnpm --filter landing exec nuxi build
+        env:
+          NUXT_SMTP_PASS: ${{ secrets.SMTP_PASS }}
 
       - name: Install sshpass
         run: sudo apt-get install -y sshpass

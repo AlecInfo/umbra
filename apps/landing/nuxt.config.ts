@@ -102,10 +102,10 @@ export default defineNuxtConfig({
   },
 
   runtimeConfig: {
-    smtpHost: process.env.SMTP_HOST || 'mail.infomaniak.com',
-    smtpPort: process.env.SMTP_PORT || '587',
-    smtpUser: process.env.SMTP_USER || '',
-    smtpPass: process.env.SMTP_PASS || ''
+    smtpHost: 'mail.infomaniak.com',
+    smtpPort: '587',
+    smtpUser: 'contact@umbravpn.io',
+    smtpPass: process.env.NUXT_SMTP_PASS || ''
   },
 
   nitro: {
