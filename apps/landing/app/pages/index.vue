@@ -19,7 +19,7 @@ const ctaSent = ref(false)
 async function submitHero() {
   if (!heroEmail.value) return
   try {
-    await $fetch('/api/waitlist', { method: 'POST', body: { email: heroEmail.value } })
+    await $fetch('/api/waitlist', { method: 'POST', body: { email: heroEmail.value, lang: lang.value } })
     heroSent.value = true
     toast.add({
       title: lang.value === 'fr' ? 'Tu es sur la liste !' : 'You\'re on the list!',
@@ -55,7 +55,7 @@ async function submitHero() {
 async function submitCta() {
   if (!ctaEmail.value) return
   try {
-    await $fetch('/api/waitlist', { method: 'POST', body: { email: ctaEmail.value } })
+    await $fetch('/api/waitlist', { method: 'POST', body: { email: ctaEmail.value, lang: lang.value } })
     ctaSent.value = true
     toast.add({
       title: lang.value === 'fr' ? 'Tu es sur la liste !' : 'You\'re on the list!',
