@@ -25,24 +25,28 @@ jobs:
       - name: Build landing
         run: pnpm --filter landing exec nuxi build
 
+      - name: Install sshpass
+        run: sudo apt-get install -y sshpass
+
       - name: Deploy via rsync
+        env:
+          SSHPASS: ${{ secrets.INFOMANIAK_SSH_PASSWORD }}
+          SSH_HOST: ${{ secrets.INFOMANIAK_SSH_HOST }}
+          SSH_USER: ${{ secrets.INFOMANIAK_SSH_USER }}
         run: |
-          sudo apt-get install -y sshpass
-          sshpass -p "$SSH_PASS" rsync -avz --delete \
+          sshpass -e rsync -avz --delete \
+            --exclude='.env' \
             -e "ssh -o StrictHostKeyChecking=no" \
             apps/landing/.output/ \
             "$SSH_USER@$SSH_HOST:sites/umbravpn.io/"
-        env:
-          SSH_HOST: ${{ secrets.INFOMANIAK_SSH_HOST }}
-          SSH_USER: ${{ secrets.INFOMANIAK_SSH_USER }}
-          SSH_PASS: ${{ secrets.INFOMANIAK_SSH_PASSWORD }}
 
       - name: Restart server
-        run: |
-          sshpass -p "$SSH_PASS" ssh -o StrictHostKeyChecking=no \
-            "$SSH_USER@$SSH_HOST" \
-            "pkill -f 'node server/index.mjs' || true"
+        continue-on-error: true
         env:
+          SSHPASS: ${{ secrets.INFOMANIAK_SSH_PASSWORD }}
           SSH_HOST: ${{ secrets.INFOMANIAK_SSH_HOST }}
           SSH_USER: ${{ secrets.INFOMANIAK_SSH_USER }}
-          SSH_PASS: ${{ secrets.INFOMANIAK_SSH_PASSWORD }}
+        run: |
+          sshpass -e ssh -o StrictHostKeyChecking=no \
+            "$SSH_USER@$SSH_HOST" \
+            "pkill -f 'node server/index.mjs' || true"
