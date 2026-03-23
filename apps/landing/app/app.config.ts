@@ -28,9 +28,9 @@ export default defineAppConfig({
       variants: {
         variant: {
           // Bouton CTA principal (fond accent vert)
-          landing: 'inline-flex items-center gap-2 bg-[var(--accent)] text-[#0a0a0f] rounded-[var(--r)] px-5 py-2.5 text-[13px] font-semibold hover:opacity-[.88]',
+          landing: 'inline-flex items-center gap-2 bg-[var(--accent)] text-[#0a0a0b] rounded-[var(--r)] px-5 py-2.5 text-[13px] font-semibold hover:opacity-[.88]',
           // Bouton CTA grand format (hero GitHub)
-          'landing-lg': 'inline-flex items-center gap-2 bg-[var(--accent)] text-[#0a0a0f] rounded-[var(--r)] px-7 py-3 text-[13px] font-semibold hover:opacity-[.88]',
+          'landing-lg': 'inline-flex items-center gap-2 bg-[var(--accent)] text-[#0a0a0b] rounded-[var(--r)] px-7 py-3 text-[13px] font-semibold hover:opacity-[.88]',
           // Bouton copy code (discret, texte seul)
           copy: 'text-[var(--muted)] text-[11px] tracking-[.06em] hover:text-[var(--text)] p-0 bg-transparent transition-colors'
         }

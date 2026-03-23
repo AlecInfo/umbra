@@ -80,7 +80,7 @@ export default defineNuxtConfig({
         }
       ],
       style: [
-        { children: 'body{background:#0a0a0f}' }
+        { children: 'body{background:#0a0a0b}' }
       ]
     }
   },
