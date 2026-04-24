@@ -1,0 +1,16 @@
+services:
+  postgres:
+    image: timescale/timescaledb:latest-pg16
+    container_name: umbra-postgres
+    restart: unless-stopped
+    ports:
+      - '5432:5432'
+    environment:
+      POSTGRES_USER: umbra
+      POSTGRES_PASSWORD: umbra
+      POSTGRES_DB: umbra
+    volumes:
+      - umbra-pgdata:/var/lib/postgresql/data
+
+volumes:
+  umbra-pgdata:

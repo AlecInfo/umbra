@@ -1,0 +1,57 @@
+import router from '@adonisjs/core/services/router'
+import { middleware } from '#start/kernel'
+
+const AuthController = () => import('#controllers/auth_controller')
+const NodesController = () => import('#controllers/nodes_controller')
+const AgentController = () => import('#controllers/agent_controller')
+
+router
+  .group(() => {
+    router.get('/health', async () => ({ status: 'ok' }))
+
+    router
+      .group(() => {
+        router.post('/register', [AuthController, 'register'])
+        router.post('/login', [AuthController, 'login'])
+
+        router
+          .group(() => {
+            router.post('/logout', [AuthController, 'logout'])
+            router.get('/me', [AuthController, 'me'])
+            router.patch('/me', [AuthController, 'updateProfile'])
+            router.post('/change-password', [AuthController, 'changePassword'])
+            router.get('/sessions', [AuthController, 'sessions'])
+            router.delete('/sessions/:id', [AuthController, 'revokeSession'])
+          })
+          .use(middleware.auth())
+      })
+      .prefix('/auth')
+
+    router
+      .group(() => {
+        router.get('/nodes', [NodesController, 'index'])
+        router.post('/nodes', [NodesController, 'store'])
+        router.get('/nodes/:id', [NodesController, 'show'])
+        router.patch('/nodes/:id', [NodesController, 'update'])
+        router.delete('/nodes/:id', [NodesController, 'destroy'])
+        router.get('/nodes/:id/metrics', [NodesController, 'metrics'])
+        router.get('/nodes/:id/peers', [NodesController, 'peers'])
+        router.post('/nodes/:id/enroll-token', [NodesController, 'enrollToken'])
+      })
+      .use(middleware.auth())
+
+    router
+      .group(() => {
+        router.post('/enroll', [AgentController, 'enroll'])
+
+        router
+          .group(() => {
+            router.post('/heartbeat', [AgentController, 'heartbeat'])
+            router.post('/metrics', [AgentController, 'metrics'])
+            router.post('/peers', [AgentController, 'peers'])
+          })
+          .use(middleware.agent())
+      })
+      .prefix('/agent')
+  })
+  .prefix('/api/v1')

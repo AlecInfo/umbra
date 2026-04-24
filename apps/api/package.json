@@ -1,0 +1,60 @@
+{
+  "name": "api",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch bin/server.ts",
+    "build": "node --import=tsx ace.js build",
+    "start": "node bin/server.js",
+    "test": "node --import=tsx bin/test.ts",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "ace": "node --import=tsx ace.js",
+    "migration:run": "node --import=tsx ace.js migration:run",
+    "migration:rollback": "node --import=tsx ace.js migration:rollback",
+    "migration:fresh": "node --import=tsx ace.js migration:fresh",
+    "seed": "node --import=tsx ace.js db:seed"
+  },
+  "dependencies": {
+    "@adonisjs/auth": "^9.3.2",
+    "@adonisjs/core": "^6.18.1",
+    "@adonisjs/cors": "^2.2.1",
+    "@adonisjs/hash": "^9.0.8",
+    "@adonisjs/limiter": "^2.3.2",
+    "@adonisjs/lucid": "^21.6.0",
+    "@adonisjs/mail": "^9.2.2",
+    "@vinejs/vine": "^3.0.1",
+    "luxon": "^3.5.0",
+    "pg": "^8.13.3",
+    "reflect-metadata": "^0.2.2"
+  },
+  "imports": {
+    "#start/*": "./start/*.ts",
+    "#app/*": "./app/*.ts",
+    "#config/*": "./config/*.ts",
+    "#database/*": "./database/*.ts",
+    "#models/*": "./app/models/*.ts",
+    "#controllers/*": "./app/controllers/*.ts",
+    "#middleware/*": "./app/middleware/*.ts",
+    "#services/*": "./app/services/*.ts",
+    "#validators/*": "./app/validators/*.ts",
+    "#exceptions/*": "./app/exceptions/*.ts",
+    "#tests/*": "./tests/*.ts"
+  },
+  "devDependencies": {
+    "@adonisjs/assembler": "^7.8.2",
+    "@adonisjs/tsconfig": "^1.4.0",
+    "@japa/api-client": "^3.2.1",
+    "@japa/assert": "^4.2.0",
+    "@japa/plugin-adonisjs": "^3.0.2",
+    "@japa/runner": "^5.3.0",
+    "@swc/core": "^1.15.30",
+    "@types/luxon": "^3.4.2",
+    "@types/node": "^22.15.0",
+    "pino-pretty": "^13.0.0",
+    "ts-node-maintained": "^10.9.6",
+    "tsx": "^4.21.0",
+    "typescript": "^5.8.3"
+  }
+}
