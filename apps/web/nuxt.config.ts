@@ -34,4 +34,9 @@ export default defineNuxtConfig({
       colors: ['umbra'],
     },
   },
+  runtimeConfig: {
+    public: {
+      apiBase: process.env.NUXT_PUBLIC_API_BASE || 'http://localhost:3333/api/v1',
+    },
+  },
 })

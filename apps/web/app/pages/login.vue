@@ -1,7 +1,11 @@
 <script setup lang="ts">
+import { useAuthStore } from '~/stores/auth'
+
 definePageMeta({ layout: 'auth' })
 
 const colorMode = useColorMode()
+const auth = useAuthStore()
+const { t } = useT()
 
 const email    = ref('')
 const password = ref('')
@@ -17,7 +21,7 @@ function triggerOAuth() {
 }
 
 function forgotPassword() {
-  if (!email.value) { error.value = 'Entre ton email pour recevoir le lien de réinitialisation.'; return }
+  if (!email.value) { error.value = t('auth_err_forgot_email'); return }
   forgotSent.value = true
 }
 
@@ -28,14 +32,19 @@ const themes = [
 
 async function login() {
   if (!email.value || !password.value) {
-    error.value = 'Remplis tous les champs.'
+    error.value = t('auth_err_fill')
     return
   }
   loading.value = true
   error.value   = ''
-  await new Promise(r => setTimeout(r, 800))
-  loading.value = false
-  navigateTo('/')
+  try {
+    await auth.login(email.value, password.value)
+    await navigateTo('/')
+  } catch (e: any) {
+    error.value = e?.data?.message || e?.data?.errors?.[0]?.message || t('auth_err_invalid')
+  } finally {
+    loading.value = false
+  }
 }
 </script>
 
@@ -46,12 +55,11 @@ async function login() {
     <div class="login-left">
       <div class="left-content">
         <div class="login-tagline">
-          Vos noeuds VPN,<br>
-          <span class="accent">sous votre contrôle.</span>
+          {{ t('auth_tagline_login_1') }}<br>
+          <span class="accent">{{ t('auth_tagline_login_2') }}</span>
         </div>
         <div class="login-desc">
-          Déploiement en une commande. Interface unifiée.
-          Aucune dépendance à un service tiers.
+          {{ t('auth_desc_login') }}
         </div>
       </div>
     </div>
@@ -59,33 +67,36 @@ async function login() {
     <!-- Right panel -->
     <div class="login-right">
 
-      <!-- Theme toggle -->
-      <div class="theme-toggle">
-        <button
-          v-for="t in themes"
-          :key="t.value"
-          class="theme-dot"
-          :class="{ active: colorMode.value === t.value }"
-          :title="t.label"
-          @click="colorMode.preference = t.value"
-        >
-          <div class="dot-preview" :class="`prev-${t.value}`" />
-        </button>
+      <!-- Theme + lang toggles -->
+      <div class="auth-toggles">
+        <LangToggle />
+        <div class="theme-toggle">
+          <button
+            v-for="th in themes"
+            :key="th.value"
+            class="theme-dot"
+            :class="{ active: colorMode.value === th.value }"
+            :title="th.label"
+            @click="colorMode.preference = th.value"
+          >
+            <div class="dot-preview" :class="`prev-${th.value}`" />
+          </button>
+        </div>
       </div>
 
       <div class="login-form">
         <div class="form-logo">UMBRA<span class="accent">.</span></div>
-        <div class="form-sub">Connexion à votre espace</div>
+        <div class="form-sub">{{ t('auth_login_title') }}</div>
 
         <!-- OAuth -->
         <div v-if="oauthNotice" class="oauth-notice">
           <UIcon name="i-lucide-info" style="width:12px;height:12px;flex-shrink:0" />
-          OAuth disponible après la sortie du backend.
+          {{ t('auth_oauth_notice') }}
         </div>
         <div class="oauth-group">
           <button class="oauth-btn" @click="triggerOAuth">
             <UIcon name="i-lucide-github" style="width:16px;height:16px" />
-            Continuer avec GitHub
+            {{ t('auth_oauth_github') }}
           </button>
           <button class="oauth-btn" @click="triggerOAuth">
             <svg width="15" height="15" viewBox="0 0 24 24">
@@ -94,21 +105,21 @@ async function login() {
               <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
               <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
             </svg>
-            Continuer avec Google
+            {{ t('auth_oauth_google') }}
           </button>
         </div>
 
-        <div class="divider">ou par email</div>
+        <div class="divider">{{ t('auth_or_email') }}</div>
 
         <div class="form-fields">
           <div class="form-group">
-            <label class="form-label">Email</label>
-            <input v-model="email" class="form-input" type="email" placeholder="vous@example.com" />
+            <label class="form-label">{{ t('auth_email') }}</label>
+            <input v-model="email" class="form-input" type="email" :placeholder="t('auth_email_ph')" />
           </div>
           <div class="form-group">
             <label class="form-label">
-              Mot de passe
-              <a class="form-link" style="cursor:pointer" @click.prevent="forgotPassword">Mot de passe oublié ?</a>
+              {{ t('auth_password') }}
+              <a class="form-link" style="cursor:pointer" @click.prevent="forgotPassword">{{ t('auth_password_forgot') }}</a>
             </label>
             <div class="input-wrap">
               <input
@@ -128,18 +139,18 @@ async function login() {
 
         <div v-if="forgotSent" class="success-msg">
           <UIcon name="i-lucide-mail" style="width:12px;height:12px;flex-shrink:0" />
-          Lien de réinitialisation envoyé à {{ email }}
+          {{ t('auth_forgot_sent') }} {{ email }}
         </div>
         <div v-else-if="error" class="error-msg">{{ error }}</div>
 
         <button class="btn-submit" :disabled="loading" @click="login">
-          <span v-if="!loading">Connexion →</span>
+          <span v-if="!loading">{{ t('auth_login_btn') }}</span>
           <span v-else class="loading-dots">···</span>
         </button>
 
         <div class="form-footer">
-          Pas encore de compte ?
-          <NuxtLink to="/register" class="form-link">Inscription gratuite</NuxtLink>
+          {{ t('auth_no_account') }}
+          <NuxtLink to="/register" class="form-link">{{ t('auth_register_link') }}</NuxtLink>
         </div>
       </div>
     </div>

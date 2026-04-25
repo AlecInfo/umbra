@@ -1,12 +1,18 @@
 <script setup lang="ts">
+import { useAuthStore } from '~/stores/auth'
+
 definePageMeta({ layout: 'auth' })
 
 const colorMode = useColorMode()
+const auth = useAuthStore()
+const { t } = useT()
 
 const username = ref('')
 const email    = ref('')
 const password = ref('')
+const confirmPwd = ref('')
 const showPwd  = ref(false)
+const showConfirm = ref(false)
 const loading  = ref(false)
 const error    = ref('')
 
@@ -27,11 +33,13 @@ const pwdStrength = computed(() => {
 })
 
 const strengthLabel = computed(() =>
-  ['', 'Faible', 'Moyen', 'Fort', 'Très fort'][pwdStrength.value]
+  t(`auth_strength_${pwdStrength.value}`)
 )
 
+const pwdMatch = computed(() => !!confirmPwd.value && password.value === confirmPwd.value)
+
 const canSubmit = computed(() =>
-  username.value && email.value && password.value && pwdStrength.value >= 2
+  username.value && email.value && password.value && pwdStrength.value >= 2 && pwdMatch.value
 )
 
 const oauthNotice = ref(false)
@@ -44,9 +52,14 @@ async function register() {
   if (!canSubmit.value) return
   loading.value = true
   error.value   = ''
-  await new Promise(r => setTimeout(r, 800))
-  loading.value = false
-  navigateTo('/')
+  try {
+    await auth.register(email.value, password.value, username.value)
+    await navigateTo('/')
+  } catch (e: any) {
+    error.value = e?.data?.message || e?.data?.errors?.[0]?.message || t('auth_err_register')
+  } finally {
+    loading.value = false
+  }
 }
 </script>
 
@@ -56,43 +69,45 @@ async function register() {
     <div class="login-left">
       <div class="left-content">
         <div class="login-tagline">
-          Prêt en<br>
-          <span class="accent">une commande.</span>
+          {{ t('auth_tagline_register_1') }}<br>
+          <span class="accent">{{ t('auth_tagline_register_2') }}</span>
         </div>
         <div class="login-desc">
-          Créez votre compte, ajoutez un noeud, connectez-vous.
-          Tout en moins de 5 minutes.
+          {{ t('auth_desc_register') }}
         </div>
       </div>
     </div>
 
     <div class="login-right">
 
-      <div class="theme-toggle">
-        <button
-          v-for="t in themes"
-          :key="t.value"
-          class="theme-dot"
-          :class="{ active: colorMode.value === t.value }"
-          :title="t.label"
-          @click="colorMode.preference = t.value"
-        >
-          <div class="dot-preview" :class="`prev-${t.value}`" />
-        </button>
+      <div class="auth-toggles">
+        <LangToggle />
+        <div class="theme-toggle">
+          <button
+            v-for="th in themes"
+            :key="th.value"
+            class="theme-dot"
+            :class="{ active: colorMode.value === th.value }"
+            :title="th.label"
+            @click="colorMode.preference = th.value"
+          >
+            <div class="dot-preview" :class="`prev-${th.value}`" />
+          </button>
+        </div>
       </div>
 
       <div class="login-form">
         <div class="form-logo">UMBRA<span class="accent">.</span></div>
-        <div class="form-sub">Créer un compte gratuit</div>
+        <div class="form-sub">{{ t('auth_register_title') }}</div>
 
         <div v-if="oauthNotice" class="oauth-notice">
           <UIcon name="i-lucide-info" style="width:12px;height:12px;flex-shrink:0" />
-          OAuth disponible après la sortie du backend.
+          {{ t('auth_oauth_notice') }}
         </div>
         <div class="oauth-group">
           <button class="oauth-btn" @click="triggerOAuth">
             <UIcon name="i-lucide-github" style="width:16px;height:16px" />
-            Continuer avec GitHub
+            {{ t('auth_oauth_github') }}
           </button>
           <button class="oauth-btn" @click="triggerOAuth">
             <svg width="15" height="15" viewBox="0 0 24 24">
@@ -101,23 +116,23 @@ async function register() {
               <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
               <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
             </svg>
-            Continuer avec Google
+            {{ t('auth_oauth_google') }}
           </button>
         </div>
 
-        <div class="divider">ou par email</div>
+        <div class="divider">{{ t('auth_or_email') }}</div>
 
         <div class="form-fields">
           <div class="form-group">
-            <label class="form-label">Nom d'utilisateur</label>
-            <input v-model="username" class="form-input" placeholder="alecptt" />
+            <label class="form-label">{{ t('auth_username') }}</label>
+            <input v-model="username" class="form-input" :placeholder="t('auth_username_ph')" />
           </div>
           <div class="form-group">
-            <label class="form-label">Email</label>
-            <input v-model="email" class="form-input" type="email" placeholder="vous@example.com" />
+            <label class="form-label">{{ t('auth_email') }}</label>
+            <input v-model="email" class="form-input" type="email" :placeholder="t('auth_email_ph')" />
           </div>
           <div class="form-group">
-            <label class="form-label">Mot de passe</label>
+            <label class="form-label">{{ t('auth_password') }}</label>
             <div class="input-wrap">
               <input
                 v-model="password"
@@ -142,18 +157,36 @@ async function register() {
             </div>
             <span class="strength-lbl">{{ strengthLabel }}</span>
           </div>
+          <div class="form-group">
+            <label class="form-label">{{ t('auth_password_confirm') }}</label>
+            <div class="input-wrap">
+              <input
+                v-model="confirmPwd"
+                class="form-input"
+                :type="showConfirm ? 'text' : 'password'"
+                placeholder="••••••••••••"
+              />
+              <button class="eye-btn" @click="showConfirm = !showConfirm">
+                <UIcon v-if="showConfirm" name="i-lucide-eye-off" style="width:14px;height:14px" />
+                <UIcon v-else name="i-lucide-eye" style="width:14px;height:14px" />
+              </button>
+            </div>
+            <div v-if="confirmPwd && !pwdMatch" class="strength-lbl" style="color:var(--offline);margin-top:4px">
+              {{ t('auth_password_mismatch') }}
+            </div>
+          </div>
         </div>
 
         <div v-if="error" class="error-msg">{{ error }}</div>
 
         <button class="btn-submit" :disabled="loading || !canSubmit" @click="register">
-          <span v-if="!loading">Créer le compte →</span>
+          <span v-if="!loading">{{ t('auth_register_btn') }}</span>
           <span v-else class="loading-dots">···</span>
         </button>
 
         <div class="form-footer">
-          Déjà un compte ?
-          <NuxtLink to="/login" class="form-link">Se connecter</NuxtLink>
+          {{ t('auth_have_account') }}
+          <NuxtLink to="/login" class="form-link">{{ t('auth_login_link') }}</NuxtLink>
         </div>
       </div>
     </div>
