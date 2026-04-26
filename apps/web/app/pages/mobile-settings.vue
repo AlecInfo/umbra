@@ -1,6 +1,7 @@
 <script setup lang="ts">
 definePageMeta({ layout: 'mobile' })
 
+const { t } = useT()
 const colorMode = useColorMode()
 const isDark = computed(() => colorMode.value === 'dark')
 
@@ -11,13 +12,23 @@ const notifications = ref(true)
 const splitTunnel   = ref(false)
 
 // DNS options
-const dnsOptions   = ['Automatique', 'Cloudflare (1.1.1.1)', 'Google (8.8.8.8)', 'Personnalisé']
-const selectedDns  = ref('Automatique')
+const dnsOptions = computed(() => [
+  { value: 'auto',       label: t('mset_dns_auto')          },
+  { value: 'cloudflare', label: 'Cloudflare (1.1.1.1)'      },
+  { value: 'google',     label: 'Google (8.8.8.8)'          },
+  { value: 'custom',     label: t('mset_dns_custom')        },
+])
+const selectedDns  = ref('auto')
+const selectedDnsLabel = computed(() => dnsOptions.value.find(o => o.value === selectedDns.value)?.label ?? '')
 const showDnsPicker = ref(false)
 
 // Protocol options
-const protocolOptions  = ['WireGuard', 'WireGuard over TCP']
-const selectedProtocol = ref('WireGuard')
+const protocolOptions = computed(() => [
+  { value: 'wg',     label: 'WireGuard'         },
+  { value: 'wg-tcp', label: 'WireGuard over TCP' },
+])
+const selectedProtocol = ref('wg')
+const selectedProtocolLabel = computed(() => protocolOptions.value.find(o => o.value === selectedProtocol.value)?.label ?? '')
 const showProtoPicker  = ref(false)
 
 // Subscription sheet
@@ -26,22 +37,22 @@ const showSubSheet = ref(false)
 // API keys sheet
 const showApiSheet = ref(false)
 const mockApiKeys = [
-  { name: 'Script backup', masked: 'umbra_sk_a4f2...f4a7c', status: 'active'  },
-  { name: 'CI/CD pipeline', masked: 'umbra_sk_b7d3...e6f8', status: 'active'  },
-  { name: 'Test local',     masked: 'umbra_sk_c1e5...b2d4', status: 'revoked' },
+  { name: 'Script backup',  masked: 'umbra_sk_a4f2...f4a7c', status: 'active'  },
+  { name: 'CI/CD pipeline', masked: 'umbra_sk_b7d3...e6f8',  status: 'active'  },
+  { name: 'Test local',     masked: 'umbra_sk_c1e5...b2d4',  status: 'revoked' },
 ]
 
 // Connection logs sheet
 const showLogsSheet = ref(false)
 const mockLogs = [
-  { type: 'connect',    node: 'raspi-home',   time: 'Aujourd\'hui 17:42', detail: '100.64.0.1 · 3 ms' },
-  { type: 'disconnect', node: 'raspi-home',   time: 'Aujourd\'hui 16:10', detail: 'Durée 1h 28m'       },
-  { type: 'connect',    node: 'vps-fra-01',   time: 'Aujourd\'hui 14:05', detail: '100.64.0.8 · 14 ms' },
-  { type: 'warning',    node: 'nano-annecy',  time: 'Hier 23:18',         detail: 'CPU 82 % · Temp 71°C' },
-  { type: 'disconnect', node: 'vps-fra-01',   time: 'Hier 21:30',         detail: 'Durée 3h 12m'       },
-  { type: 'connect',    node: 'vps-nyc-01',   time: 'Hier 18:55',         detail: '100.64.0.12 · 98 ms' },
-  { type: 'disconnect', node: 'vps-nyc-01',   time: 'Hier 17:00',         detail: 'Durée 1h 55m'       },
-  { type: 'connect',    node: 'raspi-lausanne', time: '28 fév 09:12',     detail: '100.64.0.5 · 4 ms'  },
+  { type: 'connect',    node: 'raspi-home',     timeKey: 'mset_log_today_1742', detailKey: 'mset_log_d1' },
+  { type: 'disconnect', node: 'raspi-home',     timeKey: 'mset_log_today_1610', detailKey: 'mset_log_d2' },
+  { type: 'connect',    node: 'vps-fra-01',     timeKey: 'mset_log_today_1405', detailKey: 'mset_log_d3' },
+  { type: 'warning',    node: 'nano-annecy',    timeKey: 'mset_log_hier_2318',  detailKey: 'mset_log_d4' },
+  { type: 'disconnect', node: 'vps-fra-01',     timeKey: 'mset_log_hier_2130',  detailKey: 'mset_log_d5' },
+  { type: 'connect',    node: 'vps-nyc-01',     timeKey: 'mset_log_hier_1855',  detailKey: 'mset_log_d6' },
+  { type: 'disconnect', node: 'vps-nyc-01',     timeKey: 'mset_log_hier_1700',  detailKey: 'mset_log_d7' },
+  { type: 'connect',    node: 'raspi-lausanne', timeKey: 'mset_log_feb28_0912', detailKey: 'mset_log_d8' },
 ]
 
 function logIcon(type: string) {
@@ -68,10 +79,10 @@ function signOut() {
 
     <!-- ── Header ── -->
     <header class="ms-header">
-      <button class="m-icon-btn" @click="navigateTo('/mobile')" aria-label="Retour">
+      <button class="m-icon-btn" @click="navigateTo('/mobile')" :aria-label="t('common_back')">
         <UIcon name="i-lucide-chevron-left" style="width:16px;height:16px" />
       </button>
-      <span class="ms-title">Paramètres</span>
+      <span class="ms-title">{{ t('mset_title') }}</span>
       <div style="width:34px" />
     </header>
 
@@ -80,7 +91,7 @@ function signOut() {
 
       <!-- ── COMPTE ── -->
       <div class="ms-section">
-        <div class="ms-section-label">Compte</div>
+        <div class="ms-section-label">{{ t('mset_section_account') }}</div>
 
         <div class="ms-card">
           <!-- Profile row -->
@@ -96,7 +107,7 @@ function signOut() {
           <div class="ms-divider" />
 
           <button class="ms-row ms-row-tap" @click="showSubSheet = true">
-            <span class="ms-row-label">Gérer l'abonnement</span>
+            <span class="ms-row-label">{{ t('mset_manage_sub') }}</span>
             <UIcon name="i-lucide-chevron-right" class="ms-chevron" style="width:12px;height:12px" />
           </button>
         </div>
@@ -104,20 +115,20 @@ function signOut() {
 
       <!-- ── CONNEXION ── -->
       <div class="ms-section">
-        <div class="ms-section-label">Connexion</div>
+        <div class="ms-section-label">{{ t('mset_section_conn') }}</div>
 
         <div class="ms-card">
           <button class="ms-row ms-row-tap" @click="showProtoPicker = true">
-            <span class="ms-row-label">Protocole</span>
-            <span class="ms-row-value">{{ selectedProtocol }}</span>
+            <span class="ms-row-label">{{ t('mset_protocol') }}</span>
+            <span class="ms-row-value">{{ selectedProtocolLabel }}</span>
             <UIcon name="i-lucide-chevron-right" class="ms-chevron" style="width:12px;height:12px" />
           </button>
 
           <div class="ms-divider" />
 
           <button class="ms-row ms-row-tap" @click="showDnsPicker = true">
-            <span class="ms-row-label">DNS</span>
-            <span class="ms-row-value">{{ selectedDns }}</span>
+            <span class="ms-row-label">{{ t('mset_dns') }}</span>
+            <span class="ms-row-value">{{ selectedDnsLabel }}</span>
             <UIcon name="i-lucide-chevron-right" class="ms-chevron" style="width:12px;height:12px" />
           </button>
 
@@ -125,8 +136,8 @@ function signOut() {
 
           <div class="ms-row">
             <div class="ms-row-label-wrap">
-              <span class="ms-row-label">Kill Switch</span>
-              <span class="ms-row-hint">Coupe le réseau si la VPN se déconnecte</span>
+              <span class="ms-row-label">{{ t('mset_kill_switch') }}</span>
+              <span class="ms-row-hint">{{ t('mset_kill_switch_hint') }}</span>
             </div>
             <button class="ms-toggle" :class="{ on: killSwitch }" @click="killSwitch = !killSwitch">
               <span class="ms-toggle-thumb" />
@@ -137,8 +148,8 @@ function signOut() {
 
           <div class="ms-row">
             <div class="ms-row-label-wrap">
-              <span class="ms-row-label">Auto-connexion</span>
-              <span class="ms-row-hint">Au démarrage de l'application</span>
+              <span class="ms-row-label">{{ t('mset_auto_connect') }}</span>
+              <span class="ms-row-hint">{{ t('mset_auto_connect_hint') }}</span>
             </div>
             <button class="ms-toggle" :class="{ on: autoConnect }" @click="autoConnect = !autoConnect">
               <span class="ms-toggle-thumb" />
@@ -149,8 +160,8 @@ function signOut() {
 
           <div class="ms-row">
             <div class="ms-row-label-wrap">
-              <span class="ms-row-label">Split Tunnel</span>
-              <span class="ms-row-hint">Exclure certaines apps du VPN</span>
+              <span class="ms-row-label">{{ t('mset_split_tunnel') }}</span>
+              <span class="ms-row-hint">{{ t('mset_split_tunnel_hint') }}</span>
             </div>
             <button class="ms-toggle" :class="{ on: splitTunnel }" @click="splitTunnel = !splitTunnel">
               <span class="ms-toggle-thumb" />
@@ -161,14 +172,14 @@ function signOut() {
 
       <!-- ── INTERFACE ── -->
       <div class="ms-section">
-        <div class="ms-section-label">Interface</div>
+        <div class="ms-section-label">{{ t('mset_section_ui') }}</div>
 
         <div class="ms-card">
           <div class="ms-row">
-            <span class="ms-row-label">Thème</span>
+            <span class="ms-row-label">{{ t('mset_theme') }}</span>
             <div class="ms-segment">
-              <button class="ms-seg-btn" :class="{ active: !isDark }" @click="colorMode.preference = 'light'">Clair</button>
-              <button class="ms-seg-btn" :class="{ active: isDark }"  @click="colorMode.preference = 'dark'">Sombre</button>
+              <button class="ms-seg-btn" :class="{ active: !isDark }" @click="colorMode.preference = 'light'">{{ t('mset_theme_light') }}</button>
+              <button class="ms-seg-btn" :class="{ active: isDark }"  @click="colorMode.preference = 'dark'">{{ t('mset_theme_dark') }}</button>
             </div>
           </div>
 
@@ -176,8 +187,8 @@ function signOut() {
 
           <div class="ms-row">
             <div class="ms-row-label-wrap">
-              <span class="ms-row-label">Notifications</span>
-              <span class="ms-row-hint">Alertes de connexion et sécurité</span>
+              <span class="ms-row-label">{{ t('mset_notifications') }}</span>
+              <span class="ms-row-hint">{{ t('mset_notifications_hint') }}</span>
             </div>
             <button class="ms-toggle" :class="{ on: notifications }" @click="notifications = !notifications">
               <span class="ms-toggle-thumb" />
@@ -188,18 +199,18 @@ function signOut() {
 
       <!-- ── SÉCURITÉ ── -->
       <div class="ms-section">
-        <div class="ms-section-label">Sécurité</div>
+        <div class="ms-section-label">{{ t('mset_section_security') }}</div>
 
         <div class="ms-card">
           <button class="ms-row ms-row-tap" @click="showApiSheet = true">
-            <span class="ms-row-label">Clés API</span>
+            <span class="ms-row-label">{{ t('mset_api_keys') }}</span>
             <UIcon name="i-lucide-chevron-right" class="ms-chevron" style="width:12px;height:12px" />
           </button>
 
           <div class="ms-divider" />
 
           <button class="ms-row ms-row-tap" @click="showLogsSheet = true">
-            <span class="ms-row-label">Journaux de connexion</span>
+            <span class="ms-row-label">{{ t('mset_conn_logs') }}</span>
             <UIcon name="i-lucide-chevron-right" class="ms-chevron" style="width:12px;height:12px" />
           </button>
         </div>
@@ -207,18 +218,18 @@ function signOut() {
 
       <!-- ── À PROPOS ── -->
       <div class="ms-section">
-        <div class="ms-section-label">À propos</div>
+        <div class="ms-section-label">{{ t('mset_section_about') }}</div>
 
         <div class="ms-card">
           <button class="ms-row ms-row-tap" @click="navigateTo('https://umbravpn.io/docs', { external: true, open: { target: '_blank' } })">
-            <span class="ms-row-label">Documentation</span>
+            <span class="ms-row-label">{{ t('mset_docs') }}</span>
             <UIcon name="i-lucide-arrow-up-right" class="ms-chevron" style="width:12px;height:12px" />
           </button>
 
           <div class="ms-divider" />
 
           <div class="ms-row">
-            <span class="ms-row-label">Version</span>
+            <span class="ms-row-label">{{ t('mset_version') }}</span>
             <span class="ms-row-value mono">0.2.0-beta</span>
           </div>
         </div>
@@ -228,7 +239,7 @@ function signOut() {
       <div class="ms-section">
         <div class="ms-card">
           <button class="ms-row ms-row-tap ms-row-danger" @click="showSignOutSheet = true">
-            <span class="ms-row-label">Se déconnecter du compte</span>
+            <span class="ms-row-label">{{ t('mset_signout_row') }}</span>
           </button>
         </div>
       </div>
@@ -241,17 +252,17 @@ function signOut() {
       <div v-if="showProtoPicker" class="ms-overlay" @click.self="showProtoPicker = false">
         <div class="ms-picker-sheet">
           <div class="ms-sheet-handle" />
-          <div class="ms-picker-header">Protocole</div>
+          <div class="ms-picker-header">{{ t('mset_protocol') }}</div>
           <div class="ms-picker-list">
             <button
                 v-for="opt in protocolOptions"
-                :key="opt"
+                :key="opt.value"
                 class="ms-picker-row"
-                :class="{ selected: selectedProtocol === opt }"
-                @click="selectedProtocol = opt; showProtoPicker = false"
+                :class="{ selected: selectedProtocol === opt.value }"
+                @click="selectedProtocol = opt.value; showProtoPicker = false"
             >
-              {{ opt }}
-              <UIcon v-if="selectedProtocol === opt" name="i-lucide-check" style="width:14px;height:14px;color:var(--accent);margin-left:auto" />
+              {{ opt.label }}
+              <UIcon v-if="selectedProtocol === opt.value" name="i-lucide-check" style="width:14px;height:14px;color:var(--accent);margin-left:auto" />
             </button>
           </div>
           <div class="ms-sheet-safe" />
@@ -264,17 +275,17 @@ function signOut() {
       <div v-if="showDnsPicker" class="ms-overlay" @click.self="showDnsPicker = false">
         <div class="ms-picker-sheet">
           <div class="ms-sheet-handle" />
-          <div class="ms-picker-header">Serveur DNS</div>
+          <div class="ms-picker-header">{{ t('mset_dns_header') }}</div>
           <div class="ms-picker-list">
             <button
                 v-for="opt in dnsOptions"
-                :key="opt"
+                :key="opt.value"
                 class="ms-picker-row"
-                :class="{ selected: selectedDns === opt }"
-                @click="selectedDns = opt; showDnsPicker = false"
+                :class="{ selected: selectedDns === opt.value }"
+                @click="selectedDns = opt.value; showDnsPicker = false"
             >
-              {{ opt }}
-              <UIcon v-if="selectedDns === opt" name="i-lucide-check" style="width:14px;height:14px;color:var(--accent);margin-left:auto" />
+              {{ opt.label }}
+              <UIcon v-if="selectedDns === opt.value" name="i-lucide-check" style="width:14px;height:14px;color:var(--accent);margin-left:auto" />
             </button>
           </div>
           <div class="ms-sheet-safe" />
@@ -287,28 +298,28 @@ function signOut() {
       <div v-if="showSubSheet" class="ms-overlay" @click.self="showSubSheet = false">
         <div class="ms-picker-sheet">
           <div class="ms-sheet-handle" />
-          <div class="ms-picker-header">Abonnement</div>
+          <div class="ms-picker-header">{{ t('mset_sub_header') }}</div>
 
           <div class="ms-sub-body">
             <!-- Plan card -->
             <div class="ms-sub-plan">
               <div class="ms-sub-plan-left">
                 <div class="ms-sub-plan-name">Free</div>
-                <div class="ms-sub-plan-price">Gratuit · plan actuel</div>
+                <div class="ms-sub-plan-price">{{ t('mset_sub_current') }}</div>
               </div>
-              <div class="ms-plan-badge" style="font-size:10px;padding:4px 10px">Actif</div>
+              <div class="ms-plan-badge" style="font-size:10px;padding:4px 10px">{{ t('mset_sub_active') }}</div>
             </div>
 
             <!-- Usage rows -->
             <div class="ms-sub-usage">
               <div class="ms-sub-usage-row">
-                <span class="ms-sub-usage-lbl">Noeuds</span>
+                <span class="ms-sub-usage-lbl">{{ t('mset_sub_nodes') }}</span>
                 <span class="ms-sub-usage-val">2 / 5</span>
               </div>
               <div class="ms-sub-usage-bar"><div class="ms-sub-usage-fill" style="width: 40%" /></div>
 
               <div class="ms-sub-usage-row" style="margin-top:10px">
-                <span class="ms-sub-usage-lbl">Clés API</span>
+                <span class="ms-sub-usage-lbl">{{ t('mset_api_keys') }}</span>
                 <span class="ms-sub-usage-val">1 / 2</span>
               </div>
               <div class="ms-sub-usage-bar"><div class="ms-sub-usage-fill" style="width: 50%" /></div>
@@ -319,21 +330,21 @@ function signOut() {
               <div class="ms-sub-plan-opt">
                 <div class="ms-sub-plan-opt-name">Pro</div>
                 <div class="ms-sub-plan-opt-price">8,90 €/mois</div>
-                <div class="ms-sub-plan-opt-feat">25 noeuds · 10 utilisateurs · 90j</div>
+                <div class="ms-sub-plan-opt-feat">{{ t('mset_sub_pro_feat') }}</div>
               </div>
               <div class="ms-sub-plan-opt lifetime">
                 <div class="ms-sub-plan-opt-name">Lifetime</div>
                 <div class="ms-sub-plan-opt-price">149 € unique</div>
-                <div class="ms-sub-plan-opt-feat">Fonctionnalités Pro à vie</div>
+                <div class="ms-sub-plan-opt-feat">{{ t('mset_sub_lifetime_feat') }}</div>
               </div>
               <div class="ms-sub-plan-opt business">
                 <div class="ms-sub-plan-opt-name">Business</div>
-                <div class="ms-sub-plan-opt-price">Sur devis</div>
-                <div class="ms-sub-plan-opt-feat">Illimité · SSO · SLA 99,9%</div>
+                <div class="ms-sub-plan-opt-price">{{ t('mset_sub_business_price') }}</div>
+                <div class="ms-sub-plan-opt-feat">{{ t('mset_sub_business_feat') }}</div>
               </div>
             </div>
 
-            <button class="ms-sheet-btn" @click="showSubSheet = false">Voir les plans →</button>
+            <button class="ms-sheet-btn" @click="showSubSheet = false">{{ t('mset_sub_see_plans') }}</button>
           </div>
 
           <div class="ms-sheet-safe" />
@@ -346,7 +357,7 @@ function signOut() {
       <div v-if="showApiSheet" class="ms-overlay" @click.self="showApiSheet = false">
         <div class="ms-picker-sheet">
           <div class="ms-sheet-handle" />
-          <div class="ms-picker-header">Clés API</div>
+          <div class="ms-picker-header">{{ t('mset_api_keys') }}</div>
 
           <div class="ms-api-body">
             <div v-for="k in mockApiKeys" :key="k.name" class="ms-api-row">
@@ -357,12 +368,12 @@ function signOut() {
                 <div class="ms-api-name">{{ k.name }}</div>
                 <div class="ms-api-token">{{ k.masked }}</div>
               </div>
-              <span class="ms-api-status" :class="k.status">{{ k.status === 'active' ? 'Active' : 'Révoquée' }}</span>
+              <span class="ms-api-status" :class="k.status">{{ k.status === 'active' ? t('mset_api_active') : t('mset_api_revoked') }}</span>
             </div>
 
             <div class="ms-api-note">
               <UIcon name="i-lucide-info" style="width:12px;height:12px;flex-shrink:0;color:var(--muted)" />
-              La gestion complète des clés est disponible sur la version web.
+              {{ t('mset_api_web_only') }}
             </div>
           </div>
 
@@ -376,7 +387,7 @@ function signOut() {
       <div v-if="showLogsSheet" class="ms-overlay" @click.self="showLogsSheet = false">
         <div class="ms-picker-sheet ms-logs-sheet">
           <div class="ms-sheet-handle" />
-          <div class="ms-picker-header">Journaux de connexion</div>
+          <div class="ms-picker-header">{{ t('mset_conn_logs') }}</div>
 
           <div class="ms-logs-list">
             <div v-for="(log, i) in mockLogs" :key="i" class="ms-log-row">
@@ -385,9 +396,9 @@ function signOut() {
               </div>
               <div class="ms-log-info">
                 <div class="ms-log-node">{{ log.node }}</div>
-                <div class="ms-log-detail">{{ log.detail }}</div>
+                <div class="ms-log-detail">{{ t(log.detailKey) }}</div>
               </div>
-              <div class="ms-log-time">{{ log.time }}</div>
+              <div class="ms-log-time">{{ t(log.timeKey) }}</div>
             </div>
           </div>
 
@@ -401,17 +412,17 @@ function signOut() {
       <div v-if="showSignOutSheet" class="ms-overlay" @click.self="showSignOutSheet = false">
         <div class="ms-picker-sheet">
           <div class="ms-sheet-handle" />
-          <div class="ms-picker-header">Déconnexion</div>
+          <div class="ms-picker-header">{{ t('mset_signout_header') }}</div>
 
           <div class="ms-signout-body">
             <div class="ms-signout-icon">
               <UIcon name="i-lucide-log-out" style="width:22px;height:22px" />
             </div>
-            <div class="ms-signout-title">Se déconnecter ?</div>
-            <div class="ms-signout-sub">Tu devras te reconnecter pour accéder à UMBRA.</div>
+            <div class="ms-signout-title">{{ t('mset_signout_title') }}</div>
+            <div class="ms-signout-sub">{{ t('mset_signout_sub') }}</div>
 
-            <button class="ms-sheet-btn ms-sheet-btn-danger" @click="signOut">Se déconnecter</button>
-            <button class="ms-sheet-btn ms-sheet-btn-ghost" @click="showSignOutSheet = false">Annuler</button>
+            <button class="ms-sheet-btn ms-sheet-btn-danger" @click="signOut">{{ t('mset_signout_btn') }}</button>
+            <button class="ms-sheet-btn ms-sheet-btn-ghost" @click="showSignOutSheet = false">{{ t('common_cancel') }}</button>
           </div>
 
           <div class="ms-sheet-safe" />

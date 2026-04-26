@@ -8,8 +8,22 @@ const route  = useRoute()
 const colorMode = useColorMode()
 const { t } = useT()
 
+const displayName = computed(() => auth.user?.name?.trim() || auth.user?.email?.split('@')[0] || t('side_account_label'))
+const avatarInitial = computed(() => displayName.value.charAt(0).toUpperCase())
+
+function onVisibility() {
+  if (document.visibilityState === 'visible') store.fetchNodes()
+}
+
 onMounted(() => {
   if (auth.isAuthenticated && !auth.user) auth.fetchMe()
+  store.startPolling(8000)
+  document.addEventListener('visibilitychange', onVisibility)
+})
+
+onUnmounted(() => {
+  store.stopPolling()
+  document.removeEventListener('visibilitychange', onVisibility)
 })
 
 const navGroups = computed(() => [
@@ -78,10 +92,10 @@ async function logout() {
         <div class="sidebar-bottom">
           <div class="user-pill" @click="toggleTheme">
             <div class="user-avatar">
-              <UIcon name="i-lucide-user" style="width:13px;height:13px;color:#0a0a0b" />
+              <span style="color:#0a0a0b;font-weight:600;font-size:11px">{{ avatarInitial }}</span>
             </div>
             <div style="flex:1;min-width:0">
-              <div class="user-name">{{ t('side_account_label') }}</div>
+              <div class="user-name">{{ displayName }}</div>
               <div class="user-plan">{{ colorMode.value === 'dark' ? 'Dark' : 'Light' }}</div>
             </div>
             <button

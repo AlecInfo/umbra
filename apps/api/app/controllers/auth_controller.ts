@@ -1,6 +1,7 @@
 import type { HttpContext } from '@adonisjs/core/http'
 import hash from '@adonisjs/core/services/hash'
 import User from '#models/user'
+import AuditLog from '#models/audit_log'
 import {
   registerValidator,
   loginValidator,
@@ -53,6 +54,18 @@ export default class AuthController {
       expiresIn: '30 days',
     })
 
+    await AuditLog.create({
+      performedBy: user.id,
+      orgId:       null,
+      resourceType: 'auth',
+      resourceId:   user.id,
+      action:       'login',
+      oldValue:     null,
+      newValue:     null,
+      ipAddress:    request.ip(),
+      userAgent:    request.header('user-agent')?.slice(0, 200) ?? null,
+    })
+
     return {
       user: user.serialize(),
       token: {
@@ -63,9 +76,20 @@ export default class AuthController {
     }
   }
 
-  async logout({ auth, response }: HttpContext) {
+  async logout({ auth, request, response }: HttpContext) {
     const user = auth.getUserOrFail()
     const token = user.currentAccessToken
+    await AuditLog.create({
+      performedBy:  user.id,
+      orgId:        null,
+      resourceType: 'auth',
+      resourceId:   user.id,
+      action:       'logout',
+      oldValue:     null,
+      newValue:     null,
+      ipAddress:    request.ip(),
+      userAgent:    request.header('user-agent')?.slice(0, 200) ?? null,
+    })
     if (token) {
       await User.accessTokens.delete(user, token.identifier)
     }
@@ -127,6 +151,34 @@ export default class AuthController {
     if (!count) {
       return response.notFound({ message: 'Session introuvable' })
     }
+    return response.noContent()
+  }
+
+  async loginLogs({ auth }: HttpContext) {
+    const user = auth.getUserOrFail()
+    const logs = await AuditLog.query()
+      .where('performedBy', user.id)
+      .where('resourceType', 'auth')
+      .whereIn('action', ['login', 'logout'])
+      .orderBy('createdAt', 'desc')
+      .limit(50)
+    return {
+      data: logs.map((l) => ({
+        id:         l.id,
+        action:     l.action,
+        ipAddress:  l.ipAddress,
+        userAgent:  l.userAgent,
+        createdAt:  l.createdAt.toISO(),
+      })),
+    }
+  }
+
+  async deleteAccount({ auth, response }: HttpContext) {
+    const user   = auth.getUserOrFail()
+    const tokens = await User.accessTokens.all(user)
+    await Promise.all(tokens.map((t) => User.accessTokens.delete(user, t.identifier)))
+    user.isActive = false
+    await user.save()
     return response.noContent()
   }
 }

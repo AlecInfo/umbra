@@ -13,6 +13,7 @@ const props = withDefaults(defineProps<{
 })
 
 const emit = defineEmits<{ cut: [node: Node] }>()
+const { t } = useT()
 </script>
 
 <template>
@@ -25,17 +26,17 @@ const emit = defineEmits<{ cut: [node: Node] }>()
     <div class="vpn-stats">
       <div class="vstat">
         <div class="vstat-val">{{ node.latency }}ms</div>
-        <div class="vstat-lbl">Latence</div>
+        <div class="vstat-lbl">{{ t('vpn_latency') }}</div>
       </div>
       <div class="vstat">
         <div class="vstat-val">↑ {{ upload }}</div>
-        <div class="vstat-lbl">Upload</div>
+        <div class="vstat-lbl">{{ t('vpn_upload') }}</div>
       </div>
       <div class="vstat">
         <div class="vstat-val">↓ {{ download }}</div>
-        <div class="vstat-lbl">Download</div>
+        <div class="vstat-lbl">{{ t('vpn_download') }}</div>
       </div>
     </div>
-    <button v-if="showCut" class="btn-cut" @click="emit('cut', node)">Déconnecter</button>
+    <button v-if="showCut" class="btn-cut" @click="emit('cut', node)">{{ t('vpn_disconnect') }}</button>
   </div>
 </template>

@@ -7,6 +7,7 @@ const props = defineProps<{
   }
 }>()
 
+const { t } = useT()
 const is404 = computed(() => props.error?.statusCode === 404)
 </script>
 
@@ -16,15 +17,15 @@ const is404 = computed(() => props.error?.statusCode === 404)
       <div class="err-wrap">
         <NuxtLink to="/" class="err-logo">UMBRA<span>.</span></NuxtLink>
         <div class="err-code">{{ error.statusCode }}</div>
-        <div class="err-title">{{ is404 ? 'Page introuvable' : 'Une erreur est survenue' }}</div>
+        <div class="err-title">{{ is404 ? t('err_404_title') : t('err_generic_title') }}</div>
         <p class="err-msg">
           {{ is404
-            ? 'La page que tu cherches n\'existe pas ou a été déplacée.'
-            : (error.message || 'Quelque chose s\'est mal passé.')
+            ? t('err_404_msg')
+            : (error.message || t('err_generic_msg'))
           }}
         </p>
         <button class="btn-primary" @click="clearError({ redirect: '/' })">
-          Retour au dashboard
+          {{ t('err_back') }}
         </button>
       </div>
     </div>

@@ -4,6 +4,7 @@ import { categoryIcons } from '~/composables/useCategoryIcons'
 definePageMeta({ layout: 'mobile' })
 
 const store     = useNodesStore()
+const { t }     = useT()
 
 onMounted(() => { if (!store.nodes.length) store.fetchNodes() })
 
@@ -83,7 +84,7 @@ function latencyColor(ms: number | null) {
       <div class="m-logo">
         <span class="m-logo-text">UMBRA</span><span class="m-logo-dot">.</span>
       </div>
-      <button class="m-icon-btn" @click="navigateTo('/mobile-settings')" aria-label="Paramètres">
+      <button class="m-icon-btn" @click="navigateTo('/mobile-settings')" :aria-label="t('mset_title')">
         <UIcon name="i-lucide-settings" style="width:16px;height:16px" />
       </button>
     </header>
@@ -106,15 +107,15 @@ function latencyColor(ms: number | null) {
       <div class="m-hero-status">
         <div class="m-hero-label" :class="{ connected: store.connectedNode }">
           <span class="m-status-pip" :class="{ connected: store.connectedNode }" />
-          {{ store.connectedNode ? 'PROTÉGÉ' : 'NON PROTÉGÉ' }}
+          {{ store.connectedNode ? t('mob_protected') : t('mob_unprotected') }}
         </div>
         <div class="m-hero-name">
-          {{ store.connectedNode ? store.connectedNode.name : 'Non connecté' }}
+          {{ store.connectedNode ? store.connectedNode.name : t('mob_not_connected') }}
         </div>
         <div class="m-hero-detail">
           {{ store.connectedNode
             ? `${store.connectedNode.ip} · ${store.connectedNode.location}`
-            : 'Sélectionne un noeud pour te protéger'
+            : t('mob_hero_sub')
           }}
         </div>
       </div>
@@ -128,7 +129,7 @@ function latencyColor(ms: number | null) {
           <UIcon name="i-lucide-arrow-up" class="m-stat-icon up" style="width:12px;height:12px" />
           <span class="m-stat-val">1.2 <span class="m-stat-unit">MB/s</span></span>
         </div>
-        <span class="m-stat-lbl">Upload</span>
+        <span class="m-stat-lbl">{{ t('mob_stat_upload') }}</span>
       </div>
       <div class="m-stat-sep" />
       <div class="m-stat-item">
@@ -136,19 +137,19 @@ function latencyColor(ms: number | null) {
           <UIcon name="i-lucide-arrow-down" class="m-stat-icon dn" style="width:12px;height:12px" />
           <span class="m-stat-val">4.8 <span class="m-stat-unit">MB/s</span></span>
         </div>
-        <span class="m-stat-lbl">Download</span>
+        <span class="m-stat-lbl">{{ t('mob_stat_download') }}</span>
       </div>
       <div class="m-stat-sep" />
       <div class="m-stat-item">
         <span class="m-stat-val" :style="`color: ${store.connectedNode ? latencyColor(store.connectedNode.latency) : 'var(--muted)'}`">
           {{ store.connectedNode?.latency ?? '—' }}<span class="m-stat-unit" style="color: var(--muted)">ms</span>
         </span>
-        <span class="m-stat-lbl">Latence</span>
+        <span class="m-stat-lbl">{{ t('mob_stat_latency') }}</span>
       </div>
       <div class="m-stat-sep" />
       <div class="m-stat-item">
         <span class="m-stat-val mono-timer">{{ duration || '00:00' }}</span>
-        <span class="m-stat-lbl">Durée</span>
+        <span class="m-stat-lbl">{{ t('mob_stat_duration') }}</span>
       </div>
     </div>
 
@@ -162,7 +163,7 @@ function latencyColor(ms: number | null) {
           @click="store.disconnect()"
       >
         <UIcon name="i-lucide-square" style="width:14px;height:14px" />
-        Déconnecter
+        {{ t('mob_btn_disconnect') }}
       </button>
       <button
           v-else-if="lastUsedNode"
@@ -172,7 +173,7 @@ function latencyColor(ms: number | null) {
         <div class="nicon" :class="`cat-${lastUsedNode.category}`" style="width:18px;height:18px">
           <UIcon :name="categoryIcons[lastUsedNode.category]" style="width:10px;height:10px" />
         </div>
-        Reconnecter à {{ lastUsedNode.name }}
+        {{ t('mob_btn_reconnect', { name: lastUsedNode.name }) }}
       </button>
       <button
           v-else
@@ -180,7 +181,7 @@ function latencyColor(ms: number | null) {
           @click="showModal = true"
       >
         <UIcon name="i-lucide-network" style="width:14px;height:14px" />
-        Choisir un noeud
+        {{ t('mob_btn_pick') }}
       </button>
 
       <!-- Slot 2: secondary (always rendered, invisible when no secondary action) -->
@@ -191,7 +192,7 @@ function latencyColor(ms: number | null) {
           @click="showModal = true"
       >
         <UIcon name="i-lucide-server" style="width:13px;height:13px" />
-        {{ store.connectedNode ? 'Changer de noeud' : 'Choisir un noeud' }}
+        {{ store.connectedNode ? t('mob_btn_change') : t('mob_btn_pick') }}
       </button>
 
     </div>
@@ -209,8 +210,8 @@ function latencyColor(ms: number | null) {
 
           <!-- Header -->
           <div class="m-sheet-header">
-            <span class="m-sheet-title">Noeuds disponibles</span>
-            <span class="m-sheet-count">{{ store.onlineCount }} actifs</span>
+            <span class="m-sheet-title">{{ t('mob_sheet_title') }}</span>
+            <span class="m-sheet-count">{{ t('mob_sheet_active', { n: store.onlineCount }) }}</span>
             <button class="m-icon-btn" @click="showModal = false">
               <UIcon name="i-lucide-x" style="width:14px;height:14px" />
             </button>
@@ -238,8 +239,8 @@ function latencyColor(ms: number | null) {
               <div class="m-node-info">
                 <div class="m-node-name">
                   {{ node.name }}
-                  <span v-if="node.status === 'connected'" class="m-tag m-tag-conn">ACTIF</span>
-                  <span v-else-if="node.id === lastUsedId" class="m-tag m-tag-last">dernier</span>
+                  <span v-if="node.status === 'connected'" class="m-tag m-tag-conn">{{ t('mob_tag_active') }}</span>
+                  <span v-else-if="node.id === lastUsedId" class="m-tag m-tag-last">{{ t('mob_tag_last') }}</span>
                 </div>
                 <div class="m-node-sub">
                   {{ node.location }}

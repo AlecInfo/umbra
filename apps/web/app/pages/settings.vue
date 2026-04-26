@@ -1,115 +1,260 @@
 <script setup lang="ts">
-import type { OrgMember, OrgRole } from '~/types/settings'
+import { useAuthStore } from '~/stores/auth'
+import { useNodesStore } from '~/stores/nodes'
+import { useNotifications } from '~/composables/useNotifications'
 
 definePageMeta({ layout: 'default' })
 
+const auth      = useAuthStore()
+const nodesStore = useNodesStore()
 const colorMode = useColorMode()
-const lang       = ref('fr')
+const { lang, setLang, t } = useT()
+const { notify } = useNotifications()
+
 const autoUpdate = ref(true)
 const heartbeat  = ref('30s')
 
-// 2FA
-const twofa       = ref(false)
-const show2fa     = ref(false)
-const twofa2Code  = ref('')
-const twofaError  = ref(false)
-// Fake TOTP secret for mock
-const twofaSecret = 'JBSWY3DPEHPK3PXP'
-const twofaQr     = computed(() =>
-  `https://api.qrserver.com/v1/create-qr-code/?size=140x140&data=${encodeURIComponent(`otpauth://totp/UMBRA:alecptt%40example.com?secret=${twofaSecret}&issuer=UMBRA`)}`
-)
-function toggleTwofa(val: boolean) {
-  if (val) { show2fa.value = true }
-  else { twofa.value = false }
-}
-function confirm2fa() {
-  if (twofa2Code.value.length === 6) {
-    twofa.value = true; show2fa.value = false; twofa2Code.value = ''; twofaError.value = false
-  } else { twofaError.value = true }
-}
-function cancel2fa() { show2fa.value = false; twofa2Code.value = ''; twofaError.value = false }
-
-const themes     = [{ value: 'dark', label: 'Dark' }, { value: 'light', label: 'Light' }]
-const langs      = [{ value: 'fr', label: 'Français' }, { value: 'en', label: 'English' }]
-const heartbeats = [{ value: '15s', label: '15s' }, { value: '30s', label: '30s' }, { value: '60s', label: '1min' }, { value: '300s', label: '5min' }]
-const roles: { value: OrgRole; label: string }[] = [{ value: 'member', label: 'Membre' }, { value: 'admin', label: 'Admin' }]
+const themes = computed(() => [
+  { value: 'dark',  label: t('settings_theme_dark') },
+  { value: 'light', label: t('settings_theme_light') },
+])
+const langs = [{ value: 'fr', label: 'Français' }, { value: 'en', label: 'English' }]
+const heartbeats = computed(() => [
+  { value: '15s',  label: '15s' },
+  { value: '30s',  label: '30s' },
+  { value: '60s',  label: t('settings_hb_1min') },
+  { value: '300s', label: t('settings_hb_5min') },
+])
 
 const notifications = ref([
-  { key: 'crit',    label: 'Alertes critiques',       sub: 'Email immédiat pour chaque alerte critique',         enabled: true  },
-  { key: 'warn',    label: 'Alertes warning',          sub: 'Email pour les avertissements système',              enabled: true  },
-  { key: 'offline', label: 'Noeud hors ligne',         sub: 'Notification si un noeud devient injoignable',       enabled: true  },
-  { key: 'weekly',  label: 'Résumé hebdomadaire',      sub: 'Rapport récapitulatif chaque lundi matin',           enabled: false },
-  { key: 'update',  label: 'Mises à jour disponibles', sub: "Notification lors de nouvelles versions de l'agent", enabled: false },
+  { key: 'crit',    enabled: true  },
+  { key: 'warn',    enabled: true  },
+  { key: 'offline', enabled: true  },
+  { key: 'weekly',  enabled: false },
+  { key: 'update',  enabled: false },
 ])
+const notifLabel = (k: string) => t(`settings_notif_${k}_label`)
+const notifSub   = (k: string) => t(`settings_notif_${k}_sub`)
+const pluralCount = (key: string, n: number) => t(n > 1 ? `${key}_many` : `${key}_one`, { n })
 
-const showInvite  = ref(false)
-const inviteEmail = ref('')
-const inviteRole  = ref<OrgRole>('member')
-
-const orgMembers = ref<OrgMember[]>([
-  { id: 'me', name: 'alecptt', email: 'alecptt@example.com', avatar: 'A', color: 'linear-gradient(135deg,var(--accent2),var(--accent))', role: 'owner',  status: 'active'  },
-  { id: '2',  name: 'marie',   email: 'marie@example.com',   avatar: 'M', color: 'linear-gradient(135deg,#ff6b6b,#ffa726)',              role: 'admin',  status: 'active'  },
-  { id: '3',  name: 'thomas',  email: 'thomas@example.com',  avatar: 'T', color: 'linear-gradient(135deg,#4fa8ff,#7b6ef6)',              role: 'member', status: 'active'  },
-  { id: '4',  name: 'sam',     email: 'sam@example.com',     avatar: 'S', color: 'var(--surface2)',                                      role: 'member', status: 'pending' },
-])
-
-function sendInvite() {
-  if (!inviteEmail.value) return
-  orgMembers.value.push({
-    id:     Date.now().toString(),
-    name:   inviteEmail.value.split('@')[0] ?? inviteEmail.value,
-    email:  inviteEmail.value,
-    avatar: (inviteEmail.value[0] ?? '?').toUpperCase(),
-    color:  'var(--surface2)',
-    role:   inviteRole.value,
-    status: 'pending',
-  })
-  inviteEmail.value = ''
-  showInvite.value  = false
+// Edit name modal (API supports name only — not email change)
+const showEditName = ref(false)
+const newName      = ref('')
+const savingName   = ref(false)
+const nameError    = ref<string | null>(null)
+function openEditName() {
+  newName.value = auth.user?.name ?? ''
+  nameError.value = null
+  showEditName.value = true
+}
+async function saveName() {
+  if (!newName.value.trim() || savingName.value) return
+  savingName.value = true
+  nameError.value = null
+  try {
+    const api = useApi()
+    const { user } = await api<{ user: typeof auth.user }>('/auth/me', {
+      method: 'PATCH',
+      body: { name: newName.value.trim() },
+    })
+    auth.user = user
+    showEditName.value = false
+    notify({ title: t('notif_name_updated'), description: user?.name ?? undefined, type: 'success' })
+  } catch (e: any) {
+    nameError.value = e?.data?.message || t('modal_edit_name_err')
+  } finally {
+    savingName.value = false
+  }
 }
 
-// Edit email modal
-const showEditEmail = ref(false)
-const newEmail      = ref('')
-function saveEmail() { showEditEmail.value = false; newEmail.value = '' }
-
-// Edit password modal
+// Change password modal (real API)
 const showEditPwd  = ref(false)
 const oldPwd       = ref('')
 const newPwd       = ref('')
 const confirmPwd   = ref('')
+const savingPwd    = ref(false)
+const pwdError     = ref<string | null>(null)
 const pwdMatch     = computed(() => newPwd.value && newPwd.value === confirmPwd.value)
-function savePassword() { showEditPwd.value = false; oldPwd.value = ''; newPwd.value = ''; confirmPwd.value = '' }
+async function savePassword() {
+  if (!oldPwd.value || !pwdMatch.value || savingPwd.value) return
+  savingPwd.value = true
+  pwdError.value = null
+  try {
+    const api = useApi()
+    await api('/auth/change-password', {
+      method: 'POST',
+      body: { currentPassword: oldPwd.value, newPassword: newPwd.value },
+    })
+    showEditPwd.value = false
+    oldPwd.value = ''; newPwd.value = ''; confirmPwd.value = ''
+    notify({ title: t('notif_pwd_updated'), description: t('notif_pwd_updated_desc'), type: 'success' })
+  } catch (e: any) {
+    pwdError.value = e?.data?.message || t('modal_edit_pwd_err')
+  } finally {
+    savingPwd.value = false
+  }
+}
 
 // Upgrade modal
 const showUpgrade = ref(false)
 
-// Sessions modal
-const sessions = [
-  { id: '1', device: 'MacBook Pro 16"', os: 'macOS 15.3', ip: '82.120.44.16',  location: 'Genève, CH',     last: 'En cours',       current: true  },
-  { id: '2', device: 'iPhone 15 Pro',   os: 'iOS 18.3',   ip: '82.120.44.17',  location: 'Genève, CH',     last: 'il y a 2h',      current: false },
-  { id: '3', device: 'Firefox / Linux', os: 'Ubuntu 24',  ip: '188.23.41.200', location: 'Paris, FR',      last: 'il y a 3 jours', current: false },
-]
-const showSessions   = ref(false)
-const sessionsList   = ref([...sessions])
-function revokeSession(id: string) { sessionsList.value = sessionsList.value.filter(s => s.id !== id) }
+// Sessions (real API)
+interface ApiSession {
+  id: string
+  name: string
+  createdAt: string | null
+  lastUsedAt: string | null
+  expiresAt: string | null
+  isCurrent: boolean
+}
+const showSessions     = ref(false)
+const sessionsList     = ref<ApiSession[]>([])
+const sessionsLoading  = ref(false)
+const sessionsError    = ref<string | null>(null)
 
-// Login logs modal
-const loginLogs = [
-  { success: true,  device: 'MacBook Pro 16"', ip: '82.120.44.16',  location: 'Genève, CH',    time: 'Aujourd\'hui 14:32' },
-  { success: true,  device: 'iPhone 15 Pro',   ip: '82.120.44.17',  location: 'Genève, CH',    time: 'Aujourd\'hui 09:10' },
-  { success: false, device: 'Inconnu',         ip: '45.33.32.156',  location: 'Moscou, RU',    time: 'Hier 23:47'         },
-  { success: true,  device: 'Firefox / Linux', ip: '188.23.41.200', location: 'Paris, FR',     time: 'il y a 3j 08:15'    },
-  { success: true,  device: 'MacBook Pro 16"', ip: '82.120.44.16',  location: 'Genève, CH',    time: 'il y a 5j 11:22'    },
-]
-const showLoginLogs = ref(false)
+async function loadSessions() {
+  sessionsLoading.value = true
+  sessionsError.value = null
+  try {
+    const api = useApi()
+    const { tokens } = await api<{ tokens: ApiSession[] }>('/auth/sessions')
+    sessionsList.value = tokens
+  } catch (e: any) {
+    sessionsError.value = e?.data?.message || t('sessions_load_err')
+  } finally {
+    sessionsLoading.value = false
+  }
+}
+async function openSessions() {
+  showSessions.value = true
+  await loadSessions()
+}
+async function revokeSession(id: string) {
+  const target = sessionsList.value.find(s => s.id === id)
+  const label = target ? parseSessionLabel(target.name) : t('common_label_session')
+  try {
+    const api = useApi()
+    await api(`/auth/sessions/${id}`, { method: 'DELETE' })
+    sessionsList.value = sessionsList.value.filter(s => s.id !== id)
+    notify({ title: t('notif_session_revoked'), description: label, type: 'success' })
+  } catch (e: any) {
+    notify({ title: t('notif_session_revoke_err'), description: e?.data?.message || label, type: 'error' })
+  }
+}
+async function revokeOtherSessions() {
+  const others = sessionsList.value.filter(s => !s.isCurrent)
+  if (!others.length) return
+  for (const s of others) {
+    try {
+      const api = useApi()
+      await api(`/auth/sessions/${s.id}`, { method: 'DELETE' })
+    } catch { /* ignore individual errors */ }
+  }
+  sessionsList.value = sessionsList.value.filter(s => s.isCurrent)
+  notify({
+    title: pluralCount('notif_sessions_revoked', others.length),
+    description: t('notif_sessions_revoked_desc'),
+    type: 'success',
+  })
+}
+
+function relativeTime(iso: string | null): string {
+  if (!iso) return t('common_dash')
+  const diff = Date.now() - new Date(iso).getTime()
+  if (diff < 60_000) return t('common_just_now')
+  if (diff < 3_600_000) return t('common_min_ago', { n: Math.floor(diff / 60_000) })
+  if (diff < 86_400_000) return t('common_hour_ago', { n: Math.floor(diff / 3_600_000) })
+  return t('common_day_ago', { n: Math.floor(diff / 86_400_000) })
+}
+
+function parseSessionLabel(ua: string): string {
+  if (!ua || ua === 'login' || ua === 'register') return ua === 'register' ? t('common_label_register') : t('common_label_session')
+  if (/^curl\//i.test(ua)) return ua.split(' ')[0] || 'curl'
+  if (/Postman/i.test(ua)) return 'Postman'
+  if (/Insomnia/i.test(ua)) return 'Insomnia'
+  let browser: string | null = null
+  if (/Firefox\//.test(ua)) browser = 'Firefox'
+  else if (/Edg\//.test(ua)) browser = 'Edge'
+  else if (/OPR\//.test(ua)) browser = 'Opera'
+  else if (/Chrome\//.test(ua)) browser = 'Chrome'
+  else if (/Safari\//.test(ua)) browser = 'Safari'
+  let os: string | null = null
+  if (/Windows NT/.test(ua)) os = 'Windows'
+  else if (/Mac OS X/.test(ua)) os = 'macOS'
+  else if (/Android/.test(ua)) os = 'Android'
+  else if (/iPhone|iPad/.test(ua)) os = 'iOS'
+  else if (/Linux/.test(ua)) os = 'Linux'
+  if (browser && os) return `${browser} ${t('sessions_on')} ${os}`
+  if (browser) return browser
+  if (os) return os
+  return ua.length > 40 ? ua.slice(0, 40) + '…' : ua
+}
+
+// Login logs
+interface LoginLog {
+  id:        string
+  action:    'login' | 'logout'
+  ipAddress: string | null
+  userAgent: string | null
+  createdAt: string
+}
+const showLoginLogs     = ref(false)
+const loginLogsList     = ref<LoginLog[]>([])
+const loginLogsLoading  = ref(false)
+
+async function openLoginLogs() {
+  showLoginLogs.value = true
+  loginLogsLoading.value = true
+  try {
+    const api = useApi()
+    const { data } = await api<{ data: LoginLog[] }>('/auth/login-logs')
+    loginLogsList.value = data
+  } finally {
+    loginLogsLoading.value = false
+  }
+}
 
 // Danger confirms
 const showDeleteNodes   = ref(false)
 const showDeleteAccount = ref(false)
 const deleteAccConfirm  = ref('')
-function deleteAllNodes() { showDeleteNodes.value = false }
-function deleteAccount()  { if (deleteAccConfirm.value === 'supprimer') navigateTo('/login') }
+const deletingNodes     = ref(false)
+
+async function deleteAllNodes() {
+  if (deletingNodes.value) return
+  deletingNodes.value = true
+  try {
+    const api = useApi()
+    const ids = nodesStore.nodes.map(n => n.id)
+    await Promise.allSettled(ids.map(id => api(`/nodes/${id}`, { method: 'DELETE' })))
+    await nodesStore.fetchNodes()
+    showDeleteNodes.value = false
+    notify({
+      title: pluralCount('notif_nodes_deleted', ids.length),
+      description: t('notif_nodes_deleted_desc'),
+      type: 'success',
+    })
+  } catch (e: any) {
+    notify({ title: t('notif_delete_failed'), description: e?.data?.message, type: 'error' })
+  } finally {
+    deletingNodes.value = false
+  }
+}
+
+async function deleteAccount() {
+  try {
+    const api = useApi()
+    await api('/auth/account', { method: 'DELETE' })
+    auth.token = null
+    auth.user  = null
+    await navigateTo('/login')
+  } catch (e: any) {
+    notify({ title: t('notif_delete_failed'), description: e?.data?.message, type: 'error' })
+  } finally {
+    showDeleteAccount.value = false
+    deleteAccConfirm.value  = ''
+  }
+}
 </script>
 
 <template>
@@ -117,45 +262,45 @@ function deleteAccount()  { if (deleteAccConfirm.value === 'supprimer') navigate
 
     <div class="page-header">
       <div>
-        <div class="page-title">Paramètres</div>
-        <div class="page-sub">Préférences et configuration du compte</div>
+        <div class="page-title">{{ t('settings_title') }}</div>
+        <div class="page-sub">{{ t('settings_sub') }}</div>
       </div>
     </div>
 
     <div class="settings-wrap">
 
       <nav class="settings-nav">
-        <a href="#apparence">Apparence</a>
-        <a href="#compte">Compte</a>
-        <a href="#notifications">Notifications</a>
-        <a href="#securite">Sécurité</a>
-        <a href="#equipe">Équipe</a>
-        <a href="#agent">Agent & réseau</a>
-        <a href="#danger">Zone de danger</a>
+        <a href="#apparence">{{ t('settings_nav_appearance') }}</a>
+        <a href="#compte">{{ t('settings_nav_account') }}</a>
+        <a href="#notifications">{{ t('settings_nav_notifications') }}</a>
+        <a href="#securite">{{ t('settings_nav_security') }}</a>
+        <a href="#equipe">{{ t('settings_nav_team') }}</a>
+        <a href="#agent">{{ t('settings_nav_agent') }}</a>
+        <a href="#danger">{{ t('settings_nav_danger') }}</a>
       </nav>
 
       <div class="settings-content">
 
         <!-- Apparence -->
         <div id="apparence" class="card">
-          <div class="card-header"><div class="card-title">Apparence</div></div>
+          <div class="card-header"><div class="card-title">{{ t('settings_appearance_title') }}</div></div>
           <div class="card-body">
-            <SettingRow label="Thème" sub="Couleurs de l'interface">
+            <SettingRow :label="t('settings_theme_label')" :sub="t('settings_theme_sub')">
               <div class="theme-group">
                 <button
-                  v-for="t in themes"
-                  :key="t.value"
+                  v-for="th in themes"
+                  :key="th.value"
                   class="theme-btn"
-                  :class="{ active: colorMode.value === t.value }"
-                  @click="colorMode.preference = t.value"
+                  :class="{ active: colorMode.value === th.value }"
+                  @click="colorMode.preference = th.value"
                 >
-                  <div class="theme-preview" :class="`preview-${t.value}`" />
-                  {{ t.label }}
+                  <div class="theme-preview" :class="`preview-${th.value}`" />
+                  {{ th.label }}
                 </button>
               </div>
             </SettingRow>
-            <SettingRow label="Langue" sub="Langue de l'interface">
-              <SegmentedControl v-model="lang" :options="langs" />
+            <SettingRow :label="t('settings_lang_label')" :sub="t('settings_lang_sub')">
+              <SegmentedControl :model-value="lang" :options="langs" @update:model-value="setLang($event as 'fr' | 'en')" />
             </SettingRow>
           </div>
         </div>
@@ -163,31 +308,34 @@ function deleteAccount()  { if (deleteAccConfirm.value === 'supprimer') navigate
         <!-- Compte -->
         <div id="compte" class="card">
           <div class="card-header">
-            <div class="card-title">Compte</div>
-            <span class="plan-badge">Free</span>
+            <div class="card-title">{{ t('settings_account_title') }}</div>
+            <span class="plan-badge">{{ t('settings_plan_free') }}</span>
           </div>
           <div class="card-body">
-            <SettingRow label="Email" sub="alecptt@example.com">
-              <button class="btn-ghost-sm" @click="showEditEmail = true">Modifier</button>
+            <SettingRow :label="t('settings_account_name')" :sub="auth.user?.name || t('common_dash')">
+              <button class="btn-ghost-sm" @click="openEditName">{{ t('common_edit') }}</button>
             </SettingRow>
-            <SettingRow label="Mot de passe" sub="Dernière modification il y a 3 mois">
-              <button class="btn-ghost-sm" @click="showEditPwd = true">Modifier</button>
+            <SettingRow :label="t('settings_account_email')" :sub="auth.user?.email || t('common_dash')">
+              <span style="font-size:10px;color:var(--muted)">{{ t('common_soon') }}</span>
             </SettingRow>
-            <SettingRow label="Plan" sub="Free — 5 noeuds · 1 utilisateur · historique 24h">
-              <button class="btn-accent-sm" @click="showUpgrade = true">Voir les plans →</button>
+            <SettingRow :label="t('settings_account_password')" :sub="t('settings_account_password_sub')">
+              <button class="btn-ghost-sm" @click="showEditPwd = true">{{ t('common_edit') }}</button>
+            </SettingRow>
+            <SettingRow :label="t('settings_account_plan')" :sub="t('settings_account_plan_sub')">
+              <button class="btn-accent-sm" @click="showUpgrade = true">{{ t('settings_account_view_plans') }}</button>
             </SettingRow>
           </div>
         </div>
 
         <!-- Notifications -->
         <div id="notifications" class="card">
-          <div class="card-header"><div class="card-title">Notifications</div></div>
+          <div class="card-header"><div class="card-title">{{ t('settings_notif_title') }}</div></div>
           <div class="card-body">
             <SettingRow
               v-for="notif in notifications"
               :key="notif.key"
-              :label="notif.label"
-              :sub="notif.sub"
+              :label="notifLabel(notif.key)"
+              :sub="notifSub(notif.key)"
             >
               <Toggle v-model="notif.enabled" />
             </SettingRow>
@@ -196,16 +344,16 @@ function deleteAccount()  { if (deleteAccConfirm.value === 'supprimer') navigate
 
         <!-- Sécurité -->
         <div id="securite" class="card">
-          <div class="card-header"><div class="card-title">Sécurité</div></div>
+          <div class="card-header"><div class="card-title">{{ t('settings_security_title') }}</div></div>
           <div class="card-body">
-            <SettingRow label="Authentification 2FA" sub="TOTP via application (Aegis, Bitwarden…)">
-              <Toggle :model-value="twofa" @update:model-value="toggleTwofa" />
+            <SettingRow :label="t('settings_2fa_label')" :sub="t('settings_2fa_sub')">
+              <span style="font-size:10px;color:var(--muted)">{{ t('common_soon') }}</span>
             </SettingRow>
-            <SettingRow label="Sessions actives" sub="2 sessions — MacBook Pro, iPhone 15">
-              <button class="btn-ghost-sm" @click="showSessions = true">Gérer</button>
+            <SettingRow :label="t('settings_sessions_label')" :sub="t('settings_sessions_sub')">
+              <button class="btn-ghost-sm" @click="openSessions">{{ t('common_manage') }}</button>
             </SettingRow>
-            <SettingRow label="Logs de connexion" sub="Historique des accès au compte">
-              <button class="btn-ghost-sm" @click="showLoginLogs = true">Voir →</button>
+            <SettingRow :label="t('settings_logs_label')" :sub="t('settings_logs_sub')">
+              <button class="btn-ghost-sm" @click="openLoginLogs">{{ t('common_manage') }}</button>
             </SettingRow>
           </div>
         </div>
@@ -213,59 +361,27 @@ function deleteAccount()  { if (deleteAccConfirm.value === 'supprimer') navigate
         <!-- Équipe -->
         <div id="equipe" class="card">
           <div class="card-header">
-            <div class="card-title">Équipe</div>
-            <span class="member-count">{{ orgMembers.length }} membres</span>
+            <div class="card-title">{{ t('settings_team_title') }}</div>
+            <span style="font-size:10px;color:var(--muted)">{{ t('common_soon') }}</span>
           </div>
           <div class="card-body">
-
-            <SettingRow label="Inviter un membre" sub="Accès à tous les noeuds de l'organisation">
-              <button class="btn-ghost-sm" @click="showInvite = !showInvite">+ Inviter</button>
+            <SettingRow :label="t('settings_team_invite_label')" :sub="t('settings_team_invite_sub')">
+              <span style="font-size:10px;color:var(--muted)">{{ t('common_soon') }}</span>
             </SettingRow>
-
-            <div v-if="showInvite" class="invite-form">
-              <div class="invite-row">
-                <input
-                  v-model="inviteEmail"
-                  class="form-input"
-                  placeholder="email@example.com"
-                  type="email"
-                  @keyup.enter="sendInvite"
-                />
-                <SegmentedControl v-model="inviteRole" :options="roles" />
-                <button class="btn-accent-sm" :disabled="!inviteEmail" @click="sendInvite">Envoyer</button>
-              </div>
-              <div class="role-hint">
-                <span v-if="inviteRole === 'member'">Lecture + connexion aux noeuds partagés</span>
-                <span v-else-if="inviteRole === 'admin'">Peut gérer les membres et les noeuds</span>
-              </div>
-            </div>
-
-            <div class="org-members">
-              <OrgMemberRow
-                v-for="m in orgMembers"
-                :key="m.id"
-                :member="m"
-                :is-me="m.id === 'me'"
-                :roles="roles"
-                @update:role="r => m.role = r"
-                @remove="orgMembers = orgMembers.filter(x => x.id !== m.id)"
-              />
-            </div>
-
           </div>
         </div>
 
         <!-- Agent & réseau -->
         <div id="agent" class="card">
-          <div class="card-header"><div class="card-title">Agent & réseau</div></div>
+          <div class="card-header"><div class="card-title">{{ t('settings_agent_title') }}</div></div>
           <div class="card-body">
-            <SettingRow label="Intervalle heartbeat" sub="Fréquence de rapport des agents">
+            <SettingRow :label="t('settings_heartbeat_label')" :sub="t('settings_heartbeat_sub')">
               <SegmentedControl v-model="heartbeat" :options="heartbeats" />
             </SettingRow>
-            <SettingRow label="Auto-update des agents" sub="Mise à jour automatique vers la dernière version stable">
+            <SettingRow :label="t('settings_autoupdate_label')" :sub="t('settings_autoupdate_sub')">
               <Toggle v-model="autoUpdate" />
             </SettingRow>
-            <SettingRow label="Subnet VPN par défaut" sub="Plage d'adresses IP du réseau UMBRA">
+            <SettingRow :label="t('settings_subnet_label')" :sub="t('settings_subnet_sub')">
               <span class="mono-val">100.64.0.0/10</span>
             </SettingRow>
           </div>
@@ -273,13 +389,13 @@ function deleteAccount()  { if (deleteAccConfirm.value === 'supprimer') navigate
 
         <!-- Zone de danger -->
         <div id="danger" class="card card-danger">
-          <div class="card-header"><div class="card-title danger-title">Zone de danger</div></div>
+          <div class="card-header"><div class="card-title danger-title">{{ t('settings_danger_title') }}</div></div>
           <div class="card-body">
-            <SettingRow label="Supprimer tous les noeuds" sub="Révoque tous les agents et supprime les données associées">
-              <button class="btn-danger-sm" @click="showDeleteNodes = true">Supprimer</button>
+            <SettingRow :label="t('settings_danger_nodes_label')" :sub="t('settings_danger_nodes_sub')">
+              <button class="btn-danger-sm" @click="showDeleteNodes = true">{{ t('common_delete') }}</button>
             </SettingRow>
-            <SettingRow label="Supprimer le compte" sub="Action irréversible — toutes les données seront perdues">
-              <button class="btn-danger-sm" @click="showDeleteAccount = true">Supprimer</button>
+            <SettingRow :label="t('settings_danger_account_label')" :sub="t('settings_danger_account_sub')">
+              <button class="btn-danger-sm" @click="showDeleteAccount = true">{{ t('common_delete') }}</button>
             </SettingRow>
           </div>
         </div>
@@ -289,26 +405,25 @@ function deleteAccount()  { if (deleteAccConfirm.value === 'supprimer') navigate
 
   </div>
 
-  <!-- Edit email modal -->
-  <div v-if="showEditEmail" class="modal-overlay" @click.self="showEditEmail = false">
+  <!-- Edit name modal -->
+  <div v-if="showEditName" class="modal-overlay" @click.self="showEditName = false">
     <div class="modal" style="max-width:400px">
       <div class="modal-header">
-        <div class="modal-title">Modifier l'email</div>
-        <button class="close-btn" @click="showEditEmail = false"><UIcon name="i-lucide-x" style="width:12px;height:12px" /></button>
+        <div class="modal-title">{{ t('modal_edit_name_title') }}</div>
+        <button class="close-btn" @click="showEditName = false"><UIcon name="i-lucide-x" style="width:12px;height:12px" /></button>
       </div>
       <div class="modal-body">
         <div class="form-group">
-          <label class="form-label">Nouvel email</label>
-          <input v-model="newEmail" class="form-input" type="email" placeholder="vous@example.com" />
+          <label class="form-label">{{ t('modal_edit_name_label') }}</label>
+          <input v-model="newName" class="form-input" type="text" :placeholder="t('modal_edit_name_ph')" @keyup.enter="saveName" />
         </div>
-        <div class="form-group">
-          <label class="form-label">Mot de passe actuel (confirmation)</label>
-          <input class="form-input" type="password" placeholder="••••••••••" />
-        </div>
+        <div v-if="nameError" style="font-size:11px;color:var(--offline);margin-top:4px">{{ nameError }}</div>
       </div>
       <div class="modal-footer">
-        <button class="btn-ghost-sm" @click="showEditEmail = false">Annuler</button>
-        <button class="btn-accent-sm" :disabled="!newEmail" @click="saveEmail">Enregistrer</button>
+        <button class="btn-ghost-sm" @click="showEditName = false">{{ t('common_cancel') }}</button>
+        <button class="btn-accent-sm" :disabled="!newName.trim() || savingName" @click="saveName">
+          {{ savingName ? t('common_saving') : t('common_save') }}
+        </button>
       </div>
     </div>
   </div>
@@ -317,27 +432,30 @@ function deleteAccount()  { if (deleteAccConfirm.value === 'supprimer') navigate
   <div v-if="showEditPwd" class="modal-overlay" @click.self="showEditPwd = false">
     <div class="modal" style="max-width:400px">
       <div class="modal-header">
-        <div class="modal-title">Modifier le mot de passe</div>
+        <div class="modal-title">{{ t('modal_edit_pwd_title') }}</div>
         <button class="close-btn" @click="showEditPwd = false"><UIcon name="i-lucide-x" style="width:12px;height:12px" /></button>
       </div>
       <div class="modal-body">
         <div class="form-group">
-          <label class="form-label">Mot de passe actuel</label>
+          <label class="form-label">{{ t('modal_edit_pwd_old') }}</label>
           <input v-model="oldPwd" class="form-input" type="password" placeholder="••••••••••" />
         </div>
         <div class="form-group">
-          <label class="form-label">Nouveau mot de passe</label>
+          <label class="form-label">{{ t('modal_edit_pwd_new') }}</label>
           <input v-model="newPwd" class="form-input" type="password" placeholder="••••••••••" />
         </div>
         <div class="form-group">
-          <label class="form-label">Confirmer</label>
+          <label class="form-label">{{ t('modal_edit_pwd_confirm') }}</label>
           <input v-model="confirmPwd" class="form-input" type="password" placeholder="••••••••••" />
         </div>
-        <div v-if="newPwd && confirmPwd && !pwdMatch" style="font-size:11px;color:var(--offline);margin-top:4px">Les mots de passe ne correspondent pas</div>
+        <div v-if="newPwd && confirmPwd && !pwdMatch" style="font-size:11px;color:var(--offline);margin-top:4px">{{ t('auth_password_mismatch') }}</div>
+        <div v-if="pwdError" style="font-size:11px;color:var(--offline);margin-top:4px">{{ pwdError }}</div>
       </div>
       <div class="modal-footer">
-        <button class="btn-ghost-sm" @click="showEditPwd = false">Annuler</button>
-        <button class="btn-accent-sm" :disabled="!oldPwd || !pwdMatch" @click="savePassword">Enregistrer</button>
+        <button class="btn-ghost-sm" @click="showEditPwd = false">{{ t('common_cancel') }}</button>
+        <button class="btn-accent-sm" :disabled="!oldPwd || !pwdMatch || savingPwd" @click="savePassword">
+          {{ savingPwd ? t('common_saving') : t('common_save') }}
+        </button>
       </div>
     </div>
   </div>
@@ -347,8 +465,8 @@ function deleteAccount()  { if (deleteAccConfirm.value === 'supprimer') navigate
     <div class="modal upgrade-modal">
       <div class="modal-header">
         <div>
-          <div class="modal-title">Plans & tarifs</div>
-          <div class="modal-sub">Choisissez le plan adapté à vos besoins</div>
+          <div class="modal-title">{{ t('modal_upgrade_title') }}</div>
+          <div class="modal-sub">{{ t('modal_upgrade_sub') }}</div>
         </div>
         <button class="close-btn" @click="showUpgrade = false"><UIcon name="i-lucide-x" style="width:12px;height:12px" /></button>
       </div>
@@ -358,63 +476,63 @@ function deleteAccount()  { if (deleteAccConfirm.value === 'supprimer') navigate
           <!-- Free (current) -->
           <div class="upgrade-plan">
             <div class="up-top">
-              <span class="up-label">Plan actuel</span>
-              <div class="up-name">Free</div>
-              <div class="up-price">Gratuit</div>
-              <div class="up-period">pour toujours</div>
+              <span class="up-label">{{ t('plan_current') }}</span>
+              <div class="up-name">{{ t('plan_free_name') }}</div>
+              <div class="up-price">{{ t('plan_free_price') }}</div>
+              <div class="up-period">{{ t('plan_free_period') }}</div>
             </div>
             <ul class="up-features">
-              <li>5 noeuds</li>
-              <li>1 utilisateur</li>
-              <li>Historique 24h</li>
-              <li>2 clés API</li>
-              <li>Dashboard web</li>
-              <li>Support communauté</li>
+              <li>{{ t('plan_free_f1') }}</li>
+              <li>{{ t('plan_free_f2') }}</li>
+              <li>{{ t('plan_free_f3') }}</li>
+              <li>{{ t('plan_free_f4') }}</li>
+              <li>{{ t('plan_free_f5') }}</li>
+              <li>{{ t('plan_free_f6') }}</li>
             </ul>
             <div class="up-cta">
-              <span class="up-current-chip">Plan actuel</span>
+              <span class="up-current-chip">{{ t('plan_current') }}</span>
             </div>
           </div>
 
           <!-- Pro -->
           <div class="upgrade-plan up-pro">
             <div class="up-top">
-              <span class="up-label up-label-pro">Recommandé</span>
-              <div class="up-name">Pro</div>
-              <div class="up-price">8,90 €<span class="up-period-inline">/mois</span></div>
-              <div class="up-period">facturé mensuellement</div>
+              <span class="up-label up-label-pro">{{ t('plan_pro_label') }}</span>
+              <div class="up-name">{{ t('plan_pro_name') }}</div>
+              <div class="up-price">{{ t('plan_pro_price') }}<span class="up-period-inline">{{ t('plan_pro_per') }}</span></div>
+              <div class="up-period">{{ t('plan_pro_period') }}</div>
             </div>
             <ul class="up-features">
-              <li>25 noeuds</li>
-              <li>10 utilisateurs</li>
-              <li>Historique 90 jours</li>
-              <li>Clés API illimitées</li>
-              <li>Alertes email + webhook</li>
-              <li>Support prioritaire 48h</li>
+              <li>{{ t('plan_pro_f1') }}</li>
+              <li>{{ t('plan_pro_f2') }}</li>
+              <li>{{ t('plan_pro_f3') }}</li>
+              <li>{{ t('plan_pro_f4') }}</li>
+              <li>{{ t('plan_pro_f5') }}</li>
+              <li>{{ t('plan_pro_f6') }}</li>
             </ul>
             <div class="up-cta">
-              <button class="btn-accent-sm up-cta-btn" @click="showUpgrade = false">Passer à Pro →</button>
+              <button class="btn-accent-sm up-cta-btn" @click="showUpgrade = false">{{ t('plan_pro_cta') }}</button>
             </div>
           </div>
 
           <!-- Lifetime -->
           <div class="upgrade-plan up-lifetime-col">
             <div class="up-top">
-              <span class="up-label up-label-lifetime">Paiement unique</span>
-              <div class="up-name">Lifetime</div>
-              <div class="up-price up-price-lifetime">149 €</div>
-              <div class="up-period">une seule fois, à vie</div>
+              <span class="up-label up-label-lifetime">{{ t('plan_lifetime_label') }}</span>
+              <div class="up-name">{{ t('plan_lifetime_name') }}</div>
+              <div class="up-price up-price-lifetime">{{ t('plan_lifetime_price') }}</div>
+              <div class="up-period">{{ t('plan_lifetime_period') }}</div>
             </div>
             <ul class="up-features">
-              <li>25 noeuds</li>
-              <li>10 utilisateurs</li>
-              <li>Historique 90 jours</li>
-              <li>Clés API illimitées</li>
-              <li>Alertes email + webhook</li>
-              <li>Support prioritaire 48h</li>
+              <li>{{ t('plan_pro_f1') }}</li>
+              <li>{{ t('plan_pro_f2') }}</li>
+              <li>{{ t('plan_pro_f3') }}</li>
+              <li>{{ t('plan_pro_f4') }}</li>
+              <li>{{ t('plan_pro_f5') }}</li>
+              <li>{{ t('plan_pro_f6') }}</li>
             </ul>
             <div class="up-cta">
-              <button class="up-cta-btn up-cta-lifetime" @click="showUpgrade = false">Obtenir Lifetime →</button>
+              <button class="up-cta-btn up-cta-lifetime" @click="showUpgrade = false">{{ t('plan_lifetime_cta') }}</button>
             </div>
           </div>
 
@@ -423,64 +541,24 @@ function deleteAccount()  { if (deleteAccConfirm.value === 'supprimer') navigate
         <!-- Business — full-width contact banner -->
         <div class="upgrade-lifetime">
           <div class="up-lifetime-left">
-            <span class="up-label up-label-biz">Entreprises</span>
-            <div class="up-name">Business</div>
-            <div class="up-lifetime-sub">Tarif adapté à votre organisation — sur devis.</div>
+            <span class="up-label up-label-biz">{{ t('plan_biz_label') }}</span>
+            <div class="up-name">{{ t('plan_biz_name') }}</div>
+            <div class="up-lifetime-sub">{{ t('plan_biz_sub') }}</div>
           </div>
           <ul class="up-lifetime-feats">
-            <li>Noeuds illimités</li>
-            <li>Utilisateurs illimités</li>
-            <li>Historique 1 an</li>
-            <li>SSO (SAML / OIDC)</li>
-            <li>Logs d'audit</li>
+            <li>{{ t('plan_biz_f1') }}</li>
+            <li>{{ t('plan_biz_f2') }}</li>
+            <li>{{ t('plan_biz_f3') }}</li>
+            <li>{{ t('plan_biz_f4') }}</li>
+            <li>{{ t('plan_biz_f5') }}</li>
           </ul>
           <div class="up-lifetime-right">
-            <div class="up-price-contact" style="font-size:17px;margin-bottom:4px">Sur devis</div>
-            <div class="up-lifetime-once">tarif personnalisé</div>
-            <button class="up-cta-btn up-cta-biz" @click="showUpgrade = false">Prendre contact →</button>
+            <div class="up-price-contact" style="font-size:17px;margin-bottom:4px">{{ t('plan_biz_price') }}</div>
+            <div class="up-lifetime-once">{{ t('plan_biz_period') }}</div>
+            <button class="up-cta-btn up-cta-biz" @click="showUpgrade = false">{{ t('plan_biz_cta') }}</button>
           </div>
         </div>
 
-      </div>
-    </div>
-  </div>
-
-  <!-- 2FA setup modal -->
-  <div v-if="show2fa" class="modal-overlay" @click.self="cancel2fa">
-    <div class="modal" style="max-width:380px">
-      <div class="modal-header">
-        <div class="modal-title">Activer l'authentification 2FA</div>
-        <button class="close-btn" @click="cancel2fa"><UIcon name="i-lucide-x" style="width:12px;height:12px" /></button>
-      </div>
-      <div class="modal-body">
-        <div class="twofa-step">
-          <div class="twofa-step-num">1</div>
-          <div class="twofa-step-text">Scannez ce QR code avec votre application TOTP (Aegis, Bitwarden, Google Authenticator…)</div>
-        </div>
-        <div class="twofa-qr">
-          <img :src="twofaQr" width="140" height="140" alt="QR code 2FA" style="border-radius:6px" />
-          <div class="twofa-secret">
-            <span class="form-label">Clé manuelle</span>
-            <span class="mono-val">{{ twofaSecret }}</span>
-          </div>
-        </div>
-        <div class="twofa-step">
-          <div class="twofa-step-num">2</div>
-          <div class="twofa-step-text">Entrez le code à 6 chiffres généré par l'application pour confirmer</div>
-        </div>
-        <input
-          v-model="twofa2Code"
-          class="form-input twofa-input"
-          placeholder="000000"
-          maxlength="6"
-          inputmode="numeric"
-          @keyup.enter="confirm2fa"
-        />
-        <div v-if="twofaError" style="font-size:11px;color:var(--offline);margin-top:6px">Code invalide — vérifiez votre application</div>
-      </div>
-      <div class="modal-footer">
-        <button class="btn-ghost-sm" @click="cancel2fa">Annuler</button>
-        <button class="btn-accent-sm" :disabled="twofa2Code.length !== 6" @click="confirm2fa">Confirmer</button>
       </div>
     </div>
   </div>
@@ -489,26 +567,33 @@ function deleteAccount()  { if (deleteAccConfirm.value === 'supprimer') navigate
   <div v-if="showSessions" class="modal-overlay" @click.self="showSessions = false">
     <div class="modal">
       <div class="modal-header">
-        <div><div class="modal-title">Sessions actives</div><div class="modal-sub">{{ sessionsList.length }} session{{ sessionsList.length > 1 ? 's' : '' }}</div></div>
+        <div>
+          <div class="modal-title">{{ t('modal_sessions_title') }}</div>
+          <div class="modal-sub">{{ pluralCount('sessions_count', sessionsList.length) }}</div>
+        </div>
         <button class="close-btn" @click="showSessions = false"><UIcon name="i-lucide-x" style="width:12px;height:12px" /></button>
       </div>
       <div class="modal-body">
-        <div v-for="s in sessionsList" :key="s.id" class="session-row">
-          <div class="session-icon">
-            <UIcon name="i-lucide-monitor" style="width:13px;height:13px" />
+        <div v-if="sessionsLoading" style="font-size:12px;color:var(--muted);text-align:center;padding:18px">{{ t('common_loading') }}</div>
+        <div v-else-if="sessionsError" style="font-size:12px;color:var(--offline);text-align:center;padding:12px">{{ sessionsError }}</div>
+        <template v-else>
+          <div v-for="s in sessionsList" :key="s.id" class="session-row">
+            <div class="session-icon">
+              <UIcon name="i-lucide-monitor" style="width:13px;height:13px" />
+            </div>
+            <div class="session-info">
+              <div class="session-device">{{ parseSessionLabel(s.name) }} <span v-if="s.isCurrent" class="badge-accent" style="font-size:9px">{{ t('sessions_current_badge') }}</span></div>
+              <div class="session-meta">{{ t('sessions_created', { time: relativeTime(s.createdAt) }) }}</div>
+              <div class="session-meta" style="color:var(--muted)">{{ t('sessions_last_used', { time: relativeTime(s.lastUsedAt) }) }}</div>
+            </div>
+            <button v-if="!s.isCurrent" class="btn-danger-sm" @click="revokeSession(s.id)">{{ t('sessions_revoke') }}</button>
           </div>
-          <div class="session-info">
-            <div class="session-device">{{ s.device }} <span v-if="s.current" class="badge-accent" style="font-size:9px">Actuelle</span></div>
-            <div class="session-meta">{{ s.os }} · {{ s.ip }} · {{ s.location }}</div>
-            <div class="session-meta" style="color:var(--muted)">{{ s.last }}</div>
-          </div>
-          <button v-if="!s.current" class="btn-danger-sm" @click="revokeSession(s.id)">Révoquer</button>
-        </div>
-        <div v-if="sessionsList.length === 0" style="font-size:12px;color:var(--muted);text-align:center;padding:12px">Aucune session active</div>
+          <div v-if="sessionsList.length === 0" style="font-size:12px;color:var(--muted);text-align:center;padding:12px">{{ t('sessions_empty') }}</div>
+        </template>
       </div>
       <div class="modal-footer">
-        <button class="btn-ghost-sm" @click="showSessions = false">Fermer</button>
-        <button class="btn-danger-sm" @click="sessionsList = sessionsList.filter(s => s.current)">Révoquer toutes les autres</button>
+        <button class="btn-ghost-sm" @click="showSessions = false">{{ t('common_close') }}</button>
+        <button class="btn-danger-sm" :disabled="sessionsLoading || !sessionsList.some(s => !s.isCurrent)" @click="revokeOtherSessions">{{ t('sessions_revoke_others') }}</button>
       </div>
     </div>
   </div>
@@ -517,23 +602,29 @@ function deleteAccount()  { if (deleteAccConfirm.value === 'supprimer') navigate
   <div v-if="showLoginLogs" class="modal-overlay" @click.self="showLoginLogs = false">
     <div class="modal">
       <div class="modal-header">
-        <div class="modal-title">Historique des connexions</div>
+        <div class="modal-title">{{ t('modal_login_logs_title') }}</div>
         <button class="close-btn" @click="showLoginLogs = false"><UIcon name="i-lucide-x" style="width:12px;height:12px" /></button>
       </div>
       <div class="modal-body">
-        <div v-for="(log, i) in loginLogs" :key="i" class="log-row">
-          <div class="log-icon" :style="log.success ? 'color:var(--accent)' : 'color:var(--offline)'">
-            <UIcon :name="log.success ? 'i-lucide-circle-check' : 'i-lucide-circle-x'" style="width:14px;height:14px" />
+        <div v-if="loginLogsLoading" style="font-size:12px;color:var(--muted);text-align:center;padding:18px">{{ t('common_loading') }}</div>
+        <template v-else>
+          <div v-for="log in loginLogsList" :key="log.id" class="log-row">
+            <div class="log-icon">
+              <UIcon v-if="log.action === 'login'" name="i-lucide-log-in" style="width:13px;height:13px;color:var(--accent)" />
+              <UIcon v-else name="i-lucide-log-out" style="width:13px;height:13px;color:var(--muted)" />
+            </div>
+            <div class="log-info">
+              <div class="log-device">{{ log.action === 'login' ? t('login_log_action_login') : t('login_log_action_logout') }}</div>
+              <div class="log-meta">{{ log.userAgent ? parseSessionLabel(log.userAgent) : t('common_dash') }}</div>
+              <div class="log-meta">{{ log.ipAddress ?? t('common_dash') }}</div>
+            </div>
+            <div class="log-time">{{ relativeTime(log.createdAt) }}</div>
           </div>
-          <div class="log-info">
-            <div class="log-device">{{ log.device }}</div>
-            <div class="log-meta">{{ log.ip }} · {{ log.location }}</div>
-          </div>
-          <div class="log-time">{{ log.time }}</div>
-        </div>
+          <div v-if="loginLogsList.length === 0" style="font-size:12px;color:var(--muted);text-align:center;padding:12px">{{ t('login_logs_empty') }}</div>
+        </template>
       </div>
       <div class="modal-footer">
-        <button class="btn-ghost-sm" @click="showLoginLogs = false">Fermer</button>
+        <button class="btn-ghost-sm" @click="showLoginLogs = false">{{ t('common_close') }}</button>
       </div>
     </div>
   </div>
@@ -542,18 +633,20 @@ function deleteAccount()  { if (deleteAccConfirm.value === 'supprimer') navigate
   <div v-if="showDeleteNodes" class="modal-overlay" @click.self="showDeleteNodes = false">
     <div class="modal" style="max-width:420px">
       <div class="modal-header">
-        <div class="modal-title">Supprimer tous les noeuds ?</div>
+        <div class="modal-title">{{ t('modal_delete_nodes_title') }}</div>
         <button class="close-btn" @click="showDeleteNodes = false"><UIcon name="i-lucide-x" style="width:12px;height:12px" /></button>
       </div>
       <div class="modal-body">
         <div class="confirm-warn-box">
           <UIcon name="i-lucide-triangle-alert" style="width:14px;height:14px;flex-shrink:0" />
-          Tous les agents seront révoqués et les données associées supprimées. Cette action est irréversible.
+          {{ t('modal_delete_nodes_warn') }}
         </div>
       </div>
       <div class="modal-footer">
-        <button class="btn-ghost-sm" @click="showDeleteNodes = false">Annuler</button>
-        <button class="btn-danger-sm" @click="deleteAllNodes">Supprimer tous les noeuds</button>
+        <button class="btn-ghost-sm" @click="showDeleteNodes = false">{{ t('common_cancel') }}</button>
+        <button class="btn-danger-sm" :disabled="deletingNodes || nodesStore.nodes.length === 0" @click="deleteAllNodes">
+          {{ deletingNodes ? t('modal_delete_nodes_progress') : pluralCount('modal_delete_nodes_btn', nodesStore.nodes.length) }}
+        </button>
       </div>
     </div>
   </div>
@@ -562,22 +655,22 @@ function deleteAccount()  { if (deleteAccConfirm.value === 'supprimer') navigate
   <div v-if="showDeleteAccount" class="modal-overlay" @click.self="showDeleteAccount = false">
     <div class="modal" style="max-width:420px">
       <div class="modal-header">
-        <div class="modal-title">Supprimer le compte</div>
+        <div class="modal-title">{{ t('modal_delete_account_title') }}</div>
         <button class="close-btn" @click="showDeleteAccount = false"><UIcon name="i-lucide-x" style="width:12px;height:12px" /></button>
       </div>
       <div class="modal-body">
         <div class="confirm-warn-box">
           <UIcon name="i-lucide-triangle-alert" style="width:14px;height:14px;flex-shrink:0" />
-          Toutes vos données seront définitivement supprimées. Cette action est irréversible.
+          {{ t('modal_delete_account_warn') }}
         </div>
         <div class="form-group" style="margin-top:14px">
-          <label class="form-label">Tapez <strong>supprimer</strong> pour confirmer</label>
-          <input v-model="deleteAccConfirm" class="form-input" placeholder="supprimer" />
+          <label class="form-label">{{ t('modal_delete_account_label_pre') }} <strong>{{ t('modal_delete_account_word') }}</strong> {{ t('modal_delete_account_label_post') }}</label>
+          <input v-model="deleteAccConfirm" class="form-input" :placeholder="t('modal_delete_account_word')" />
         </div>
       </div>
       <div class="modal-footer">
-        <button class="btn-ghost-sm" @click="showDeleteAccount = false">Annuler</button>
-        <button class="btn-danger-sm" :disabled="deleteAccConfirm !== 'supprimer'" @click="deleteAccount">Supprimer définitivement</button>
+        <button class="btn-ghost-sm" @click="showDeleteAccount = false">{{ t('common_cancel') }}</button>
+        <button class="btn-danger-sm" :disabled="deleteAccConfirm !== t('modal_delete_account_word')" @click="deleteAccount">{{ t('modal_delete_account_btn') }}</button>
       </div>
     </div>
   </div>

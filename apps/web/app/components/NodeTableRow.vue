@@ -8,6 +8,7 @@ const emit  = defineEmits<{
   connect: [node: Node]
   cut:     [node: Node]
 }>()
+const { t } = useT()
 
 const rowClass = computed(() => ({
   'r-conn': props.node.status === 'connected',
@@ -48,7 +49,7 @@ function onAction() {
         <div class="nname">{{ node.name }}</div>
         <div class="nid">
           {{ node.ip }}
-          <span v-if="node.status === 'warning'" class="warn-hint"><UIcon name="i-lucide-triangle-alert" style="width:9px;height:9px" /> CPU {{ node.cpu }}%</span>
+          <span v-if="node.status === 'warning'" class="warn-hint"><UIcon name="i-lucide-triangle-alert" style="width:9px;height:9px" /> {{ t('row_warn_cpu') }} {{ node.cpu }}%</span>
         </div>
       </div>
     </div>
@@ -58,11 +59,11 @@ function onAction() {
     <span><StatusBadge :status="node.status" /></span>
 
     <span class="cell-m" :style="latencyStyle">
-      {{ node.latency !== null ? `${node.latency}ms` : '—' }}
+      {{ node.latency !== null ? `${node.latency}ms` : t('common_dash') }}
     </span>
 
     <span class="cell-m" :style="cpuStyle">
-      {{ node.cpu !== null ? `${node.cpu}%` : '—' }}
+      {{ node.cpu !== null ? `${node.cpu}%` : t('common_dash') }}
     </span>
 
     <div class="cell-action">
@@ -74,7 +75,7 @@ function onAction() {
       >
         <UIcon v-if="node.status === 'connected'" name="i-lucide-square" style="width:8px;height:8px" />
         <UIcon v-else name="i-lucide-play" style="width:8px;height:8px" />
-        {{ node.status === 'connected' ? 'Couper' : 'Connecter' }}
+        {{ node.status === 'connected' ? t('row_cut') : t('row_connect') }}
       </button>
     </div>
 

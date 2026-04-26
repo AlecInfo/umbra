@@ -1,9 +1,12 @@
 import router from '@adonisjs/core/services/router'
 import { middleware } from '#start/kernel'
 
-const AuthController = () => import('#controllers/auth_controller')
-const NodesController = () => import('#controllers/nodes_controller')
-const AgentController = () => import('#controllers/agent_controller')
+const AuthController        = () => import('#controllers/auth_controller')
+const NodesController       = () => import('#controllers/nodes_controller')
+const AgentController       = () => import('#controllers/agent_controller')
+const ApiKeysController     = () => import('#controllers/api_keys_controller')
+const AlertsController      = () => import('#controllers/alerts_controller')
+const ConnectionsController = () => import('#controllers/connections_controller')
 
 router
   .group(() => {
@@ -22,6 +25,8 @@ router
             router.post('/change-password', [AuthController, 'changePassword'])
             router.get('/sessions', [AuthController, 'sessions'])
             router.delete('/sessions/:id', [AuthController, 'revokeSession'])
+            router.get('/login-logs', [AuthController, 'loginLogs'])
+            router.delete('/account', [AuthController, 'deleteAccount'])
           })
           .use(middleware.auth())
       })
@@ -37,6 +42,14 @@ router
         router.get('/nodes/:id/metrics', [NodesController, 'metrics'])
         router.get('/nodes/:id/peers', [NodesController, 'peers'])
         router.post('/nodes/:id/enroll-token', [NodesController, 'enrollToken'])
+
+        router.get('/api-keys', [ApiKeysController, 'index'])
+        router.post('/api-keys', [ApiKeysController, 'store'])
+        router.patch('/api-keys/:id/revoke', [ApiKeysController, 'revoke'])
+        router.delete('/api-keys/:id', [ApiKeysController, 'destroy'])
+
+        router.get('/alerts', [AlertsController, 'index'])
+        router.get('/connections', [ConnectionsController, 'index'])
       })
       .use(middleware.auth())
 

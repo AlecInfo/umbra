@@ -4,31 +4,61 @@ import { categoryIcons } from '~/composables/useCategoryIcons'
 
 definePageMeta({ layout: 'default' })
 
+const { t } = useT()
+
 interface Connection {
-  id:       string
-  user:     string
-  device:   string
-  node:     string
-  location: string
-  category: NodeCategory
-  start:    string
-  duration: string
-  upload:   string
-  download: string
-  ip:       string
-  status:   'active' | 'ended'
+  id:             string
+  user:           string
+  device:         string | null
+  node:           string
+  location:       string
+  category:       NodeCategory
+  connectedAt:    string
+  disconnectedAt: string | null
+  upload:         string
+  download:       string
+  clientIp:       string | null
+  status:         'active' | 'ended'
 }
 
-const connections = ref<Connection[]>([
-  { id: '1', user: 'alecptt', device: 'MacBook Pro',   node: 'raspi-home',    location: 'Paris, FR',     category: 'sbc',    start: 'auj. 14:28', duration: 'en cours',  upload: '1.2 MB/s', download: '4.8 MB/s', ip: '82.120.44.16', status: 'active' },
-  { id: '2', user: 'alecptt', device: 'iPhone 15',     node: 'vps-lon-01',   location: 'London, GB',    category: 'vps',    start: 'auj. 12:14', duration: '1h 14min',  upload: '240 MB',   download: '1.2 GB',   ip: '82.120.44.16', status: 'ended'  },
-  { id: '3', user: 'marie',   device: 'iPhone 15',     node: 'vps-sgp-01',   location: 'Singapore, SG', category: 'vps',    start: 'auj. 09:02', duration: '45min',     upload: '88 MB',    download: '420 MB',   ip: '92.14.33.11',  status: 'ended'  },
-  { id: '4', user: 'alecptt', device: 'MacBook Pro',   node: 'raspi-home',   location: 'Paris, FR',     category: 'sbc',    start: 'hier 22:30', duration: '2h 08min',  upload: '560 MB',   download: '2.8 GB',   ip: '82.120.44.16', status: 'ended'  },
-  { id: '5', user: 'thomas',  device: 'Linux Desktop', node: 'openwrt-router',location: 'Paris, FR',    category: 'router', start: 'hier 18:11', duration: '32min',     upload: '18 MB',    download: '95 MB',    ip: '41.90.64.22',  status: 'ended'  },
-  { id: '6', user: 'thomas',  device: 'Linux Desktop', node: 'vps-lon-01',   location: 'London, GB',    category: 'vps',    start: 'hier 14:55', duration: '3h 22min',  upload: '1.1 GB',   download: '4.2 GB',   ip: '41.90.64.22',  status: 'ended'  },
-  { id: '7', user: 'alecptt', device: 'iPad Pro',      node: 'raspi-home',   location: 'Paris, FR',     category: 'sbc',    start: 'hier 08:00', duration: '58min',     upload: '120 MB',   download: '680 MB',   ip: '82.120.44.16', status: 'ended'  },
-  { id: '8', user: 'marie',   device: 'MacBook Air',   node: 'vps-sgp-01',   location: 'Singapore, SG', category: 'vps',    start: '22 fév.',    duration: '1h 40min',  upload: '340 MB',   download: '1.8 GB',   ip: '92.14.33.11',  status: 'ended'  },
-])
+const connections = ref<Connection[]>([])
+const loading     = ref(false)
+const error       = ref<string | null>(null)
+
+function fmtDuration(connectedAt: string, disconnectedAt: string | null): string {
+  if (!disconnectedAt) return t('conn_duration_live')
+  const ms = new Date(disconnectedAt).getTime() - new Date(connectedAt).getTime()
+  const h  = Math.floor(ms / 3_600_000)
+  const m  = Math.floor((ms % 3_600_000) / 60_000)
+  if (h > 0) return `${h}h ${m.toString().padStart(2, '0')}min`
+  return `${m}min`
+}
+
+function fmtTime(iso: string): string {
+  const d    = new Date(iso)
+  const now  = new Date()
+  const loc  = t('date_locale')
+  const diff = (now.getTime() - d.getTime()) / 1000
+  if (diff < 86400) return d.toLocaleTimeString(loc, { hour: '2-digit', minute: '2-digit' })
+  if (diff < 172800) return d.toLocaleString(loc, { weekday: 'long', hour: '2-digit', minute: '2-digit' })
+  return d.toLocaleString(loc, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
+}
+
+async function fetchConnections() {
+  loading.value = true
+  error.value   = null
+  try {
+    const api = useApi()
+    const res = await api<{ data: Connection[] }>('/connections')
+    connections.value = res.data
+  } catch {
+    error.value = t('conn_empty')
+  } finally {
+    loading.value = false
+  }
+}
+
+onMounted(fetchConnections)
 
 const activeStatus = ref<'all' | 'active' | 'ended'>('all')
 
@@ -39,16 +69,17 @@ const filteredConns = computed(() =>
 )
 
 const statusFilters = computed(() => [
-  { value: 'all',    label: 'Toutes',    count: connections.value.length },
-  { value: 'active', label: 'Actives',   count: connections.value.filter(c => c.status === 'active').length },
-  { value: 'ended',  label: 'Terminées', count: connections.value.filter(c => c.status === 'ended').length },
+  { value: 'all',    label: t('conn_filter_all'),    count: connections.value.length },
+  { value: 'active', label: t('conn_filter_active'), count: connections.value.filter(c => c.status === 'active').length },
+  { value: 'ended',  label: t('conn_filter_ended'),  count: connections.value.filter(c => c.status === 'ended').length },
 ])
 
-const avatarColors: Record<string, string> = {
-  alecptt: 'linear-gradient(135deg, var(--accent2), var(--accent))',
-  marie:   'linear-gradient(135deg, #ff6b6b, #ffa726)',
-  thomas:  'linear-gradient(135deg, #4fa8ff, var(--accent2))',
-}
+// Stats computed from real data
+const todayConns    = computed(() => connections.value.filter(c => new Date(c.connectedAt).toDateString() === new Date().toDateString()).length)
+const activeNode    = computed(() => {
+  const active = connections.value.find(c => c.status === 'active')
+  return active?.node ?? t('common_dash')
+})
 </script>
 
 <template>
@@ -56,31 +87,31 @@ const avatarColors: Record<string, string> = {
 
     <div class="page-header">
       <div>
-        <div class="page-title">Connexions</div>
-        <div class="page-sub">Historique des sessions VPN</div>
+        <div class="page-title">{{ t('conn_title') }}</div>
+        <div class="page-sub">{{ t('conn_sub') }}</div>
       </div>
     </div>
 
     <div class="stat-grid mb">
       <div class="stat-card">
-        <div class="stat-lbl">Sessions aujourd'hui</div>
-        <div class="stat-val"><span style="color: var(--accent)">8</span></div>
-        <div class="stat-sub">+3 vs hier</div>
+        <div class="stat-lbl">{{ t('conn_stat_today') }}</div>
+        <div class="stat-val"><span style="color: var(--accent)">{{ todayConns }}</span></div>
+        <div class="stat-sub">{{ t('conn_stat_today_sub') }}</div>
       </div>
       <div class="stat-card">
-        <div class="stat-lbl">Durée totale</div>
-        <div class="stat-val"><span>4.2</span><span class="stat-suffix">h</span></div>
-        <div class="stat-sub">aujourd'hui</div>
+        <div class="stat-lbl">{{ t('conn_stat_dur') }}</div>
+        <div class="stat-val"><span>{{ connections.length }}</span><span class="stat-suffix"></span></div>
+        <div class="stat-sub">{{ t('conn_stat_dur_sub') }}</div>
       </div>
       <div class="stat-card">
-        <div class="stat-lbl">Données transférées</div>
-        <div class="stat-val"><span style="color: var(--accent)">2.8</span><span class="stat-suffix">GB</span></div>
-        <div class="stat-sub">aujourd'hui</div>
+        <div class="stat-lbl">{{ t('conn_stat_data') }}</div>
+        <div class="stat-val"><span style="color: var(--accent)">{{ statusFilters[1].count }}</span></div>
+        <div class="stat-sub">{{ t('conn_stat_data_sub') }}</div>
       </div>
       <div class="stat-card">
-        <div class="stat-lbl">Noeud favori</div>
-        <div class="stat-val" style="font-size: 18px"><span>raspi-home</span></div>
-        <div class="stat-sub">5 sessions</div>
+        <div class="stat-lbl">{{ t('conn_stat_fav') }}</div>
+        <div class="stat-val" style="font-size: 18px"><span>{{ activeNode }}</span></div>
+        <div class="stat-sub">{{ t('conn_stat_fav_sub') }}</div>
       </div>
     </div>
 
@@ -99,15 +130,17 @@ const avatarColors: Record<string, string> = {
       </div>
     </div>
 
-    <div class="conn-table">
+    <div v-if="loading" class="empty">{{ t('common_loading') }}</div>
+
+    <div v-else class="conn-table">
       <div class="t-head">
-        <span>Utilisateur</span>
-        <span>Noeud</span>
-        <span>Début</span>
-        <span>Durée</span>
-        <span>↑↓ Trafic</span>
-        <span>IP source</span>
-        <span>Statut</span>
+        <span>{{ t('conn_th_user') }}</span>
+        <span>{{ t('conn_th_node') }}</span>
+        <span>{{ t('conn_th_start') }}</span>
+        <span>{{ t('conn_th_duration') }}</span>
+        <span>{{ t('conn_th_traffic') }}</span>
+        <span>{{ t('conn_th_ip') }}</span>
+        <span>{{ t('conn_th_status') }}</span>
       </div>
 
       <div
@@ -117,12 +150,12 @@ const avatarColors: Record<string, string> = {
         :class="{ active: conn.status === 'active' }"
       >
         <div class="user-cell">
-          <div class="avatar" :style="`background: ${avatarColors[conn.user] ?? 'var(--surface2)'}`">
-            {{ conn.user[0]?.toUpperCase() }}
+          <div class="avatar" style="background: linear-gradient(135deg, var(--accent2), var(--accent))">
+            {{ (conn.user[0] ?? '?').toUpperCase() }}
           </div>
           <div>
             <div class="user-name">{{ conn.user }}</div>
-            <div class="user-device">{{ conn.device }}</div>
+            <div class="user-device">{{ conn.device ?? t('common_dash') }}</div>
           </div>
         </div>
 
@@ -136,25 +169,25 @@ const avatarColors: Record<string, string> = {
           </div>
         </div>
 
-        <span class="cell-mono">{{ conn.start }}</span>
-        <span class="cell-mono">{{ conn.duration }}</span>
+        <span class="cell-mono">{{ fmtTime(conn.connectedAt) }}</span>
+        <span class="cell-mono">{{ fmtDuration(conn.connectedAt, conn.disconnectedAt) }}</span>
 
         <div class="traffic-cell">
           <span class="cell-mono up">↑ {{ conn.upload }}</span>
           <span class="cell-mono dn">↓ {{ conn.download }}</span>
         </div>
 
-        <span class="cell-mono">{{ conn.ip }}</span>
+        <span class="cell-mono">{{ conn.clientIp ?? t('common_dash') }}</span>
 
         <span>
           <span class="status-badge" :class="`s-${conn.status}`">
             <span class="sdot" />
-            {{ conn.status === 'active' ? 'Active' : 'Terminée' }}
+            {{ conn.status === 'active' ? t('conn_status_active') : t('conn_status_ended') }}
           </span>
         </span>
       </div>
 
-      <div v-if="filteredConns.length === 0" class="empty">Aucune connexion</div>
+      <div v-if="filteredConns.length === 0" class="empty">{{ t('conn_empty') }}</div>
     </div>
 
   </div>

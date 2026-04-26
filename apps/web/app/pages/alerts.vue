@@ -1,27 +1,55 @@
 <script setup lang="ts">
 definePageMeta({ layout: 'default' })
 
+const { t } = useT()
+
 type Severity = 'critical' | 'warning' | 'info'
 
 interface Alert {
-  id:       string
-  severity: Severity
-  title:    string
-  detail:   string
-  node:     string
-  time:     string
-  read:     boolean
+  id:             string
+  type:           string
+  severity:       Severity
+  node:           string
+  thresholdValue: number | null
+  triggeredAt:    string | null
+  read:           boolean
 }
 
-const alerts = ref<Alert[]>([
-  { id: '1', severity: 'critical', title: 'CPU critique',          detail: 'CPU à 94% depuis plus de 10 minutes.',          node: 'synology-nas',   time: 'il y a 3min',  read: false },
-  { id: '2', severity: 'critical', title: 'Noeud hors ligne',      detail: 'macbook-pro ne répond plus depuis 2 heures.',    node: 'macbook-pro',    time: 'il y a 2h',    read: false },
-  { id: '3', severity: 'warning',  title: 'Température élevée',    detail: 'Température à 68°C, seuil à 85°C.',             node: 'synology-nas',   time: 'il y a 8min',  read: false },
-  { id: '4', severity: 'warning',  title: 'Disque presque plein',  detail: 'Disque à 92%, espace restant : 3.8 GB.',         node: 'synology-nas',   time: 'il y a 1h',    read: true  },
-  { id: '5', severity: 'warning',  title: 'Latence élevée',        detail: 'Latence VPN à 280ms, pic détecté.',              node: 'vps-nyc-01',     time: 'il y a 3h',    read: true  },
-  { id: '6', severity: 'info',     title: 'Agent mis à jour',      detail: 'Agent mis à jour vers v0.2.1 avec succès.',      node: 'raspi-home',     time: 'hier 08:30',   read: true  },
-  { id: '7', severity: 'info',     title: 'Nouveau pair connecté', detail: 'thomas (Linux Desktop) s\'est connecté.',        node: 'raspi-home',     time: 'hier 14:28',   read: true  },
-])
+const alerts  = ref<Alert[]>([])
+const loading = ref(false)
+const error   = ref<string | null>(null)
+
+function alertTitle(type: string): string {
+  return t(`alert_type_${type}`)
+}
+function alertDetail(type: string, value: number | null): string {
+  return t(`alert_detail_${type}`, value !== null ? { value: String(value) } : {})
+}
+function alertTime(iso: string | null): string {
+  if (!iso) return t('common_dash')
+  const d    = new Date(iso)
+  const diff = (Date.now() - d.getTime()) / 1000
+  if (diff < 120)            return t('common_just_now')
+  if (diff < 3600)           return t('common_min_ago', { n: Math.floor(diff / 60) })
+  if (diff < 86400)          return t('common_hour_ago', { n: Math.floor(diff / 3600) })
+  return t('common_day_ago', { n: Math.floor(diff / 86400) })
+}
+
+async function fetchAlerts() {
+  loading.value = true
+  error.value   = null
+  try {
+    const api = useApi()
+    const res = await api<{ data: any[] }>('/alerts')
+    alerts.value = res.data.map((a) => ({ ...a, read: !a.isActive }))
+  } catch {
+    error.value = t('alerts_empty')
+  } finally {
+    loading.value = false
+  }
+}
+
+onMounted(fetchAlerts)
 
 const activeSeverity = ref<Severity | 'all'>('all')
 
@@ -34,17 +62,17 @@ const filteredAlerts = computed(() =>
 const unread = computed(() => alerts.value.filter(a => !a.read).length)
 
 const severityFilters = computed(() => [
-  { value: 'all',      label: 'Toutes',    count: alerts.value.length },
-  { value: 'critical', label: 'Critiques', count: alerts.value.filter(a => a.severity === 'critical').length },
-  { value: 'warning',  label: 'Avertiss.', count: alerts.value.filter(a => a.severity === 'warning').length },
-  { value: 'info',     label: 'Info',      count: alerts.value.filter(a => a.severity === 'info').length },
+  { value: 'all',      label: t('alerts_filter_all'),      count: alerts.value.length },
+  { value: 'critical', label: t('alerts_filter_critical'), count: alerts.value.filter(a => a.severity === 'critical').length },
+  { value: 'warning',  label: t('alerts_filter_warning'),  count: alerts.value.filter(a => a.severity === 'warning').length },
+  { value: 'info',     label: t('alerts_filter_info'),     count: alerts.value.filter(a => a.severity === 'info').length },
 ])
 
-const severityLabel: Record<Severity, string> = {
-  critical: 'Critique',
-  warning:  'Avertiss.',
-  info:     'Info',
-}
+const severityLabel = computed<Record<Severity, string>>(() => ({
+  critical: t('alerts_sev_critical'),
+  warning:  t('alerts_sev_warning'),
+  info:     t('alerts_sev_info'),
+}))
 
 function markAllRead() {
   alerts.value.forEach(a => { a.read = true })
@@ -56,10 +84,10 @@ function markAllRead() {
 
     <div class="page-header">
       <div>
-        <div class="page-title">Alertes</div>
-        <div class="page-sub">{{ unread }} non lues · {{ alerts.length }} au total</div>
+        <div class="page-title">{{ t('alerts_title') }}</div>
+        <div class="page-sub">{{ t('alerts_sub', { unread, total: alerts.length }) }}</div>
       </div>
-      <button class="btn-ghost" @click="markAllRead">Tout marquer comme lu</button>
+      <button class="btn-ghost" @click="markAllRead">{{ t('alerts_mark_all') }}</button>
     </div>
 
     <div class="filters mb">
@@ -77,7 +105,9 @@ function markAllRead() {
       </div>
     </div>
 
-    <div class="alert-list">
+    <div v-if="loading" class="empty">{{ t('common_loading') }}</div>
+
+    <div v-else class="alert-list">
       <div
         v-for="alert in filteredAlerts"
         :key="alert.id"
@@ -93,14 +123,14 @@ function markAllRead() {
 
         <div class="alert-body">
           <div class="alert-title">
-            {{ alert.title }}
+            {{ alertTitle(alert.type) }}
             <span v-if="!alert.read" class="unread-dot" />
           </div>
-          <div class="alert-detail">{{ alert.detail }}</div>
+          <div class="alert-detail">{{ alertDetail(alert.type, alert.thresholdValue) }}</div>
           <div class="alert-meta">
             <span class="alert-node">{{ alert.node }}</span>
             <span>·</span>
-            <span>{{ alert.time }}</span>
+            <span>{{ alertTime(alert.triggeredAt) }}</span>
           </div>
         </div>
 
@@ -109,7 +139,7 @@ function markAllRead() {
         </div>
       </div>
 
-      <div v-if="filteredAlerts.length === 0" class="empty">Aucune alerte</div>
+      <div v-if="filteredAlerts.length === 0 && !loading" class="empty">{{ t('alerts_empty') }}</div>
     </div>
 
   </div>

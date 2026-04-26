@@ -2,20 +2,13 @@
 import type { NodeStatus } from '~/stores/nodes'
 
 const props = defineProps<{ status: NodeStatus }>()
-
-const labels: Record<NodeStatus, string> = {
-  online:    'En ligne',
-  offline:   'Hors ligne',
-  warning:   'Alerte',
-  pending:   'En attente',
-  connected: 'Connecté',
-}
+const { t } = useT()
 </script>
 
 <template>
   <div class="status-pill" :class="`s-${props.status}`">
     <span class="sdot" />
-    <span>{{ labels[props.status] }}</span>
+    <span>{{ t(`status_${props.status}`) }}</span>
   </div>
 </template>
 

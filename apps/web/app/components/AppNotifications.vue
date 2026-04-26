@@ -19,8 +19,11 @@ const icons: Record<string, string> = {
           class="notif"
           :class="`notif-${n.type}`"
         >
-          <UIcon :name="icons[n.type]" class="notif-icon" style="width:13px;height:13px;flex-shrink:0" />
-          <span class="notif-msg">{{ n.message }}</span>
+          <UIcon :name="icons[n.type]" class="notif-icon" style="width:14px;height:14px;flex-shrink:0;margin-top:1px" />
+          <div class="notif-body">
+            <div class="notif-title">{{ n.title }}</div>
+            <div v-if="n.description" class="notif-desc">{{ n.description }}</div>
+          </div>
           <button class="notif-close" @click="dismiss(n.id)">
             <UIcon name="i-lucide-x" style="width:10px;height:10px" />
           </button>

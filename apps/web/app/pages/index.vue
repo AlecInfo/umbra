@@ -8,9 +8,10 @@ const store = useNodesStore()
 onMounted(() => { if (!store.nodes.length) store.fetchNodes() })
 
 const showAddNode = ref(false)
+const { t } = useT()
 
 const today = computed(() =>
-  new Date().toLocaleDateString('fr-FR', {
+  new Date().toLocaleDateString(t('date_locale'), {
     weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
   })
 )
@@ -93,40 +94,49 @@ function geoDistance(lat1: number, lng1: number, lat2: number, lng2: number): nu
 }
 
 const clusters = computed<ClusterData[]>(() => {
-  const positions = store.nodes.map(n => ({ node: n, ...pixelPos(n.lat, n.lng) }))
-  const merged    = new Array(positions.length).fill(false)
-  const result: ClusterData[] = []
+  // Only place nodes with a known location on the map
+  const located = store.nodes.filter(n => n.hasLocation)
+  const n = located.length
+  if (n === 0) return []
 
-  for (let i = 0; i < positions.length; i++) {
-    if (merged[i]) continue
-    const group = [positions[i]!]
-    merged[i] = true
-
-    for (let j = i + 1; j < positions.length; j++) {
-      if (merged[j]) continue
-      const ni = positions[i]!.node
-      const nj = positions[j]!.node
-      if (geoDistance(ni.lat, ni.lng, nj.lat, nj.lng) <= CLUSTER_KM) {
-        group.push(positions[j]!)
-        merged[j] = true
+  // Union-Find: order-independent clustering
+  const parent = Array.from({ length: n }, (_, i) => i)
+  function find(i: number): number {
+    while (parent[i] !== i) { parent[i] = parent[parent[i]!]!; i = parent[i]! }
+    return i
+  }
+  for (let i = 0; i < n; i++) {
+    for (let j = i + 1; j < n; j++) {
+      if (geoDistance(located[i]!.lat, located[i]!.lng, located[j]!.lat, located[j]!.lng) <= CLUSTER_KM) {
+        const pi = find(i), pj = find(j)
+        if (pi !== pj) parent[pi] = pj
       }
     }
+  }
 
-    const cx         = group.reduce((s, p) => s + p.x, 0) / group.length
-    const cy         = group.reduce((s, p) => s + p.y, 0) / group.length
-    const groupNodes = group.map(p => p.node)
+  // Group nodes by cluster root
+  const groups = new Map<number, Node[]>()
+  for (let i = 0; i < n; i++) {
+    const root = find(i)
+    if (!groups.has(root)) groups.set(root, [])
+    groups.get(root)!.push(located[i]!)
+  }
 
-    // For single nodes use actual status (preserves 'connected' for glow).
-    // For clusters use savedStatus for connected nodes so ring colors stay accurate.
-    const effectiveStatus = (n: Node): NodeStatus =>
-      n.status === 'connected' ? (store.savedStatus[n.id] ?? 'online') : n.status
+  const result: ClusterData[] = []
+  for (const [, groupNodes] of groups) {
+    const pxs = groupNodes.map(node => pixelPos(node.lat, node.lng))
+    const cx  = pxs.reduce((s, p) => s + p.x, 0) / pxs.length
+    const cy  = pxs.reduce((s, p) => s + p.y, 0) / pxs.length
+
+    const effectiveStatus = (nd: Node): NodeStatus =>
+      nd.status === 'connected' ? (store.savedStatus[nd.id] ?? 'online') : nd.status
     const worstStatus = groupNodes.length === 1
       ? groupNodes[0]!.status
       : groupNodes.map(effectiveStatus).sort((a, b) => STATUS_PRIORITY[a] - STATUS_PRIORITY[b])[0]!
 
-    const connectedNode        = groupNodes.find(n => n.status === 'connected')
-    const hasConnected         = !!connectedNode
-    const connectedWasWarning  = connectedNode ? store.savedStatus[connectedNode.id] === 'warning' : false
+    const connectedNode       = groupNodes.find(nd => nd.status === 'connected')
+    const hasConnected        = !!connectedNode
+    const connectedWasWarning = connectedNode ? store.savedStatus[connectedNode.id] === 'warning' : false
 
     result.push({ nodes: groupNodes, x: cx, y: cy, status: worstStatus, hasConnected, connectedWasWarning })
   }
@@ -196,50 +206,50 @@ function onCut()               { store.disconnect() }
     <!-- Header -->
     <div class="page-header">
       <div>
-        <div class="page-title">Dashboard</div>
+        <div class="page-title">{{ t('dash_title') }}</div>
         <div class="page-sub">{{ today }}</div>
       </div>
-      <button class="btn-primary" @click="showAddNode = true">+ Nouveau noeud</button>
+      <button class="btn-primary" @click="showAddNode = true">{{ t('dash_new_node') }}</button>
     </div>
 
     <!-- Stat cards -->
     <div class="stat-grid mb">
       <div class="stat-card">
-        <div class="stat-lbl">Noeuds actifs</div>
+        <div class="stat-lbl">{{ t('dash_stat_active') }}</div>
         <div class="stat-val">
           <span style="color: var(--accent)">{{ store.onlineCount }}</span>
           <span class="stat-suffix">/{{ store.nodes.length }}</span>
         </div>
-        <div class="stat-sub">{{ store.nodes.length - store.onlineCount }} hors ligne · {{ store.warningCount }} alerte</div>
+        <div class="stat-sub">{{ t('dash_stat_active_sub', { off: store.nodes.length - store.onlineCount, warn: store.warningCount }) }}</div>
       </div>
       <div class="stat-card">
-        <div class="stat-lbl">Appareils</div>
+        <div class="stat-lbl">{{ t('dash_stat_devices') }}</div>
         <div class="stat-val"><span>{{ store.nodes.length }}</span></div>
-        <div class="stat-sub">enregistrés</div>
+        <div class="stat-sub">{{ t('dash_stat_devices_sub') }}</div>
       </div>
       <div class="stat-card">
-        <div class="stat-lbl">Bande passante</div>
+        <div class="stat-lbl">{{ t('dash_stat_bandwidth') }}</div>
         <div class="stat-val">
           <span>1.2</span>
           <span class="stat-suffix">GB</span>
         </div>
-        <div class="stat-sub">aujourd'hui</div>
+        <div class="stat-sub">{{ t('dash_stat_bandwidth_sub') }}</div>
       </div>
       <div class="stat-card">
-        <div class="stat-lbl">Latence moy.</div>
+        <div class="stat-lbl">{{ t('dash_stat_latency') }}</div>
         <div class="stat-val">
-          <span style="color: var(--accent)">{{ store.avgLatency ?? '—' }}</span>
+          <span style="color: var(--accent)">{{ store.avgLatency ?? t('common_dash') }}</span>
           <span v-if="store.avgLatency" class="stat-suffix">ms</span>
         </div>
-        <div class="stat-sub">sur les noeuds actifs</div>
+        <div class="stat-sub">{{ t('dash_stat_latency_sub') }}</div>
       </div>
     </div>
 
     <!-- World map -->
     <div class="map-card mb">
       <div class="map-header">
-        <span class="map-title">Carte des noeuds</span>
-        <span class="map-hint">Clic pour se connecter</span>
+        <span class="map-title">{{ t('dash_map_title') }}</span>
+        <span class="map-hint">{{ t('dash_map_hint') }}</span>
       </div>
       <div ref="mapBodyRef" class="map-body">
         <!-- DottedMap: pointer-events disabled → prevents pan/zoom conflict with overlay -->
@@ -291,18 +301,18 @@ function onCut()               { store.disconnect() }
 
     <!-- Nodes section -->
     <div class="section-header">
-      <span class="section-title">Noeuds</span>
-      <NuxtLink to="/nodes" class="section-link">Voir tout ({{ store.nodes.length }}) →</NuxtLink>
+      <span class="section-title">{{ t('dash_section_nodes') }}</span>
+      <NuxtLink to="/nodes" class="section-link">{{ t('dash_view_all', { n: store.nodes.length }) }}</NuxtLink>
     </div>
 
     <!-- Node table -->
     <div class="node-table">
       <div class="t-head">
-        <span>Noeud</span>
-        <span>Localisation</span>
-        <span>Statut</span>
-        <span>Latence</span>
-        <span>CPU</span>
+        <span>{{ t('node_th_node') }}</span>
+        <span>{{ t('node_th_location') }}</span>
+        <span>{{ t('node_th_status') }}</span>
+        <span>{{ t('node_th_latency') }}</span>
+        <span>{{ t('node_th_cpu') }}</span>
         <span></span>
       </div>
       <NodeTableRow
@@ -313,7 +323,7 @@ function onCut()               { store.disconnect() }
         @connect="onConnect"
         @cut="onCut"
       />
-      <div v-if="!store.nodes.length" class="t-empty">Aucun noeud</div>
+      <div v-if="!store.nodes.length" class="t-empty">{{ t('dash_empty') }}</div>
     </div>
 
   </div>
@@ -342,16 +352,16 @@ function onCut()               { store.disconnect() }
           </div>
           <div class="mtt-rows">
             <div class="mtt-row">
-              <span class="mtt-lbl">Localisation</span>
+              <span class="mtt-lbl">{{ t('mtt_location') }}</span>
               <span class="mtt-val">{{ hoveredCluster.nodes[0]!.location }}</span>
             </div>
             <div class="mtt-row">
-              <span class="mtt-lbl">Latence</span>
-              <span class="mtt-val">{{ hoveredCluster.nodes[0]!.latency !== null ? `${hoveredCluster.nodes[0]!.latency}ms` : '—' }}</span>
+              <span class="mtt-lbl">{{ t('mtt_latency') }}</span>
+              <span class="mtt-val">{{ hoveredCluster.nodes[0]!.latency !== null ? `${hoveredCluster.nodes[0]!.latency}ms` : t('common_dash') }}</span>
             </div>
             <div class="mtt-row">
-              <span class="mtt-lbl">CPU</span>
-              <span class="mtt-val">{{ hoveredCluster.nodes[0]!.cpu !== null ? `${hoveredCluster.nodes[0]!.cpu}%` : '—' }}</span>
+              <span class="mtt-lbl">{{ t('mtt_cpu') }}</span>
+              <span class="mtt-val">{{ hoveredCluster.nodes[0]!.cpu !== null ? `${hoveredCluster.nodes[0]!.cpu}%` : t('common_dash') }}</span>
             </div>
           </div>
           <div
@@ -359,17 +369,17 @@ function onCut()               { store.disconnect() }
             :class="{ 'mtt-foot-action': hoveredCluster.nodes[0]!.status !== 'offline' && hoveredCluster.nodes[0]!.status !== 'pending' }"
             @click="onClusterClick(hoveredCluster!)"
           >
-            <span v-if="hoveredCluster.nodes[0]!.status === 'connected'" style="color:var(--accent)">Cliquer pour déconnecter</span>
-            <span v-else-if="hoveredCluster.nodes[0]!.status === 'offline'">Noeud hors ligne</span>
-            <span v-else-if="hoveredCluster.nodes[0]!.status === 'pending'">Connexion en attente…</span>
-            <span v-else>Cliquer pour se connecter</span>
+            <span v-if="hoveredCluster.nodes[0]!.status === 'connected'" style="color:var(--accent)">{{ t('mtt_disconnect') }}</span>
+            <span v-else-if="hoveredCluster.nodes[0]!.status === 'offline'">{{ t('mtt_offline') }}</span>
+            <span v-else-if="hoveredCluster.nodes[0]!.status === 'pending'">{{ t('mtt_pending') }}</span>
+            <span v-else>{{ t('mtt_connect') }}</span>
           </div>
         </template>
 
         <!-- Cluster (2+ nodes) -->
         <template v-else>
           <div class="mtt-head">
-            <div class="mtt-name">{{ hoveredCluster.nodes.length }} noeuds</div>
+            <div class="mtt-name">{{ t('mtt_cluster_count', { n: hoveredCluster.nodes.length }) }}</div>
           </div>
           <div class="mtt-cluster-list">
             <div
@@ -386,7 +396,7 @@ function onCut()               { store.disconnect() }
               <StatusBadge :status="n.status" />
             </div>
           </div>
-          <div class="mtt-foot mtt-foot-action" @click="goToNodes()">Voir tous les noeuds →</div>
+          <div class="mtt-foot mtt-foot-action" @click="goToNodes()">{{ t('mtt_view_all') }}</div>
         </template>
 
       </div>

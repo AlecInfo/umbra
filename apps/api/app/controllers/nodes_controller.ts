@@ -122,7 +122,7 @@ export default class NodesController {
       nodeName: node.name,
       tokenHash: hashAgentToken(raw),
       createdBy: user.id,
-      expiresAt: DateTime.now().plus({ hours: 24 }),
+      expiresAt: DateTime.now().plus({ hours: 1 }),
     })
 
     return response.created({
