@@ -25,6 +25,14 @@ interface HeadscaleNode {
   user: { name: string }
 }
 
+// Headscale user (= network tenant) for a node/resource owner.
+// One user per UMBRA account or organization: combined with the generated
+// self-only ACL policy (see syncPolicy), tenants cannot see or reach each
+// other's nodes at the network level.
+export function tenantForOwner(ownerUserId: string | null, ownerOrgId: string | null): string {
+  return ownerOrgId ? `o-${ownerOrgId}` : `u-${ownerUserId}`
+}
+
 class HeadscaleClient {
   #url: string
   #apiKey: string
@@ -113,6 +121,58 @@ class HeadscaleClient {
       enabled++
     }
     return { found: true, advertised, enabled }
+  }
+
+  async listUsers(): Promise<string[]> {
+    const data = await this.#fetch<{ users: { name: string }[] }>('/user')
+    return (data.users ?? []).map((u) => u.name)
+  }
+
+  // Regenerate and push the tenant-isolation ACL policy. One self-only rule
+  // per headscale user: tenants cannot see or reach each other. Requires
+  // `policy.mode: database` in the headscale config (verified on v0.23).
+  // The autoApprovers block is non-functional in v0.23 (see enableExitRoutes)
+  // but kept so approval becomes automatic after a headscale upgrade.
+  async syncPolicy(): Promise<void> {
+    const users = await this.listUsers()
+    if (users.length === 0) return
+
+    const policy = {
+      acls: users.map((u) => ({ action: 'accept', src: [u], dst: [`${u}:*`] })),
+      autoApprovers: {
+        exitNode: users,
+        routes: { '0.0.0.0/0': users, '::/0': users },
+      },
+    }
+    await this.#fetch('/policy', {
+      method: 'PUT',
+      body: JSON.stringify({ policy: JSON.stringify(policy) }),
+    })
+  }
+
+  async deleteNode(nodeId: string): Promise<void> {
+    await this.#fetch(`/node/${nodeId}`, { method: 'DELETE' })
+  }
+
+  // Remove the node with the given Tailscale IP from the mesh (revocation).
+  // Returns false when no matching node exists in the tenant.
+  async deleteNodeByIp(tailscaleIP: string, user: string): Promise<boolean> {
+    if (!tailscaleIP) return false
+    const ip = tailscaleIP.split('/')[0]!
+    const nodes = await this.getNodesByUser(user)
+    const node = nodes.find((n) => n.ipAddresses.includes(ip))
+    if (!node) return false
+    await this.deleteNode(node.id)
+    return true
+  }
+
+  // Delete a tenant entirely: all its nodes, then the headscale user.
+  async deleteTenant(user: string): Promise<void> {
+    const nodes = await this.getNodesByUser(user)
+    for (const node of nodes) {
+      await this.deleteNode(node.id)
+    }
+    await this.#fetch(`/user/${user}`, { method: 'DELETE' })
   }
 }
 

@@ -1,17 +1,43 @@
 import type { HttpContext } from '@adonisjs/core/http'
 import { DateTime } from 'luxon'
 import { randomBytes } from 'node:crypto'
+import db from '@adonisjs/lucid/services/db'
 import Node from '#models/node'
 import NodeMetric from '#models/node_metric'
 import NodePeerStat from '#models/node_peer_stat'
 import AgentToken from '#models/agent_token'
 import { hashAgentToken } from '#services/agent_auth'
+import { headscaleClient, tenantForOwner } from '#services/headscale_client'
 import { userOrgIds, findAccessibleNode, accessibleNodesQuery } from '#services/node_scope'
 import {
   createNodeValidator,
   updateNodeValidator,
   listNodesValidator,
 } from '#validators/node'
+
+async function latestMetricForNodes(nodeIds: string[]): Promise<Record<string, any>> {
+  if (!nodeIds.length) return {}
+  const ranked = db.from('node_metrics')
+    .select('node_id', 'latency_ms', 'cpu_percent', 'memory_percent', 'disk_percent', 'temperature_celsius', 'uptime_seconds', 'bytes_sent', 'bytes_received')
+    .select(db.raw('ROW_NUMBER() OVER (PARTITION BY node_id ORDER BY recorded_at DESC) as rn'))
+    .whereIn('node_id', nodeIds)
+    .as('ranked')
+  const rows = await db.from(ranked).where('rn', 1)
+  const map: Record<string, any> = {}
+  for (const r of rows) {
+    map[r.node_id] = {
+      latencyMs:          r.latency_ms,
+      cpuPercent:         r.cpu_percent         !== null ? Number(r.cpu_percent)         : null,
+      memoryPercent:      r.memory_percent      !== null ? Number(r.memory_percent)      : null,
+      diskPercent:        r.disk_percent        !== null ? Number(r.disk_percent)        : null,
+      temperatureCelsius: r.temperature_celsius !== null ? Number(r.temperature_celsius) : null,
+      uptimeSeconds:      r.uptime_seconds,
+      bytesSent:          r.bytes_sent          !== null ? Number(r.bytes_sent)          : null,
+      bytesReceived:      r.bytes_received      !== null ? Number(r.bytes_received)      : null,
+    }
+  }
+  return map
+}
 
 export default class NodesController {
   async index({ auth, request, response }: HttpContext) {
@@ -35,7 +61,13 @@ export default class NodesController {
     const page = filters.page ?? 1
     const perPage = filters.perPage ?? 50
     const paginator = await query.orderBy('created_at', 'desc').paginate(page, perPage)
-    return paginator.toJSON()
+    const nodes = paginator.all()
+    const nodeIds = nodes.map((n) => n.id)
+    const metricMap = await latestMetricForNodes(nodeIds)
+    return {
+      meta: paginator.getMeta(),
+      data: nodes.map((n) => ({ ...n.serialize(), latestMetric: metricMap[n.id] ?? null })),
+    }
   }
 
   async store({ auth, request, response }: HttpContext) {
@@ -72,7 +104,8 @@ export default class NodesController {
   async show({ auth, params, response }: HttpContext) {
     const node = await findAccessibleNode(auth.getUserOrFail().id, params.id)
     if (!node) return response.notFound({ message: 'Node introuvable' })
-    return { node: node.serialize() }
+    const metricMap = await latestMetricForNodes([node.id])
+    return { node: { ...node.serialize(), latestMetric: metricMap[node.id] ?? null } }
   }
 
   async update({ auth, params, request, response }: HttpContext) {
@@ -88,6 +121,21 @@ export default class NodesController {
   async destroy({ auth, params, response }: HttpContext) {
     const node = await findAccessibleNode(auth.getUserOrFail().id, params.id)
     if (!node) return response.notFound({ message: 'Node introuvable' })
+
+    // Revocation must reach the network: remove the node from the Headscale
+    // mesh, not only from the UMBRA database. Best-effort — the soft-delete
+    // proceeds even if Headscale is unreachable.
+    if (headscaleClient.isConfigured && node.wireguardIp) {
+      try {
+        const tenant = tenantForOwner(node.ownerUserId, node.ownerOrgId)
+        const removed = await headscaleClient.deleteNodeByIp(node.wireguardIp, tenant)
+        if (!removed) {
+          console.error(`Node ${node.id} (${node.wireguardIp}) not found in Headscale during delete`)
+        }
+      } catch (err) {
+        console.error(`Headscale node removal failed for ${node.id}:`, err)
+      }
+    }
 
     node.deletedAt = DateTime.now()
     await node.save()
@@ -128,7 +176,7 @@ export default class NodesController {
     return response.created({
       enrollToken: raw,
       expiresAt: token.expiresAt,
-      installCommand: `curl -fsSL https://get.umbravpn.io/install.sh | sudo bash -s -- --token ${raw}`,
+      installCommand: `curl -sSL ${(process.env.API_PUBLIC_URL ?? 'http://localhost:3333/api/v1').replace(/\/api\/v1\/?$/, '')}/install.sh | bash -s -- --name=${node.name} --category=${node.category} --token=${raw}`,
     })
   }
 
@@ -136,7 +184,13 @@ export default class NodesController {
     const node = await findAccessibleNode(auth.getUserOrFail().id, params.id)
     if (!node) return response.notFound({ message: 'Node introuvable' })
 
+    const now = DateTime.now()
     const peers = await NodePeerStat.query().where('node_id', node.id).orderBy('peer_name', 'asc')
-    return { peers: peers.map((p) => p.serialize()) }
+    return {
+      peers: peers.map((p) => ({
+        ...p.serialize(),
+        isActive: p.lastHandshakeAt ? p.lastHandshakeAt > now.minus({ minutes: 3 }) : false,
+      })),
+    }
   }
 }

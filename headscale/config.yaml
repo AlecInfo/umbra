@@ -51,7 +51,11 @@ database:
   sqlite:
     path: /var/lib/headscale/db.sqlite
 
-acls_policy_path: /etc/headscale/acls.json
+# Policy in database mode: the UMBRA API generates and pushes the
+# tenant-isolation ACL policy via PUT /api/v1/policy (headscale_client
+# syncPolicy). Empty policy (fresh install) = allow-all, verified on v0.23.
+policy:
+  mode: database
 
 dns:
   nameservers:

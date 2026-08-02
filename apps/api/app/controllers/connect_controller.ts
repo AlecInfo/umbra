@@ -2,7 +2,7 @@ import type { HttpContext } from '@adonisjs/core/http'
 import { DateTime } from 'luxon'
 import ConnectionLog from '#models/connection_log'
 import { findAccessibleNode } from '#services/node_scope'
-import { headscaleClient } from '#services/headscale_client'
+import { headscaleClient, tenantForOwner } from '#services/headscale_client'
 
 export default class ConnectController {
   async connect({ auth, request, response }: HttpContext) {
@@ -38,13 +38,16 @@ export default class ConnectController {
     let connectCommand: string | null = null
 
     if (exitIp && headscaleClient.isConfigured) {
-      const headscaleUser = process.env.HEADSCALE_USER ?? 'umbra'
+      // The client machine joins the tenant of the node it connects to
+      // (own account for personal nodes, the org tenant for org nodes) —
+      // the generated policy isolates tenants from each other.
+      const tenant = tenantForOwner(node.ownerUserId, node.ownerOrgId)
 
       // Make sure the exit node's advertised routes are enabled BEFORE handing
       // out the connect command — otherwise `--exit-node` fails client-side.
       // (v0.23 autoApprovers do nothing: this call is the real activation.)
       try {
-        const res = await headscaleClient.enableExitRoutes(exitIp, headscaleUser)
+        const res = await headscaleClient.enableExitRoutes(exitIp, tenant)
         if (!res.found) {
           console.error(`Exit node ${node.id} (${exitIp}) not found in Headscale — routes not enabled`)
         } else if (res.advertised === 0) {
@@ -55,8 +58,9 @@ export default class ConnectController {
       }
 
       try {
-        await headscaleClient.ensureUser(headscaleUser)
-        const authKey = await headscaleClient.createPreAuthKey(headscaleUser)
+        await headscaleClient.ensureUser(tenant)
+        await headscaleClient.syncPolicy()
+        const authKey = await headscaleClient.createPreAuthKey(tenant)
         connectCommand = `sudo tailscale up --login-server=${headscaleURL} --authkey=${authKey} --exit-node=${exitIp} --accept-routes --accept-dns=false --reset`
       } catch (err) {
         console.error('Failed to create pre-auth key for connect:', err)

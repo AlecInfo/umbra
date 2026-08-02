@@ -10,7 +10,6 @@ services:
     volumes:
       - headscale-data:/var/lib/headscale
       - ./headscale/config.yaml:/etc/headscale/config.yaml:ro
-      - ./headscale/acls.json:/etc/headscale/acls.json:ro
       - ./headscale/derp.yaml:/etc/headscale/derp.yaml:ro
     environment:
       HEADSCALE_SERVER_URL: ${HEADSCALE_EXTERNAL_URL:-http://localhost:8080}
@@ -68,7 +67,6 @@ services:
       API_PUBLIC_URL: ${API_PUBLIC_URL:-http://localhost:3333/api/v1}
       HEADSCALE_EXTERNAL_URL: ${HEADSCALE_EXTERNAL_URL:-http://localhost:8080}
       HEADSCALE_API_KEY: ${HEADSCALE_API_KEY:-}
-      HEADSCALE_USER: ${HEADSCALE_USER:-umbra}
     depends_on:
       postgres:
         condition: service_healthy

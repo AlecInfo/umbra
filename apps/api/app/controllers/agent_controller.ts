@@ -9,7 +9,7 @@ import User from '#models/user'
 import { enrollValidator, heartbeatValidator, metricsValidator, peersValidator, registerValidator } from '#validators/agent'
 import { hashAgentToken } from '#services/agent_auth'
 import { allocateWireguardIp } from '#services/ip_allocator'
-import { headscaleClient } from '#services/headscale_client'
+import { headscaleClient, tenantForOwner } from '#services/headscale_client'
 
 // Next allowed attempt (epoch ms) of the per-node exit-route self-heal.
 // In-memory on purpose: resets on API restart, and the operation is idempotent.
@@ -79,16 +79,19 @@ export default class AgentController {
     agentToken.expiresAt = DateTime.now().plus({ days: 90 })
     await agentToken.save()
 
-    // Create a Headscale pre-auth key for this node (if Headscale is configured)
+    // Create a Headscale pre-auth key for this node (if Headscale is configured).
+    // The node joins its owner's tenant user; the regenerated policy keeps
+    // tenants isolated from each other at the network level.
     let headscaleAuthKey: string | null = null
-    const headscaleUser = process.env.HEADSCALE_USER ?? 'umbra'
+    const tenant = tenantForOwner(node.ownerUserId, node.ownerOrgId)
     // Always hand out the public Headscale URL: the agent runs on a remote
     // machine, so internal/docker hostnames are never reachable from there.
     const headscaleExternalURL = process.env.HEADSCALE_EXTERNAL_URL ?? 'http://localhost:8080'
     if (headscaleClient.isConfigured) {
       try {
-        await headscaleClient.ensureUser(headscaleUser)
-        headscaleAuthKey = await headscaleClient.createPreAuthKey(headscaleUser)
+        await headscaleClient.ensureUser(tenant)
+        await headscaleClient.syncPolicy()
+        headscaleAuthKey = await headscaleClient.createPreAuthKey(tenant)
       } catch (err) {
         console.error('Headscale pre-auth key creation failed:', err)
       }
@@ -246,12 +249,12 @@ export default class AgentController {
     // Self-heal: ensure this node's advertised routes are enabled in Headscale.
     // Required because v0.23 autoApprovers do nothing — without this (or the
     // /connect call), an exit node advertises 0.0.0.0/0 but routes no client.
-    const headscaleUser = process.env.HEADSCALE_USER ?? 'umbra'
     if (headscaleClient.isConfigured && node.wireguardIp) {
       const now = Date.now()
       if (now >= (nextRouteEnsureAt.get(node.id) ?? 0)) {
         try {
-          const res = await headscaleClient.enableExitRoutes(node.wireguardIp, headscaleUser)
+          const tenant = tenantForOwner(node.ownerUserId, node.ownerOrgId)
+          const res = await headscaleClient.enableExitRoutes(node.wireguardIp, tenant)
           // Routes confirmed: recheck hourly. Node not joined yet, or nothing
           // advertised (local client, or tailscale up still settling): retry in 1 min.
           const delay = res.found && res.advertised > 0 ? 60 * 60_000 : 60_000

@@ -2,6 +2,7 @@ import type { HttpContext } from '@adonisjs/core/http'
 import hash from '@adonisjs/core/services/hash'
 import User from '#models/user'
 import AuditLog from '#models/audit_log'
+import { headscaleClient, tenantForOwner } from '#services/headscale_client'
 import {
   registerValidator,
   loginValidator,
@@ -179,6 +180,18 @@ export default class AuthController {
     await Promise.all(tokens.map((t) => User.accessTokens.delete(user, t.identifier)))
     user.isActive = false
     await user.save()
+
+    // Revoke the whole personal tenant at the network level: every machine
+    // (nodes and VPN clients) enrolled under this account leaves the mesh.
+    if (headscaleClient.isConfigured) {
+      try {
+        await headscaleClient.deleteTenant(tenantForOwner(user.id, null))
+        await headscaleClient.syncPolicy()
+      } catch (err) {
+        console.error(`Headscale tenant cleanup failed for user ${user.id}:`, err)
+      }
+    }
+
     return response.noContent()
   }
 }
