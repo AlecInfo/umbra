@@ -21,6 +21,9 @@ export default class AgentToken extends BaseModel {
   @column({ serializeAs: null })
   declare tokenHash: string
 
+  @column({ serializeAs: null })
+  declare previousTokenHash: string | null
+
   @column()
   declare nodeName: string | null
 

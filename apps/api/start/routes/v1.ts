@@ -7,6 +7,7 @@ const AgentController       = () => import('#controllers/agent_controller')
 const ApiKeysController     = () => import('#controllers/api_keys_controller')
 const AlertsController      = () => import('#controllers/alerts_controller')
 const ConnectionsController = () => import('#controllers/connections_controller')
+const ConnectController     = () => import('#controllers/connect_controller')
 
 router
   .group(() => {
@@ -50,16 +51,25 @@ router
 
         router.get('/alerts', [AlertsController, 'index'])
         router.get('/connections', [ConnectionsController, 'index'])
+
+        router.post('/connect', [ConnectController, 'connect'])
+        router.delete('/connect', [ConnectController, 'disconnect'])
       })
       .use(middleware.auth())
 
     router
       .group(() => {
+        // Go agent spec endpoints (no agent auth — use enroll token)
+        router.post('/register', [AgentController, 'register'])
+        router.get('/version', [AgentController, 'version'])
+        // Legacy enroll endpoint
         router.post('/enroll', [AgentController, 'enroll'])
 
         router
           .group(() => {
             router.post('/heartbeat', [AgentController, 'heartbeat'])
+            router.get('/peers', [AgentController, 'getPeers'])
+            // Legacy separate endpoints
             router.post('/metrics', [AgentController, 'metrics'])
             router.post('/peers', [AgentController, 'peers'])
           })

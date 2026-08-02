@@ -1,5 +1,6 @@
 import type { HttpContext } from '@adonisjs/core/http'
 import { randomBytes } from 'node:crypto'
+import { readFile } from 'node:fs/promises'
 import { DateTime } from 'luxon'
 import db from '@adonisjs/lucid/services/db'
 import AgentToken from '#models/agent_token'
@@ -111,6 +112,35 @@ export default class AgentController {
         peers: [],
       },
     })
+  }
+
+  // GET /api/v1/agent/version?arch=linux-arm64 — latest release for auto-update.
+  // Reads the manifest written by umbra-agent/build-releases.sh; the signature
+  // is ed25519 (verified by the agent with its embedded public key).
+  async version({ request, response }: HttpContext) {
+    const arch = String(request.input('arch', 'linux-amd64'))
+    if (!/^linux-(amd64|arm64|armv7)$/.test(arch)) {
+      return response.badRequest({ message: 'Unknown arch' })
+    }
+
+    let manifest: { version: string; binaries: Record<string, { sha256: string; signature: string }> }
+    try {
+      const raw = await readFile(new URL('../../resources/releases/manifest.json', import.meta.url), 'utf-8')
+      manifest = JSON.parse(raw)
+    } catch {
+      return response.notFound({ message: 'No release manifest' })
+    }
+
+    const bin = manifest.binaries?.[arch]
+    if (!bin) return response.notFound({ message: 'No release for this arch' })
+
+    const base = (process.env.API_PUBLIC_URL ?? 'http://localhost:3333/api/v1').replace(/\/api\/v1\/?$/, '')
+    return {
+      version: manifest.version,
+      url: `${base}/releases/umbra-agent-${arch}`,
+      signature: bin.signature,
+      sha256: bin.sha256,
+    }
   }
 
   // POST /api/v1/agent/enroll — legacy format (enrollToken in body)
@@ -234,11 +264,15 @@ export default class AgentController {
       }
     }
 
-    // Check if agent token is close to expiry (< 7 days) and rotate
-    const agentToken = await this.#resolveAgentToken(ctx)
+    // Check if agent token is close to expiry (< 7 days) and rotate.
+    // The hash the agent authenticated with stays valid (previous_token_hash)
+    // until the new token is used — a lost response cannot lock the agent out.
+    const bearerHash = this.#bearerHash(ctx)
+    const agentToken = await this.#resolveAgentToken(bearerHash)
     let newToken: string | null = null
-    if (agentToken && agentToken.expiresAt < DateTime.now().plus({ days: 7 })) {
+    if (agentToken && bearerHash && agentToken.expiresAt < DateTime.now().plus({ days: 7 })) {
       const rawToken = `umbra_agent_${randomBytes(32).toString('hex')}`
+      agentToken.previousTokenHash = bearerHash
       agentToken.tokenHash = hashAgentToken(rawToken)
       agentToken.expiresAt = DateTime.now().plus({ days: 90 })
       await agentToken.save()
@@ -421,10 +455,16 @@ export default class AgentController {
     }))
   }
 
-  async #resolveAgentToken(ctx: HttpContext) {
+  #bearerHash(ctx: HttpContext): string | null {
     const bearer = ctx.request.header('authorization', '')
     const [, token] = (bearer ?? '').split(' ')
-    if (!token) return null
-    return AgentToken.query().where('token_hash', hashAgentToken(token)).first()
+    return token ? hashAgentToken(token) : null
+  }
+
+  async #resolveAgentToken(bearerHash: string | null) {
+    if (!bearerHash) return null
+    return AgentToken.query()
+      .where((q) => q.where('token_hash', bearerHash).orWhere('previous_token_hash', bearerHash))
+      .first()
   }
 }
