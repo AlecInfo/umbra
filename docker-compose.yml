@@ -1,4 +1,30 @@
 services:
+
+  # ── Headscale (WireGuard control plane) ─────────────────────────────────────
+  headscale:
+    image: headscale/headscale:v0.23.0
+    container_name: umbra-headscale
+    restart: unless-stopped
+    ports:
+      - '8080:8080'
+    volumes:
+      - headscale-data:/var/lib/headscale
+      - ./headscale/config.yaml:/etc/headscale/config.yaml:ro
+      - ./headscale/acls.json:/etc/headscale/acls.json:ro
+      - ./headscale/derp.yaml:/etc/headscale/derp.yaml:ro
+    environment:
+      HEADSCALE_SERVER_URL: ${HEADSCALE_EXTERNAL_URL:-http://localhost:8080}
+      # false in prod (set by deploy.sh when DERP_HOSTNAME is configured):
+      # the standalone derper replaces the embedded DERP server.
+      HEADSCALE_DERP_SERVER_ENABLED: ${HEADSCALE_DERP_SERVER_ENABLED:-true}
+    command: serve
+    healthcheck:
+      test: ['CMD', '/ko-app/headscale', 'version']
+      interval: 10s
+      timeout: 5s
+      retries: 6
+
+  # ── Database (always started) ────────────────────────────────────────────────
   postgres:
     image: timescale/timescaledb:latest-pg16
     container_name: umbra-postgres
@@ -11,6 +37,136 @@ services:
       POSTGRES_DB: umbra
     volumes:
       - umbra-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U umbra']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # ── API (profile: prod) ──────────────────────────────────────────────────────
+  api:
+    profiles: [prod]
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    container_name: umbra-api
+    restart: unless-stopped
+    ports:
+      - '3333:3333'
+    environment:
+      NODE_ENV: production
+      PORT: 3333
+      HOST: 0.0.0.0
+      APP_KEY: ${APP_KEY:?APP_KEY is required}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: umbra
+      DB_PASSWORD: umbra
+      DB_DATABASE: umbra
+      HEADSCALE_URL: http://umbra-headscale:8080
+      API_PUBLIC_URL: ${API_PUBLIC_URL:-http://localhost:3333/api/v1}
+      HEADSCALE_EXTERNAL_URL: ${HEADSCALE_EXTERNAL_URL:-http://localhost:8080}
+      HEADSCALE_API_KEY: ${HEADSCALE_API_KEY:-}
+      HEADSCALE_USER: ${HEADSCALE_USER:-umbra}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      headscale:
+        condition: service_healthy
+    command: >
+      sh -c "node ace migration:run --force && node bin/server.js"
+
+  # ── Web (profile: prod) ──────────────────────────────────────────────────────
+  web:
+    profiles: [prod]
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    container_name: umbra-web
+    restart: unless-stopped
+    ports:
+      - '3000:3000'
+    environment:
+      NODE_ENV: production
+      NUXT_PUBLIC_API_BASE: ${API_PUBLIC_URL:-http://localhost:3333/api/v1}
+      NUXT_API_BASE_SSR: http://umbra-api:3333/api/v1
+    depends_on:
+      - api
+
+  # ── Caddy (reverse proxy — profils prod/tunnel) ─────────────────────────────
+  # Gateway interne unique. Gère le routing par hostname et passe
+  # nativement les WebSocket Upgrades (nécessaire pour Headscale TS2021).
+  # Profilé : sans profil il rendait le projet compose invalide en dev
+  # (depends_on vers api/web qui sont dans le profil prod).
+  caddy:
+    profiles: [prod, tunnel]
+    image: caddy:2-alpine
+    container_name: umbra-caddy
+    restart: unless-stopped
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+    environment:
+      HS_HOST: ${HS_HOST:-headscale.localhost}
+      API_HOST: ${API_HOST:-api.localhost}
+      WEB_HOST: ${WEB_HOST:-umbra.localhost}
+    depends_on:
+      - api
+      - web
+      - headscale
+
+  # ── DERP relay (profile: derp) ───────────────────────────────────────────────
+  # Relays traffic between nodes when UDP hole punching fails (CGNAT, filtered
+  # networks). MUST run on a host with a public IP: TLS via Let's Encrypt on
+  # 443, STUN on 3478/udp. DERP_HOSTNAME must resolve to this host directly —
+  # NOT proxied through Cloudflare (no orange cloud, no tunnel).
+  # Start with DERP_RUN_LOCAL=1 in .env (via deploy.sh) or --profile derp.
+  derper:
+    profiles: [derp]
+    build: ./derper
+    container_name: umbra-derper
+    restart: unless-stopped
+    ports:
+      - '80:80'         # Let's Encrypt HTTP challenge + captive portal checks
+      - '443:443'       # DERP over TLS
+      - '3478:3478/udp' # STUN
+    command:
+      # No ":?" here — compose interpolates even when the profile is inactive.
+      # deploy.sh enforces DERP_HOSTNAME when DERP_RUN_LOCAL=1.
+      - '-hostname=${DERP_HOSTNAME:-}'
+      - '-certmode=letsencrypt'
+      - '-certdir=/var/lib/derper/certs'
+      - '-a=:443'
+      - '-http-port=80'
+      - '-stun'
+      - '-stun-port=3478'
+    volumes:
+      - derper-certs:/var/lib/derper/certs
+
+  # ── Cloudflare Tunnel (profile: tunnel) ──────────────────────────────────────
+  # Exposes web + API + Headscale publicly without port forwarding.
+  #
+  # One-time setup:
+  #   1. Cloudflare Zero Trust → Tunnels → Create tunnel → copy token
+  #   2. Add DNS hostnames in the dashboard (CNAME auto-created)
+  #   3. Set CLOUDFLARE_TUNNEL_TOKEN + WEB_PUBLIC_URL + API_PUBLIC_URL
+  #      + HEADSCALE_EXTERNAL_URL in .env
+  #   4. Run ./deploy.sh  ← génère la config cloudflared automatiquement
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: umbra-cloudflared
+    restart: unless-stopped
+    command: tunnel --no-autoupdate --config /etc/cloudflared/config.yaml run
+    volumes:
+      - ./cloudflared/config.yaml:/etc/cloudflared/config.yaml:ro
+      - ./cloudflared/creds.json:/etc/cloudflared/creds.json:ro
+    depends_on:
+      - caddy
+    profiles: [tunnel]
 
 volumes:
   umbra-pgdata:
+  headscale-data:
+  caddy-data:
+  derper-certs:

@@ -1,0 +1,65 @@
+---
+# server_url is overridden by HEADSCALE_SERVER_URL env var at runtime.
+# Set HEADSCALE_EXTERNAL_URL in your .env to your public IP or hostname.
+server_url: http://localhost:8080
+
+listen_addr: 0.0.0.0:8080
+metrics_listen_addr: 0.0.0.0:9090
+grpc_listen_addr: 0.0.0.0:50443
+grpc_allow_insecure: true
+
+noise:
+  private_key_path: /var/lib/headscale/noise_private.key
+
+prefixes:
+  v4: 100.64.0.0/10
+  v6: fd7a:115c:a1e0::/48
+  allocation: sequential
+
+# DERP — two modes:
+#   dev (default): embedded DERP server below. Works on a LAN, but CANNOT
+#     relay through Cloudflare Tunnel (STUN is UDP, DERP is a non-WebSocket
+#     HTTP upgrade), so it does not help nodes behind CGNAT.
+#   prod: deploy.sh sets HEADSCALE_DERP_SERVER_ENABLED=false (env overrides
+#     this file) and generates derp.yaml pointing to the standalone derper
+#     (docker-compose profile "derp") on a host with a public IP.
+# Note: headscale refuses to start if the resulting DERP map is empty, so
+# the embedded server stays enabled here as the dev fallback.
+derp:
+  server:
+    enabled: true
+    region_id: 999
+    region_code: "umbra-embedded"
+    region_name: "Umbra Embedded DERP (dev only)"
+    stun_listen_addr: "0.0.0.0:3478"
+    private_key_path: /var/lib/headscale/derp_server_private.key
+    automatically_add_embedded_derp_region: true
+    ipv4: ""
+    ipv6: ""
+  urls: []
+  paths:
+    - /etc/headscale/derp.yaml
+  auto_update_enabled: false
+  update_frequency: 24h
+
+disable_check_updates: true
+ephemeral_node_inactivity_timeout: 30m
+node_update_check_interval: 10s
+
+database:
+  type: sqlite
+  sqlite:
+    path: /var/lib/headscale/db.sqlite
+
+acls_policy_path: /etc/headscale/acls.json
+
+dns:
+  nameservers:
+    global:
+      - 1.1.1.1
+      - 8.8.8.8
+  magic_dns: false
+  base_domain: umbra.internal
+
+log:
+  level: info

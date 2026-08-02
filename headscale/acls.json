@@ -1,0 +1,22 @@
+{
+  // WARNING: autoApprovers are NON-FUNCTIONAL in headscale v0.23.0 — verified
+  // empirically 2026-08-02: advertised exit routes stay enabled=false whatever
+  // the approver syntax ("*", "umbra", "umbra@"). Exit routes are actually
+  // enabled by the UMBRA API (headscale_client.enableExitRoutes) on /connect
+  // and on agent heartbeats. This block is kept so approval becomes automatic
+  // if headscale is upgraded to a version where autoApprovers work.
+  "acls": [
+    {
+      "action": "accept",
+      "src": ["*"],
+      "dst": ["*:*"]
+    }
+  ],
+  "autoApprovers": {
+    "exitNode": ["umbra"],
+    "routes": {
+      "0.0.0.0/0": ["umbra"],
+      "::/0": ["umbra"]
+    }
+  }
+}
