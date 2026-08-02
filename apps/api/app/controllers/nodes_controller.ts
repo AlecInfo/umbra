@@ -8,7 +8,9 @@ import NodePeerStat from '#models/node_peer_stat'
 import AgentToken from '#models/agent_token'
 import { hashAgentToken } from '#services/agent_auth'
 import { headscaleClient, tenantForOwner } from '#services/headscale_client'
-import { userOrgIds, findAccessibleNode, accessibleNodesQuery } from '#services/node_scope'
+import { userOrgIds, accessibleNodesQuery } from '#services/node_scope'
+import { findNodeWithPermission } from '#services/permissions'
+import OrgMember from '#models/org_member'
 import {
   createNodeValidator,
   updateNodeValidator,
@@ -75,8 +77,12 @@ export default class NodesController {
     const payload = await request.validateUsing(createNodeValidator)
 
     if (payload.orgId) {
-      const orgIds = await userOrgIds(user.id)
-      if (!orgIds.includes(payload.orgId)) {
+      // Creating an org node requires an owner/admin role, not mere membership.
+      const membership = await OrgMember.query()
+        .where('user_id', user.id)
+        .where('org_id', payload.orgId)
+        .first()
+      if (!membership || membership.role === 'member') {
         return response.forbidden({ message: 'Accès refusé à cette organisation' })
       }
     }
@@ -102,14 +108,14 @@ export default class NodesController {
   }
 
   async show({ auth, params, response }: HttpContext) {
-    const node = await findAccessibleNode(auth.getUserOrFail().id, params.id)
+    const node = await findNodeWithPermission(auth.getUserOrFail().id, params.id, 'read')
     if (!node) return response.notFound({ message: 'Node introuvable' })
     const metricMap = await latestMetricForNodes([node.id])
     return { node: { ...node.serialize(), latestMetric: metricMap[node.id] ?? null } }
   }
 
   async update({ auth, params, request, response }: HttpContext) {
-    const node = await findAccessibleNode(auth.getUserOrFail().id, params.id)
+    const node = await findNodeWithPermission(auth.getUserOrFail().id, params.id, 'manage')
     if (!node) return response.notFound({ message: 'Node introuvable' })
 
     const payload = await request.validateUsing(updateNodeValidator)
@@ -119,7 +125,7 @@ export default class NodesController {
   }
 
   async destroy({ auth, params, response }: HttpContext) {
-    const node = await findAccessibleNode(auth.getUserOrFail().id, params.id)
+    const node = await findNodeWithPermission(auth.getUserOrFail().id, params.id, 'admin')
     if (!node) return response.notFound({ message: 'Node introuvable' })
 
     // Revocation must reach the network: remove the node from the Headscale
@@ -143,7 +149,7 @@ export default class NodesController {
   }
 
   async metrics({ auth, params, request, response }: HttpContext) {
-    const node = await findAccessibleNode(auth.getUserOrFail().id, params.id)
+    const node = await findNodeWithPermission(auth.getUserOrFail().id, params.id, 'read')
     if (!node) return response.notFound({ message: 'Node introuvable' })
 
     const since = request.input('since')
@@ -160,7 +166,7 @@ export default class NodesController {
 
   async enrollToken({ auth, params, response }: HttpContext) {
     const user = auth.getUserOrFail()
-    const node = await findAccessibleNode(user.id, params.id)
+    const node = await findNodeWithPermission(user.id, params.id, 'manage')
     if (!node) return response.notFound({ message: 'Node introuvable' })
 
     const raw = `umbra_enroll_${randomBytes(24).toString('hex')}`
@@ -181,7 +187,7 @@ export default class NodesController {
   }
 
   async peers({ auth, params, response }: HttpContext) {
-    const node = await findAccessibleNode(auth.getUserOrFail().id, params.id)
+    const node = await findNodeWithPermission(auth.getUserOrFail().id, params.id, 'read')
     if (!node) return response.notFound({ message: 'Node introuvable' })
 
     const now = DateTime.now()

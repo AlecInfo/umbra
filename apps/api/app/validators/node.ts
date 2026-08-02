@@ -14,7 +14,8 @@ export const createNodeValidator = vine.compile(
     longitude: vine.number().range([-180, 180]).optional(),
     hardwareModel: vine.string().trim().maxLength(100).optional(),
     osVersion: vine.string().trim().maxLength(100).optional(),
-    orgId: vine.string().uuid().optional(),
+    // Not vine's .uuid(): it only accepts v1-5 and the DB generates UUIDv7
+    orgId: vine.string().regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i).optional(),
   })
 )
 
@@ -35,7 +36,8 @@ export const updateNodeValidator = vine.compile(
 
 export const listNodesValidator = vine.compile(
   vine.object({
-    orgId: vine.string().uuid().optional(),
+    // Not vine's .uuid(): it only accepts v1-5 and the DB generates UUIDv7
+    orgId: vine.string().regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i).optional(),
     status: status.optional(),
     category: category.optional(),
     page: vine.number().positive().optional(),

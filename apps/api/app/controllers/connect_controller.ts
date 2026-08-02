@@ -1,7 +1,7 @@
 import type { HttpContext } from '@adonisjs/core/http'
 import { DateTime } from 'luxon'
 import ConnectionLog from '#models/connection_log'
-import { findAccessibleNode } from '#services/node_scope'
+import { findNodeWithPermission } from '#services/permissions'
 import { headscaleClient, tenantForOwner } from '#services/headscale_client'
 
 export default class ConnectController {
@@ -11,7 +11,7 @@ export default class ConnectController {
 
     if (!nodeId) return response.badRequest({ message: 'nodeId requis' })
 
-    const node = await findAccessibleNode(user.id, nodeId)
+    const node = await findNodeWithPermission(user.id, nodeId, 'connect')
     if (!node) return response.notFound({ message: 'Node introuvable' })
 
     await ConnectionLog.query()
