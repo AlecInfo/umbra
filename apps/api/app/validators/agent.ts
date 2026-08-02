@@ -1,63 +1,54 @@
 import vine from '@vinejs/vine'
 
-export const enrollValidator = vine.compile(
+// Used by POST /api/v1/agent/register (Go agent spec)
+export const registerValidator = vine.compile(
   vine.object({
-    enrollToken: vine.string().minLength(20).maxLength(200),
+    token: vine.string().minLength(20).maxLength(200),
+    wireguard_pubkey: vine.string().trim().maxLength(500).optional(),
     hostname: vine.string().trim().maxLength(255).optional(),
-    wireguardPubkey: vine.string().trim().maxLength(500).optional(),
-    hardwareModel: vine.string().trim().maxLength(100).optional(),
-    osVersion: vine.string().trim().maxLength(100).optional(),
-    agentVersion: vine.string().trim().maxLength(20).optional(),
-    ipAddress: vine.string().ipAddress().optional(),
-    countryCode: vine.string().trim().fixedLength(2).optional(),
-    city: vine.string().trim().maxLength(100).optional(),
-    latitude: vine.number().range([-90, 90]).optional(),
-    longitude: vine.number().range([-180, 180]).optional(),
+    hardware_model: vine.string().trim().maxLength(200).optional(),
+    arch: vine.string().trim().maxLength(20).optional(),
+    os_version: vine.string().trim().maxLength(100).optional(),
+    agent_version: vine.string().trim().maxLength(20).optional(),
+    ip_address: vine.string().ipAddress().optional(),
+    supports_openvpn: vine.boolean().optional(),
   })
 )
 
+// Go agent heartbeat: includes metrics + peers inline
 export const heartbeatValidator = vine.compile(
   vine.object({
-    agentVersion: vine.string().trim().maxLength(20).optional(),
-    wireguardPubkey: vine.string().trim().maxLength(500).optional(),
-    ipAddress: vine.string().ipAddress().optional(),
-  })
-)
-
-export const metricsValidator = vine.compile(
-  vine.object({
-    samples: vine
+    node_id: vine.string().optional(),
+    timestamp: vine.string().optional(),
+    agent_version: vine.string().trim().maxLength(20).optional(),
+    metrics: vine
+      .object({
+        tailscale_ip: vine.string().maxLength(45).optional(),
+        cpu_percent: vine.number().min(0).max(100).optional(),
+        cpu_cores: vine.number().min(0).max(1024).optional(),
+        load_avg: vine.number().min(0).optional(),
+        memory_percent: vine.number().min(0).max(100).optional(),
+        mem_total_gb: vine.number().min(0).optional(),
+        disk_percent: vine.number().min(0).max(100).optional(),
+        disk_total_gb: vine.number().min(0).optional(),
+        temperature_celsius: vine.number().min(-50).max(200).optional(),
+        uptime_seconds: vine.number().min(0).optional(),
+        bytes_sent: vine.number().min(0).optional(),
+        bytes_received: vine.number().min(0).optional(),
+        latency_ms: vine.number().min(0).max(65535).optional(),
+        active_peers: vine.number().min(0).max(65535).optional(),
+      })
+      .optional(),
+    peers: vine
       .array(
         vine.object({
-          recordedAt: vine.string().optional(),
-          bytesSent: vine.number().min(0).optional(),
-          bytesReceived: vine.number().min(0).optional(),
-          latencyMs: vine.number().min(0).max(65535).optional(),
-          cpuPercent: vine.number().min(0).max(100).optional(),
-          memoryPercent: vine.number().min(0).max(100).optional(),
-          diskPercent: vine.number().min(0).max(100).optional(),
-          temperatureCelsius: vine.number().min(-50).max(200).optional(),
-          uptimeSeconds: vine.number().min(0).optional(),
-          activePeers: vine.number().min(0).max(65535).optional(),
+          public_key: vine.string().maxLength(500),
+          last_handshake_at: vine.string().optional(),
+          bytes_sent: vine.number().min(0).optional(),
+          bytes_received: vine.number().min(0).optional(),
         })
       )
-      .minLength(1)
-      .maxLength(500),
+      .optional(),
   })
 )
 
-export const peersValidator = vine.compile(
-  vine.object({
-    peers: vine.array(
-      vine.object({
-        pubkey: vine.string().maxLength(500),
-        name: vine.string().maxLength(100).optional(),
-        allowedIps: vine.array(vine.string().maxLength(64)).optional(),
-        endpoint: vine.string().maxLength(255).optional(),
-        lastHandshakeAt: vine.string().optional(),
-        bytesSent: vine.number().min(0).optional(),
-        bytesReceived: vine.number().min(0).optional(),
-      })
-    ),
-  })
-)

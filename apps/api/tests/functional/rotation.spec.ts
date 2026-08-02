@@ -19,11 +19,11 @@ async function enrollAgent(client: any) {
     .post(`/api/v1/nodes/${nodeId}/enroll-token`)
     .header('Authorization', `Bearer ${userToken}`)
 
-  const enrolled = await client.post('/api/v1/agent/enroll').json({
-    enrollToken: et.body().enrollToken,
+  const enrolled = await client.post('/api/v1/agent/register').json({
+    token: et.body().enrollToken,
     hostname: 'rotation-host',
   })
-  return { nodeId, agentToken: enrolled.body().agentToken as string }
+  return { nodeId, agentToken: enrolled.body().auth_token as string }
 }
 
 function heartbeat(client: any, token: string) {

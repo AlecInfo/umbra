@@ -22,11 +22,11 @@ async function setupOnlineNode(client: any) {
     .post(`/api/v1/nodes/${nodeId}/enroll-token`)
     .header('Authorization', `Bearer ${userToken}`)
 
-  const enrolled = await client.post('/api/v1/agent/enroll').json({
-    enrollToken: et.body().enrollToken,
+  const enrolled = await client.post('/api/v1/agent/register').json({
+    token: et.body().enrollToken,
     hostname: 'sweep-host',
   })
-  return { nodeId, userId, agentToken: enrolled.body().agentToken as string }
+  return { nodeId, userId, agentToken: enrolled.body().auth_token as string }
 }
 
 test.group('Offline detection', () => {

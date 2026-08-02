@@ -59,19 +59,13 @@ router
 
     router
       .group(() => {
-        // Go agent spec endpoints (no agent auth — use enroll token)
+        // No agent auth — register uses the enroll token, version is public
         router.post('/register', [AgentController, 'register'])
         router.get('/version', [AgentController, 'version'])
-        // Legacy enroll endpoint
-        router.post('/enroll', [AgentController, 'enroll'])
 
         router
           .group(() => {
             router.post('/heartbeat', [AgentController, 'heartbeat'])
-            router.get('/peers', [AgentController, 'getPeers'])
-            // Legacy separate endpoints
-            router.post('/metrics', [AgentController, 'metrics'])
-            router.post('/peers', [AgentController, 'peers'])
           })
           .use(middleware.agent())
       })
