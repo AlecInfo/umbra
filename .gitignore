@@ -1,0 +1,10 @@
+# Build artifacts
+umbra-agent
+umbra-agent-*
+build/
+
+# IDE
+.idea/
+
+# Local test helpers (contain dev credentials and machine-specific paths)
+scripts/
