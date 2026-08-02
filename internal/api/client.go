@@ -92,7 +92,8 @@ type HeartbeatResponse struct {
 type VersionResponse struct {
 	Version   string `json:"version"`
 	URL       string `json:"url"`
-	Signature string `json:"signature"`
+	Signature string `json:"signature"` // base64 ed25519 signature of the binary
+	Sha256    string `json:"sha256,omitempty"`
 }
 
 // --- HTTP helpers ---
@@ -163,12 +164,17 @@ func (c *Client) Heartbeat(req HeartbeatRequest) (*HeartbeatResponse, error) {
 	return &resp, nil
 }
 
-func (c *Client) GetLatestVersion() (*VersionResponse, error) {
+func (c *Client) GetLatestVersion(arch string) (*VersionResponse, error) {
 	var resp VersionResponse
-	if err := c.get("/agent/version", &resp); err != nil {
+	if err := c.get("/agent/version?arch="+arch, &resp); err != nil {
 		return nil, err
 	}
 	return &resp, nil
+}
+
+// Ping does an unauthenticated round-trip to the API, used as latency probe.
+func (c *Client) Ping() error {
+	return c.get("/health", nil)
 }
 
 func (c *Client) PostMetricsBatch(snapshots []HeartbeatRequest) error {

@@ -1,12 +1,14 @@
 package updater
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
+	"crypto/ed25519"
+	"encoding/base64"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"os"
+	"runtime"
 	"syscall"
 	"time"
 
@@ -16,8 +18,24 @@ import (
 	"github.com/umbravpn/umbra-agent/internal/version"
 )
 
+// publicKeyB64 is injected at build time by build-releases.sh (ldflags -X).
+// Updates are refused unless signed by the matching ed25519 private key —
+// a compromised distribution server cannot push arbitrary binaries.
+var publicKeyB64 string
+
+func archTag() string {
+	switch runtime.GOARCH {
+	case "arm64":
+		return "linux-arm64"
+	case "arm":
+		return "linux-armv7"
+	default:
+		return "linux-amd64"
+	}
+}
+
 func CheckAndUpdate(client *api.Client, logger *zap.Logger) error {
-	latest, err := client.GetLatestVersion()
+	latest, err := client.GetLatestVersion(archTag())
 	if err != nil {
 		return fmt.Errorf("version check: %w", err)
 	}
@@ -35,8 +53,8 @@ func CheckAndUpdate(client *api.Client, logger *zap.Logger) error {
 		return fmt.Errorf("download failed: %w", err)
 	}
 
-	if !verifySignature(binary, latest.Signature) {
-		return fmt.Errorf("signature verification failed")
+	if err := verifySignature(binary, latest.Signature); err != nil {
+		return fmt.Errorf("signature verification failed: %w", err)
 	}
 
 	return applyUpdate(binary)
@@ -52,9 +70,22 @@ func downloadBinary(url string) ([]byte, error) {
 	return io.ReadAll(resp.Body)
 }
 
-func verifySignature(binary []byte, expectedSHA256 string) bool {
-	h := sha256.Sum256(binary)
-	return hex.EncodeToString(h[:]) == expectedSHA256
+func verifySignature(binary []byte, sigB64 string) error {
+	if publicKeyB64 == "" {
+		return errors.New("no update public key embedded in this build")
+	}
+	pub, err := base64.StdEncoding.DecodeString(publicKeyB64)
+	if err != nil || len(pub) != ed25519.PublicKeySize {
+		return errors.New("invalid embedded public key")
+	}
+	sig, err := base64.StdEncoding.DecodeString(sigB64)
+	if err != nil {
+		return errors.New("invalid signature encoding")
+	}
+	if !ed25519.Verify(ed25519.PublicKey(pub), binary, sig) {
+		return errors.New("ed25519 signature mismatch")
+	}
+	return nil
 }
 
 func applyUpdate(binary []byte) error {

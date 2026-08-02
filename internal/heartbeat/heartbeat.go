@@ -68,7 +68,9 @@ func Send(client *api.Client, cfg *config.Config, logger *zap.Logger) (*api.Hear
 func measureLatency(backendURL string) int64 {
 	start := time.Now()
 	c := api.NewClient(backendURL, "")
-	_, _ = c.GetLatestVersion()
+	if err := c.Ping(); err != nil {
+		return 0
+	}
 	ms := time.Since(start).Milliseconds()
 	if ms <= 0 || ms > 30000 {
 		return 0
