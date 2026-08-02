@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"os/exec"
+	"strings"
 	"time"
 
 	sysd "github.com/coreos/go-systemd/v22/daemon"
@@ -13,10 +15,19 @@ import (
 	"github.com/umbravpn/umbra-agent/internal/config"
 	"github.com/umbravpn/umbra-agent/internal/heartbeat"
 	"github.com/umbravpn/umbra-agent/internal/updater"
-	"github.com/umbravpn/umbra-agent/internal/wireguard"
 )
 
 const pidFile = "/run/umbra-agent.pid"
+
+func exitNodeChanged(current, next *string) bool {
+	if current == nil && next == nil {
+		return false
+	}
+	if current == nil || next == nil {
+		return true
+	}
+	return *current != *next
+}
 
 func Run(ctx context.Context, cfg *config.Config, logger *zap.Logger) error {
 	if err := os.WriteFile(pidFile, []byte(fmt.Sprintf("%d\n", os.Getpid())), 0644); err != nil {
@@ -27,13 +38,13 @@ func Run(ctx context.Context, cfg *config.Config, logger *zap.Logger) error {
 	client := api.NewClient(cfg.BackendURL, cfg.AuthToken)
 	buf := heartbeat.NewBuffer()
 
+	var currentExitHostname *string
+
 	backoff := 30 * time.Second
 
 	heartbeatTicker := time.NewTicker(time.Duration(cfg.HeartbeatIntervalSeconds) * time.Second)
-	peerSyncTicker := time.NewTicker(5 * time.Minute)
 	watchdogTicker := time.NewTicker(30 * time.Second)
 	defer heartbeatTicker.Stop()
-	defer peerSyncTicker.Stop()
 	defer watchdogTicker.Stop()
 
 	if cfg.AutoUpdate {
@@ -60,12 +71,10 @@ func Run(ctx context.Context, cfg *config.Config, logger *zap.Logger) error {
 		select {
 		case <-ctx.Done():
 			logger.Info("shutting down")
-			wireguard.Teardown(cfg.Wireguard.Interface)
 			return nil
 
 		case <-heartbeatTicker.C:
 			go func() {
-				// Drain buffer from previous failures first
 				if buf.Len() > 0 {
 					snaps := buf.Flush()
 					if err := heartbeat.FlushBuffer(client, snaps, logger); err != nil {
@@ -88,7 +97,6 @@ func Run(ctx context.Context, cfg *config.Config, logger *zap.Logger) error {
 				}
 				backoff = 30 * time.Second
 
-				// JWT rotation — backend sends new token when < 7 days remain
 				if resp.NewToken != nil {
 					cfg.AuthToken = *resp.NewToken
 					client.UpdateToken(*resp.NewToken)
@@ -97,18 +105,26 @@ func Run(ctx context.Context, cfg *config.Config, logger *zap.Logger) error {
 					}
 				}
 
-				// Immediate peer sync when backend signals a change
-				if resp.PeersUpdated {
-					if err := wireguard.SyncPeers(client, cfg); err != nil {
-						logger.Error("immediate peer sync failed", zap.Error(err))
+				// Exit node management via tailscale CLI (uses Tailscale IP, not hostname/UUID)
+				if cfg.IsLocalClient {
+					newIP := resp.ExitNodeIP
+					if exitNodeChanged(currentExitHostname, newIP) {
+						if newIP == nil || *newIP == "" {
+							logger.Info("clearing exit node")
+							if err := setExitNode(""); err != nil {
+								logger.Error("tailscale clear exit node failed", zap.Error(err))
+							} else {
+								currentExitHostname = nil
+							}
+						} else {
+							logger.Info("activating exit node", zap.String("ip", *newIP))
+							if err := setExitNode(*newIP); err != nil {
+								logger.Error("tailscale set exit node failed", zap.Error(err))
+							} else {
+								currentExitHostname = newIP
+							}
+						}
 					}
-				}
-			}()
-
-		case <-peerSyncTicker.C:
-			go func() {
-				if err := wireguard.SyncPeers(client, cfg); err != nil {
-					logger.Error("periodic peer sync failed", zap.Error(err))
 				}
 			}()
 
@@ -116,4 +132,20 @@ func Run(ctx context.Context, cfg *config.Config, logger *zap.Logger) error {
 			sysd.SdNotify(false, "WATCHDOG=1")
 		}
 	}
+}
+
+// setExitNode calls `tailscale set --exit-node=<ip>`.
+// Pass an empty string to clear the exit node.
+// --exit-node-allow-lan-access=true ensures the agent can still reach the local
+// API server even when all traffic is routed through the exit node.
+func setExitNode(ip string) error {
+	args := []string{"set", "--exit-node=" + ip}
+	if ip != "" {
+		args = append(args, "--exit-node-allow-lan-access=true")
+	}
+	out, err := exec.Command("tailscale", args...).CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("%s: %w", strings.TrimSpace(string(out)), err)
+	}
+	return nil
 }

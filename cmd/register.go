@@ -9,8 +9,9 @@ import (
 )
 
 var (
-	registerToken      string
-	registerBackendURL string
+	registerToken       string
+	registerBackendURL  string
+	registerLocalClient bool
 )
 
 var registerCmd = &cobra.Command{
@@ -20,11 +21,12 @@ var registerCmd = &cobra.Command{
 		if registerToken == "" {
 			return fmt.Errorf("--token is required")
 		}
-		return registration.Register(registerToken, registerBackendURL)
+		return registration.Register(registerToken, registerBackendURL, registerLocalClient)
 	},
 }
 
 func init() {
 	registerCmd.Flags().StringVar(&registerToken, "token", "", "One-time enrollment token (required)")
-	registerCmd.Flags().StringVar(&registerBackendURL, "backend-url", "https://api.umbravpn.io", "Backend URL")
+	registerCmd.Flags().StringVar(&registerBackendURL, "backend-url", "https://api.umbravpn.io/api/v1", "Backend API base URL")
+	registerCmd.Flags().BoolVar(&registerLocalClient, "local", false, "Mark this machine as a local VPN client (apply exit node routing)")
 }

@@ -32,36 +32,31 @@ func (c *Client) UpdateToken(newToken string) {
 // --- Request/Response types ---
 
 type RegisterRequest struct {
-	Token           string `json:"token"`
-	WireguardPubkey string `json:"wireguard_pubkey"`
-	Hostname        string `json:"hostname"`
-	HardwareModel   string `json:"hardware_model"`
-	OsVersion       string `json:"os_version"`
-	AgentVersion    string `json:"agent_version"`
-	SupportsOpenVPN bool   `json:"supports_openvpn"`
-}
-
-type WireguardPeer struct {
-	PublicKey  string   `json:"public_key"`
-	AllowedIPs []string `json:"allowed_ips"`
-	Endpoint   string   `json:"endpoint"`
+	Token         string `json:"token"`
+	Hostname      string `json:"hostname"`
+	HardwareModel string `json:"hardware_model,omitempty"`
+	Arch          string `json:"arch,omitempty"`
+	OsVersion     string `json:"os_version"`
+	AgentVersion  string `json:"agent_version"`
+	IpAddress     string `json:"ip_address,omitempty"`
 }
 
 type RegisterResponse struct {
-	NodeID    string `json:"node_id"`
-	AuthToken string `json:"auth_token"`
-	Wireguard struct {
-		Interface  string          `json:"interface"`
-		Address    string          `json:"address"`
-		ListenPort int             `json:"listen_port"`
-		Peers      []WireguardPeer `json:"peers"`
-	} `json:"wireguard"`
+	NodeID          string `json:"node_id"`
+	AuthToken       string `json:"auth_token"`
+	HeadscaleAuthKey string `json:"headscale_auth_key"`
+	HeadscaleURL    string `json:"headscale_url"`
 }
 
 type MetricsPayload struct {
+	TailscaleIP        string  `json:"tailscale_ip,omitempty"`
 	CpuPercent         float64 `json:"cpu_percent"`
+	CpuCores           int     `json:"cpu_cores,omitempty"`
+	LoadAvg            float64 `json:"load_avg,omitempty"`
 	MemoryPercent      float64 `json:"memory_percent"`
+	MemTotalGB         float64 `json:"mem_total_gb,omitempty"`
 	DiskPercent        float64 `json:"disk_percent"`
+	DiskTotalGB        float64 `json:"disk_total_gb,omitempty"`
 	TemperatureCelsius float64 `json:"temperature_celsius,omitempty"`
 	UptimeSeconds      int64   `json:"uptime_seconds"`
 	BytesSent          uint64  `json:"bytes_sent"`
@@ -86,13 +81,12 @@ type HeartbeatRequest struct {
 }
 
 type HeartbeatResponse struct {
-	OK           bool    `json:"ok"`
-	PeersUpdated bool    `json:"peers_updated"`
-	NewToken     *string `json:"new_token"`
-}
-
-type PeersResponse struct {
-	Peers []WireguardPeer `json:"peers"`
+	OK             bool    `json:"ok"`
+	PeersUpdated   bool    `json:"peers_updated"`
+	NewToken       *string `json:"new_token"`
+	ExitNodeId     *string `json:"exit_node_id"`
+	ExitNodeIP     *string `json:"exit_node_ip"`     // Tailscale IP (100.64.x.x) — use for tailscale set
+	ExitNodeHostname *string `json:"exit_node_hostname"` // kept for reference
 }
 
 type VersionResponse struct {
@@ -155,7 +149,7 @@ func (c *Client) do(req *http.Request, out any) error {
 
 func (c *Client) Register(req RegisterRequest) (*RegisterResponse, error) {
 	var resp RegisterResponse
-	if err := c.post("/api/v1/agent/register", req, &resp, req.Token); err != nil {
+	if err := c.post("/agent/register", req, &resp, req.Token); err != nil {
 		return nil, err
 	}
 	return &resp, nil
@@ -163,15 +157,7 @@ func (c *Client) Register(req RegisterRequest) (*RegisterResponse, error) {
 
 func (c *Client) Heartbeat(req HeartbeatRequest) (*HeartbeatResponse, error) {
 	var resp HeartbeatResponse
-	if err := c.post("/api/v1/agent/heartbeat", req, &resp, ""); err != nil {
-		return nil, err
-	}
-	return &resp, nil
-}
-
-func (c *Client) GetPeers() (*PeersResponse, error) {
-	var resp PeersResponse
-	if err := c.get("/api/v1/agent/peers", &resp); err != nil {
+	if err := c.post("/agent/heartbeat", req, &resp, ""); err != nil {
 		return nil, err
 	}
 	return &resp, nil
@@ -179,7 +165,7 @@ func (c *Client) GetPeers() (*PeersResponse, error) {
 
 func (c *Client) GetLatestVersion() (*VersionResponse, error) {
 	var resp VersionResponse
-	if err := c.get("/api/v1/agent/version", &resp); err != nil {
+	if err := c.get("/agent/version", &resp); err != nil {
 		return nil, err
 	}
 	return &resp, nil
@@ -193,3 +179,4 @@ func (c *Client) PostMetricsBatch(snapshots []HeartbeatRequest) error {
 	}
 	return nil
 }
+

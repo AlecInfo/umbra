@@ -8,11 +8,10 @@ import (
 
 const ConfigPath = "/etc/umbra/agent.json"
 
-type WireguardConfig struct {
-	Interface  string `json:"interface"`
-	PrivateKey string `json:"private_key"`
-	ListenPort int    `json:"listen_port"`
-	Address    string `json:"address"`
+type TailscaleConfig struct {
+	HeadscaleURL string `json:"headscale_url"`
+	Hostname     string `json:"hostname"`
+	Interface    string `json:"interface"` // "tailscale0"
 }
 
 type Config struct {
@@ -20,10 +19,11 @@ type Config struct {
 	NodeName                 string          `json:"node_name"`
 	BackendURL               string          `json:"backend_url"`
 	AuthToken                string          `json:"auth_token"`
-	Wireguard                WireguardConfig `json:"wireguard"`
+	Tailscale                TailscaleConfig `json:"tailscale"`
 	HeartbeatIntervalSeconds int             `json:"heartbeat_interval_seconds"`
 	AutoUpdate               bool            `json:"auto_update"`
 	LogLevel                 string          `json:"log_level"`
+	IsLocalClient            bool            `json:"is_local_client"`
 }
 
 func Load() (*Config, error) {
@@ -36,10 +36,13 @@ func Load() (*Config, error) {
 		return nil, fmt.Errorf("invalid config: %w", err)
 	}
 	if cfg.HeartbeatIntervalSeconds == 0 {
-		cfg.HeartbeatIntervalSeconds = 30
+		cfg.HeartbeatIntervalSeconds = 10
 	}
 	if cfg.LogLevel == "" {
 		cfg.LogLevel = "info"
+	}
+	if cfg.Tailscale.Interface == "" {
+		cfg.Tailscale.Interface = "tailscale0"
 	}
 	return &cfg, nil
 }

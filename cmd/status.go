@@ -25,9 +25,8 @@ var statusCmd = &cobra.Command{
 		fmt.Printf("Node ID:      %s\n", cfg.NodeID)
 		fmt.Printf("Node Name:    %s\n", cfg.NodeName)
 		fmt.Printf("Backend URL:  %s\n", cfg.BackendURL)
-		fmt.Printf("WG Interface: %s\n", cfg.Wireguard.Interface)
-		fmt.Printf("WG Address:   %s\n", cfg.Wireguard.Address)
-		fmt.Printf("WG Port:      %d\n", cfg.Wireguard.ListenPort)
+		fmt.Printf("Headscale:    %s\n", cfg.Tailscale.HeadscaleURL)
+		fmt.Printf("TS Interface: %s\n", cfg.Tailscale.Interface)
 		fmt.Printf("Auto-update:  %v\n", cfg.AutoUpdate)
 		fmt.Printf("Log Level:    %s\n", cfg.LogLevel)
 

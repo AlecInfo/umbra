@@ -2,6 +2,8 @@ package heartbeat
 
 import (
 	"fmt"
+	"os/exec"
+	"strings"
 	"time"
 
 	"go.uber.org/zap"
@@ -41,26 +43,46 @@ func (b *Buffer) Len() int {
 
 // Send collects a metrics snapshot and posts it as a heartbeat.
 func Send(client *api.Client, cfg *config.Config, logger *zap.Logger) (*api.HeartbeatResponse, error) {
-	snap, err := metrics.Collect(cfg.Wireguard.Interface)
+	snap, err := metrics.Collect(cfg.Tailscale.Interface)
 	if err != nil {
 		return nil, fmt.Errorf("collect metrics: %w", err)
 	}
 
-	peerStats, err := metrics.GetPeerStats(cfg.Wireguard.Interface)
-	if err != nil {
-		logger.Warn("failed to get peer stats", zap.Error(err))
-		peerStats = nil
-	}
+	peerStats, _ := metrics.GetPeerStats(cfg.Tailscale.Interface)
+
+	payload := snap.ToPayload()
+	payload.LatencyMs = measureLatency(client.BackendURL)
+	payload.TailscaleIP = getTailscaleIP()
 
 	req := api.HeartbeatRequest{
 		NodeID:       cfg.NodeID,
 		Timestamp:    time.Now().UTC().Format(time.RFC3339),
-		Metrics:      snap.ToPayload(),
+		Metrics:      payload,
 		Peers:        peerStats,
 		AgentVersion: version.Current,
 	}
 
 	return client.Heartbeat(req)
+}
+
+func measureLatency(backendURL string) int64 {
+	start := time.Now()
+	c := api.NewClient(backendURL, "")
+	_, _ = c.GetLatestVersion()
+	ms := time.Since(start).Milliseconds()
+	if ms <= 0 || ms > 30000 {
+		return 0
+	}
+	return ms
+}
+
+// getTailscaleIP returns the node's Tailscale/Headscale-assigned IP (e.g. "100.64.0.3").
+func getTailscaleIP() string {
+	out, err := exec.Command("tailscale", "ip", "-4").Output()
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(out))
 }
 
 // FlushBuffer sends buffered snapshots in batches of 10, with 500ms between batches.
