@@ -10,6 +10,7 @@ import { enrollValidator, heartbeatValidator, metricsValidator, peersValidator, 
 import { hashAgentToken } from '#services/agent_auth'
 import { allocateWireguardIp } from '#services/ip_allocator'
 import { headscaleClient, tenantForOwner } from '#services/headscale_client'
+import { resolveOfflineAlerts } from '#services/offline_watch'
 
 // Next allowed attempt (epoch ms) of the per-node exit-route self-heal.
 // In-memory on purpose: resets on API restart, and the operation is idempotent.
@@ -179,12 +180,17 @@ export default class AgentController {
     const node = ctx.agentNode
     const payload = await ctx.request.validateUsing(heartbeatValidator)
 
+    const wasOffline = node.status === 'offline'
     node.merge({
       agentVersion: payload.agent_version ?? node.agentVersion,
       lastSeenAt: DateTime.now(),
-      status: node.status === 'offline' ? 'online' : node.status,
+      status: wasOffline ? 'online' : node.status,
     })
     await node.save()
+
+    if (wasOffline) {
+      await resolveOfflineAlerts(node.id)
+    }
 
     // Insert metrics snapshot if provided
     if (payload.metrics) {

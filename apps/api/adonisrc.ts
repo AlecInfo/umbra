@@ -21,6 +21,10 @@ export default defineConfig({
       file: () => import('#start/kernel'),
       environment: ['web'],
     },
+    {
+      file: () => import('#start/offline_watch'),
+      environment: ['web'],
+    },
   ],
   metaFiles: [
     {
@@ -36,6 +40,7 @@ export default defineConfig({
         timeout: 30_000,
       },
     ],
-    forceExit: false,
+    // The pg pool keeps the event loop alive after PASSED without this
+    forceExit: true,
   },
 })
