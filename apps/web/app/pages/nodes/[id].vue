@@ -1,10 +1,4 @@
 <script setup lang="ts">
-// TODO: Comment récupérer les données en temps réel ? WebSocket, Server-Sent Events, ou polling régulier ?
-// TODO: Comment le noeud communique-t-il son statut de connexion et ses métriques ? Via l'agent qui pousse les données vers le backend, ou via des requêtes régulières du frontend ?
-// TODO: Comment l'agent récupère-t-il les métriques système (CPU, RAM, disque, température, Uptime, Bp Upload/Download, latence VPN) ? Via des commandes système (ex: top, free, df, sensors) ou via une bibliothèque dédiée ?
-// TODO: Mettre les rpis dans des ipv6 2001 qui ne sont pas localisables géographiquement, pour éviter les confusions sur la localisation affichée
-
-
 import { categoryIcons } from '~/composables/useCategoryIcons'
 
 definePageMeta({ layout: 'default' })
@@ -12,11 +6,14 @@ definePageMeta({ layout: 'default' })
 const route = useRoute()
 const store = useNodesStore()
 const { t } = useT()
-onMounted(() => { if (!store.nodes.length) store.fetchNodes() })
 
-const node = computed(() => store.nodes.find(n => n.id === route.params.id) ?? null)
+// ── API state ────────────────────────────────────────────
+const apiNode    = ref<any>(null)
+const rawMetrics = ref<any[]>([])
+const rawPeers   = ref<any[]>([])
+const loading    = ref(true)
 
-// Period
+// Period must be declared before fetch functions (used in fetchMetrics)
 const period = ref('1j')
 const periods = computed(() => [
   { label: t('nd_period_1h'), value: '1h' },
@@ -25,7 +22,6 @@ const periods = computed(() => [
   { label: t('nd_period_1m'), value: '1m' },
   { label: t('nd_period_1y'), value: '1a' },
 ])
-
 const periodLabel = computed(() => {
   const map: Record<string, string> = {
     '1h': t('nd_period_1h_label'),
@@ -35,6 +31,98 @@ const periodLabel = computed(() => {
     '1a': t('nd_period_1y_label'),
   }
   return map[period.value] ?? ''
+})
+
+function periodSince(p: string): string {
+  const now = new Date()
+  switch (p) {
+    case '1h': now.setHours(now.getHours() - 1); break
+    case '1j': now.setDate(now.getDate() - 1); break
+    case '1s': now.setDate(now.getDate() - 7); break
+    case '1m': now.setMonth(now.getMonth() - 1); break
+    case '1a': now.setFullYear(now.getFullYear() - 1); break
+  }
+  return now.toISOString()
+}
+
+async function fetchNode() {
+  const api = useApi()
+  const res = await api<{ node: any }>(`/nodes/${route.params.id}`)
+  apiNode.value = res.node
+}
+async function fetchMetrics() {
+  const api = useApi()
+  const res = await api<{ metrics: any[] }>(`/nodes/${route.params.id}/metrics`, {
+    params: { since: periodSince(period.value), limit: 5000 },
+  })
+  rawMetrics.value = res.metrics
+}
+async function fetchPeers() {
+  const api = useApi()
+  const res = await api<{ peers: any[] }>(`/nodes/${route.params.id}/peers`)
+  rawPeers.value = res.peers
+}
+async function loadAll() {
+  loading.value = true
+  try { await Promise.all([fetchNode(), fetchMetrics(), fetchPeers()]) } finally { loading.value = false }
+}
+
+let pollTimer: ReturnType<typeof setInterval> | null = null
+
+onMounted(() => {
+  if (!store.nodes.length) store.fetchNodes()
+  loadAll()
+  pollTimer = setInterval(() => { fetchNode(); fetchMetrics() }, 10_000)
+  liveTickHandle = setInterval(() => { liveNow.value = Date.now() }, 1000)
+})
+
+onUnmounted(() => {
+  if (pollTimer) clearInterval(pollTimer)
+  if (liveTickHandle) clearInterval(liveTickHandle)
+  if (enrollTickHandle) clearInterval(enrollTickHandle)
+})
+
+watch(period, fetchMetrics)
+
+// ── Unified node object ──────────────────────────────────
+const storeNode     = computed(() => store.nodes.find(n => n.id === route.params.id) ?? null)
+const latestMetric  = computed(() => rawMetrics.value[0] ?? null)
+
+const node = computed(() => {
+  if (!apiNode.value && !storeNode.value) return null
+  const a = apiNode.value
+  const s = storeNode.value
+  const m = latestMetric.value
+  return {
+    id:       a?.id       ?? s?.id,
+    name:     a?.name     ?? s?.name     ?? '—',
+    status:   s?.status   ?? a?.status   ?? 'offline',
+    category: a?.category ?? s?.category ?? 'other',
+    ip:            a?.wireguardIp  ?? s?.ip       ?? '—',
+    ipAddress:     a?.ipAddress    ?? null,
+    location:      a ? ([a.city, a.countryCode].filter(Boolean).join(', ') || '—') : (s?.location ?? '—'),
+    country:       a?.countryCode  ?? s?.country  ?? '—',
+    lat:           a?.latitude     ?? s?.lat ?? 0,
+    lng:           a?.longitude    ?? s?.lng ?? 0,
+    latency:       m?.latencyMs            ?? null,
+    cpu:           m?.cpuPercent           ?? null,
+    cpuCores:      m?.cpuCores             ?? null,
+    loadAvg:       m?.loadAvg              ?? null,
+    ram:           m?.memoryPercent        ?? null,
+    ramTotalGb:    m?.memTotalGb           ?? null,
+    disk:          m?.diskPercent          ?? null,
+    diskTotalGb:   m?.diskTotalGb          ?? null,
+    temp:          m?.temperatureCelsius   ?? null,
+    uptime:        m?.uptimeSeconds        ?? null,
+    lastSeen:      a?.lastSeenAt           ?? s?.lastSeen ?? null,
+    wireguardPubkey: a?.wireguardPubkey    ?? null,
+    wireguardPort:   a?.wireguardPort      ?? 51820,
+    hardwareModel:   a?.hardwareModel      ?? null,
+    arch:            a?.arch               ?? null,
+    osVersion:       a?.osVersion          ?? null,
+    agentVersion:    a?.agentVersion       ?? null,
+    activePeers:     m?.activePeers        ?? null,
+  }
 })
 
 // Category icons
@@ -75,15 +163,32 @@ const tempColor = computed(() => {
 })
 const tempStyle = computed(() => ({ color: tempColor.value }))
 
-const ramTotal = 4
-const ramUsed  = computed(() => node.value?.ram ? ((node.value.ram / 100) * ramTotal).toFixed(2) : t('common_dash'))
+const ramTotalGb = computed(() => node.value?.ramTotalGb ?? null)
+const ramUsed    = computed(() => {
+  const pct = node.value?.ram
+  const tot = ramTotalGb.value
+  if (!pct || !tot) return t('common_dash')
+  return ((pct / 100) * tot).toFixed(1)
+})
+const diskTotalGb = computed(() => node.value?.diskTotalGb ?? null)
+const diskUsed    = computed(() => {
+  const pct = node.value?.disk
+  const tot = diskTotalGb.value
+  if (!pct || !tot) return t('common_dash')
+  return ((pct / 100) * tot).toFixed(1)
+})
 
 const uptimeDisplay = computed(() => {
   const s = node.value?.uptime
   if (!s) return t('common_dash')
   const d = Math.floor(s / 86400)
   const h = Math.floor((s % 86400) / 3600)
-  return d > 0 ? `${d}j ${h}h` : `${h}h`
+  const m = Math.floor((s % 3600) / 60)
+  const sec = s % 60
+  if (d > 0) return `${d}j ${h}h`
+  if (h > 0) return `${h}h ${m}m`
+  if (m > 0) return `${m}m ${sec}s`
+  return `${sec}s`
 })
 const uptimeSince = computed(() => {
   const s = node.value?.uptime
@@ -92,62 +197,97 @@ const uptimeSince = computed(() => {
   return d.toLocaleDateString(t('date_locale'), { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
 })
 
-// Mock time-series
-const counts: Record<string, number> = { '1h': 60, '1j': 24, '1s': 168, '1m': 30, '1a': 52 }
-// ms between data points for each period
-const stepMs: Record<string, number> = {
-  '1h':        60_000,   // 1 min
-  '1j':     3_600_000,   // 1 h
-  '1s':     3_600_000,   // 1 h  (168 pts = 7 days)
-  '1m':    86_400_000,   // 1 day
-  '1a':   604_800_000,   // 1 week
-}
+// ── Chart data from real metrics ─────────────────────────
+// API returns newest-first; charts need oldest-first
+const sortedMetrics = computed(() => [...rawMetrics.value].reverse())
 
-function makeSeries(count: number, keys: string[], mins: number[], maxs: number[], decimals: number[] = [], interval = 3_600_000) {
-  const now = Date.now()
-  return Array.from({ length: count }, (_, i) => {
-    const pt: Record<string, number> = { ts: now - (count - i) * interval }
-    keys.forEach((k, idx) => {
-      const raw = Math.random() * ((maxs[idx] ?? 0) - (mins[idx] ?? 0)) + (mins[idx] ?? 0)
-      const dec = decimals[idx] ?? 0
-      pt[k] = dec > 0 ? +raw.toFixed(dec) : Math.round(raw)
-    })
-    return pt
+const systemData = computed(() =>
+  sortedMetrics.value.map(m => ({
+    ts:   new Date(m.recordedAt).getTime(),
+    cpu:  +(m.cpuPercent ?? 0).toFixed(1),
+    ram:  +(m.memoryPercent ?? 0).toFixed(1),
+    temp: +(m.temperatureCelsius ?? 0).toFixed(1),
+  }))
+)
+
+const bandwidthData = computed(() => {
+  const ms = sortedMetrics.value
+  if (ms.length < 2) return []
+  return ms.slice(1).map((cur, i) => {
+    const prev  = ms[i]!
+    const dtSec = (new Date(cur.recordedAt).getTime() - new Date(prev.recordedAt).getTime()) / 1000
+    const up    = dtSec > 0 && cur.bytesSent     != null && prev.bytesSent     != null
+      ? Math.max(0, (cur.bytesSent - prev.bytesSent) / dtSec / 1_000_000) : 0
+    const down  = dtSec > 0 && cur.bytesReceived != null && prev.bytesReceived != null
+      ? Math.max(0, (cur.bytesReceived - prev.bytesReceived) / dtSec / 1_000_000) : 0
+    return { ts: new Date(cur.recordedAt).getTime(), up: +up.toFixed(2), down: +down.toFixed(2) }
   })
-}
+})
 
-const step          = computed(() => stepMs[period.value] ?? 3_600_000)
-const bandwidthData = computed(() => makeSeries(counts[period.value] ?? 24, ['up', 'down'], [0.5, 1], [10, 25], [1, 1], step.value))
-const systemData    = computed(() => makeSeries(counts[period.value] ?? 24, ['cpu', 'ram', 'temp'], [5, 30, 40], [90, 90, 75], [1, 0, 0], step.value))
-const peersData     = computed(() => makeSeries(counts[period.value] ?? 24, ['peers'], [0], [8], [], step.value))
+const peersData = computed(() =>
+  sortedMetrics.value.map(m => ({
+    ts:    new Date(m.recordedAt).getTime(),
+    peers: m.activePeers ?? 0,
+  }))
+)
 
-// X-axis formatter adapts to the selected period
+// X-axis formatter adapts to the actual data span (not the selected period)
 function fmtHHmm(ts: number) {
   const d = new Date(ts)
   return d.getHours().toString().padStart(2, '0') + ':' + d.getMinutes().toString().padStart(2, '0')
 }
-const xFormatters = computed<Record<string, (ts: number) => string>>(() => {
+const xFmt = computed(() => {
+  const ms = sortedMetrics.value
   const loc = t('date_locale')
-  return {
-    '1h': fmtHHmm,
-    '1j': fmtHHmm,
-    '1s': (ts) => { const d = new Date(ts); return d.toLocaleDateString(loc, { weekday: 'short' }).replace('.', '') + ' ' + d.getHours() + 'h' },
-    '1m': (ts) => { const d = new Date(ts); return d.getDate() + '\u00a0' + d.toLocaleDateString(loc, { month: 'short' }).replace('.', '') },
-    '1a': (ts) => { const d = new Date(ts); return d.toLocaleDateString(loc, { month: 'short' }).replace('.', '') },
-  }
+  if (ms.length < 2) return fmtHHmm
+  const spanMs = new Date(ms[ms.length - 1]!.recordedAt).getTime() - new Date(ms[0]!.recordedAt).getTime()
+  const spanDays = spanMs / 86_400_000
+  if (spanDays >= 60)
+    return (ts: number) => new Date(ts).toLocaleDateString(loc, { month: 'short' }).replace('.', '')
+  if (spanDays >= 4)
+    return (ts: number) => { const d = new Date(ts); return d.toLocaleDateString(loc, { weekday: 'short' }).replace('.', '') + '\u00a0' + d.getDate() }
+  if (spanDays >= 1)
+    return (ts: number) => { const d = new Date(ts); return d.getDate() + '\u00a0' + d.toLocaleDateString(loc, { month: 'short' }).replace('.', '') + ' ' + d.getHours() + 'h' }
+  return fmtHHmm
 })
-const xFmt = computed(() => xFormatters.value[period.value] ?? fmtHHmm)
 
-// WireGuard peers
-const wgPeersLocal = ref([
-  { id: '1', name: 'alecptt',  device: 'MacBook Pro',    pubkey: 'xK3mP2…n9Qa', ip: '100.64.0.10', latency: 4,    upMb: 240,  downGb: '1.2 GB', handshakeKey: 'nd_peer_hs_4s',   status: 'active',   avatar: 'A', color: 'linear-gradient(135deg,#4fffb0,#3b82f6)' },
-  { id: '2', name: 'marie',    device: 'iPhone 15',      pubkey: 'pR7kL4…m2Xj', ip: '100.64.0.11', latency: null, upMb: 18,   downGb: '95 MB',  handshakeKey: 'nd_peer_hs_2h',   status: 'inactive', avatar: 'M', color: 'linear-gradient(135deg,#ff6b6b,#ffa726)' },
-  { id: '3', name: 'thomas',   device: 'Linux Desktop',  pubkey: 'yN8vQ5…k6Wz', ip: '100.64.0.12', latency: 11,   upMb: 560,  downGb: '2.8 GB', handshakeKey: 'nd_peer_hs_28s',  status: 'active',   avatar: 'T', color: 'linear-gradient(135deg,#4fa8ff,#7b6ef6)' },
-  { id: '4', name: 'sam',      device: 'Raspberry Pi',   pubkey: 'qM2bN9…p5Ry', ip: '100.64.0.13', latency: null, upMb: 0,    downGb: '—',      handshakeKey: '',                status: 'inactive', avatar: 'S', color: 'var(--surface2)' },
-  { id: '5', name: 'backup',   device: 'VPS Hetzner',    pubkey: 'wX4cP8…r3Lm', ip: '100.64.0.14', latency: 22,   upMb: 1200, downGb: '8.4 GB', handshakeKey: 'nd_peer_hs_1min', status: 'active',   avatar: 'B', color: 'linear-gradient(135deg,#a78bfa,#7b6ef6)' },
-])
+// ── WireGuard peers from API ─────────────────────────────
+const PEER_COLORS = [
+  'linear-gradient(135deg,#4fffb0,#3b82f6)',
+  'linear-gradient(135deg,#ff6b6b,#ffa726)',
+  'linear-gradient(135deg,#4fa8ff,#7b6ef6)',
+  'linear-gradient(135deg,#a78bfa,#7b6ef6)',
+  'linear-gradient(135deg,#10b981,#3b82f6)',
+]
+function mapPeer(p: any, i: number) {
+  const mb = (bytes: number | null) => bytes != null ? bytes / 1_000_000 : null
+  const downMb = mb(p.bytesReceived)
+  return {
+    id:      p.id,
+    name:    p.peerName ?? p.peerPubkey.slice(0, 8),
+    device:  p.endpoint ?? '—',
+    pubkey:  p.peerPubkey.length > 12 ? p.peerPubkey.slice(0, 6) + '…' + p.peerPubkey.slice(-4) : p.peerPubkey,
+    ip:      p.allowedIps?.[0] ?? '—',
+    latency: null,
+    upMb:    Math.round(mb(p.bytesSent) ?? 0),
+    downGb:  downMb != null ? (downMb >= 1000 ? `${(downMb / 1000).toFixed(1)} GB` : `${Math.round(downMb)} MB`) : '—',
+    handshakeAt: p.lastHandshakeAt,
+    status:  p.isActive ? 'active' : 'inactive',
+    avatar:  (p.peerName?.[0] ?? '?').toUpperCase(),
+    color:   PEER_COLORS[i % PEER_COLORS.length]!,
+  }
+}
+const wgPeersLocal  = ref<any[]>([])
+watch(rawPeers, (peers) => { wgPeersLocal.value = peers.map(mapPeer) }, { immediate: true })
 const wgActiveCount = computed(() => wgPeersLocal.value.filter(p => p.status === 'active').length)
-function peerHandshake(key: string) { return key ? t(key) : t('common_dash') }
+function peerHandshake(p: any) {
+  if (!p.handshakeAt) return t('common_dash')
+  const diff = Date.now() - new Date(p.handshakeAt).getTime()
+  const s = Math.floor(diff / 1000)
+  if (s < 60)  return t('nd_peer_hs_Xs',  { n: s })
+  if (s < 3600) return t('nd_peer_hs_Xm', { n: Math.floor(s / 60) })
+  return t('nd_peer_hs_Xh', { n: Math.floor(s / 3600) })
+}
 
 
 // Share modal
@@ -221,31 +361,6 @@ function revokeMember(id: string) {
 const activeMembers  = computed(() => members.value.filter(m => m.status === 'active'))
 const pendingMembers = computed(() => members.value.filter(m => m.status === 'pending'))
 
-// WireGuard config modal
-const showConfig    = ref(false)
-const cfgPort       = ref('51820')
-const cfgMtu        = ref('1420')
-const cfgDns        = ref('1.1.1.1, 8.8.8.8')
-const cfgAllowedIPs = ref('100.64.0.0/10')
-
-// Peers management modal
-const showPeersMgmt = ref(false)
-const newPeerKey    = ref('')
-const newPeerIp     = ref('')
-function removePeer(id: string) { wgPeersLocal.value = wgPeersLocal.value.filter(p => p.id !== id) }
-function addPeer() {
-  if (!newPeerKey.value || !newPeerIp.value) return
-  const key = newPeerKey.value
-  wgPeersLocal.value.push({
-    id: Date.now().toString(), name: t('nd_peer_default_name'), device: t('nd_peer_default_device'),
-    pubkey: key.length > 12 ? key.slice(0, 6) + '…' + key.slice(-4) : key,
-    ip: newPeerIp.value, latency: null, upMb: 0, downGb: '—', handshakeKey: '',
-    status: 'inactive', avatar: '?', color: 'var(--surface2)',
-  })
-  newPeerKey.value = ''
-  newPeerIp.value  = ''
-}
-
 // Activity log (first 5 shown by default, all when expanded)
 const extendedActivity = computed(() => [
   { id: 1, icon: 'i-lucide-circle-check',   iconColor: 'var(--accent)',  iconBg: 'rgba(79,255,176,.1)',  main: t('nd_act_e1_main'), sub: t('nd_act_e1_sub'), time: t('nd_act_e1_time') },
@@ -263,12 +378,116 @@ const visibleActivity = computed(() => showAllActivity.value ? extendedActivity.
 // Copy pubkey
 const copiedKey = ref(false)
 function copyPubkey() {
-  navigator.clipboard.writeText('xK3mP2vTn8sFqLd4mBrJkHgYpWzXiCeN9Qa')
+  const key = node.value?.wireguardPubkey
+  if (!key) return
+  navigator.clipboard.writeText(key)
   copiedKey.value = true
   setTimeout(() => copiedKey.value = false, 2000)
 }
 
 const { notify } = useNotifications()
+
+// Migrate node modal
+const showEnrollModal   = ref(false)
+const enrollLoading     = ref(false)
+const enrollToken       = ref<string | null>(null)
+const enrollInstallCommand = ref<string | null>(null)
+const enrollExpiresAt   = ref<string | null>(null)
+const enrollExpired     = ref(false)
+const enrollRegenerating = ref(false)
+const enrollCopiedCmd   = ref(false)
+const enrollNow         = ref(Date.now())
+let enrollTickHandle: ReturnType<typeof setInterval> | null = null
+
+const liveNow = ref(Date.now())
+let liveTickHandle: ReturnType<typeof setInterval> | null = null
+
+const lastSeenAgo = computed(() => {
+  const ls = node.value?.lastSeen
+  if (!ls) return '—'
+  const diff = Math.max(0, Math.floor((liveNow.value - new Date(ls).getTime()) / 1000))
+  if (diff < 60) return `il y a ${diff}s`
+  if (diff < 3600) return `il y a ${Math.floor(diff / 60)}m`
+  return `il y a ${Math.floor(diff / 3600)}h`
+})
+
+watch(enrollNow, () => {
+  if (enrollExpired.value || !enrollExpiresAt.value) return
+  if (new Date(enrollExpiresAt.value).getTime() <= enrollNow.value) enrollExpired.value = true
+})
+
+const enrollExpiresLabel = computed(() => {
+  if (!enrollExpiresAt.value) return null
+  const diff = new Date(enrollExpiresAt.value).getTime() - enrollNow.value
+  if (diff <= 0) return t('onb_token_expired')
+  const m = Math.floor(diff / 60_000)
+  const s = Math.floor((diff % 60_000) / 1_000)
+  return `${m}m ${s.toString().padStart(2, '0')}s`
+})
+
+const enrollInstallCmd = computed(() => {
+  if (!enrollToken.value || !node.value) return null
+  return enrollInstallCommand.value ?? `curl -sSL http://localhost:3333/install.sh | bash -s -- --name=${node.value.name} --category=${node.value.category} --token=${enrollToken.value}`
+})
+
+async function generateEnrollToken() {
+  enrollLoading.value  = true
+  enrollToken.value    = null
+  enrollExpiresAt.value = null
+  enrollExpired.value  = false
+  showEnrollModal.value = true
+  if (!enrollTickHandle) enrollTickHandle = setInterval(() => { enrollNow.value = Date.now() }, 1000)
+  try {
+    const api = useApi()
+    const res = await api<{ enrollToken: string; expiresAt: string; installCommand: string }>(
+      `/nodes/${route.params.id}/enroll-token`, { method: 'POST' }
+    )
+    enrollToken.value          = res.enrollToken
+    enrollExpiresAt.value      = res.expiresAt
+    enrollInstallCommand.value = res.installCommand
+  } catch {
+    notify('Erreur lors de la génération du token', 'error')
+    showEnrollModal.value = false
+  } finally {
+    enrollLoading.value = false
+  }
+}
+
+async function regenerateEnrollToken() {
+  enrollRegenerating.value = true
+  try {
+    const api = useApi()
+    const res = await api<{ enrollToken: string; expiresAt: string; installCommand: string }>(
+      `/nodes/${route.params.id}/enroll-token`, { method: 'POST' }
+    )
+    enrollToken.value          = res.enrollToken
+    enrollExpiresAt.value      = res.expiresAt
+    enrollInstallCommand.value = res.installCommand
+    enrollExpired.value        = false
+  } catch {
+    notify('Erreur lors du renouvellement', 'error')
+  } finally {
+    enrollRegenerating.value = false
+  }
+}
+
+function closeEnrollModal() {
+  showEnrollModal.value = false
+  if (enrollTickHandle) { clearInterval(enrollTickHandle); enrollTickHandle = null }
+}
+
+const enrollCopiedStop = ref(false)
+function copyEnrollStop() {
+  navigator.clipboard.writeText('sudo umbra-agent stop')
+  enrollCopiedStop.value = true
+  setTimeout(() => enrollCopiedStop.value = false, 2000)
+}
+function copyEnrollCmd() {
+  if (!enrollInstallCmd.value) return
+  navigator.clipboard.writeText(enrollInstallCmd.value)
+  enrollCopiedCmd.value = true
+  setTimeout(() => enrollCopiedCmd.value = false, 2000)
+}
 
 // Actions
 const restarting = ref(false)
@@ -277,7 +496,6 @@ const restarting = ref(false)
 const autoUpdate      = ref(true)
 const updateAvailable = ref(false)   // mock: pas de mise à jour dispo par défaut
 const latestVersion   = '1.2.0'
-const currentVersion  = '1.0.0'
 
 watch(autoUpdate, (val) => { updateAvailable.value = !val })
 
@@ -298,29 +516,6 @@ function restartAgent() {
   }, 2500)
 }
 onUnmounted(() => { if (restartTimer) clearTimeout(restartTimer) })
-function downloadConf() {
-  if (!node.value) return
-  const conf = [
-    '[Interface]',
-    'PrivateKey = <PRIVATE_KEY>',
-    `Address = ${node.value.ip}/32`,
-    `DNS = ${cfgDns.value}`,
-    '',
-    '[Peer]',
-    'PublicKey = xK3mP2vTn8sFqLd4mBrJkHgYpWzXiCeN9Qa',
-    `AllowedIPs = ${cfgAllowedIPs.value}`,
-    'Endpoint = 203.0.113.42:51820',
-    'PersistentKeepalive = 25',
-  ].join('\n')
-  const blob = new Blob([conf], { type: 'text/plain' })
-  const url  = URL.createObjectURL(blob)
-  const a    = document.createElement('a')
-  a.href = url; a.download = `umbra-${node.value.name}.conf`; a.click()
-  URL.revokeObjectURL(url)
-  notify(t('nd_dl_notif', { name: node.value.name }), 'success')
-}
-const showRegenConfirm  = ref(false)
-function regenKeys() { showRegenConfirm.value = false; notify(t('nd_regen_notif'), 'warning') }
 const showLogsModal     = ref(false)
 const showDeleteConfirm = ref(false)
 const deleting = ref(false)
@@ -342,7 +537,10 @@ async function deleteNode() {
 </script>
 
 <template>
-  <div v-if="node" class="detail-page">
+  <div v-if="loading && !node" class="detail-page" style="display:flex;align-items:center;justify-content:center;min-height:300px">
+    <span style="color:var(--muted);font-size:12px">{{ t('common_loading') }}</span>
+  </div>
+  <div v-else-if="node" class="detail-page">
 
     <!-- Back -->
     <div class="back-link" @click="navigateTo('/nodes')">{{ t('nd_back_link') }}</div>
@@ -358,11 +556,10 @@ async function deleteNode() {
           <StatusBadge :status="node.status" />
           <CategoryBadge :category="node.category" />
         </div>
-        <div class="page-sub">{{ t('nd_subtitle', { ip: node.ip, v: currentVersion }) }}</div>
+        <div class="page-sub">{{ node.ip }}{{ node.hardwareModel ? ' · ' + node.hardwareModel : '' }}{{ node.osVersion ? ' · ' + node.osVersion : '' }}{{ node.agentVersion ? ' · Agent v' + node.agentVersion : '' }}</div>
       </div>
       <div class="header-actions">
         <button class="btn-ghost" @click="showShare = true">{{ t('nd_share') }}</button>
-        <button class="btn-ghost" @click="showConfig = true">{{ t('nd_configure') }}</button>
         <button
           class="btn-primary"
           :class="{ 'btn-danger': node.status === 'connected' }"
@@ -391,7 +588,7 @@ async function deleteNode() {
                   @click="period = p.value"
                 >{{ p.label }}</button>
               </div>
-              <span class="heartbeat">{{ t('nd_heartbeat_ago') }}</span>
+              <span class="heartbeat">{{ lastSeenAgo }}</span>
             </div>
           </div>
           <div class="card-body">
@@ -402,19 +599,22 @@ async function deleteNode() {
                 <div class="metric-lbl">{{ t('nd_metric_cpu') }}</div>
                 <div class="metric-val">{{ node.cpu ?? t('common_dash') }}<span class="metric-unit">%</span></div>
                 <div class="metric-bar"><div class="metric-fill" :style="`width:${node.cpu ?? 0}%;background:${cpuColor}`" /></div>
-                <div class="metric-sub">{{ t('nd_metric_load_avg') }}</div>
+                <div class="metric-sub">
+                  {{ node.loadAvg != null ? 'load ' + node.loadAvg.toFixed(2) : '—' }}
+                  {{ node.cpuCores != null ? ' · ' + node.cpuCores + ' cores' : '' }}
+                </div>
               </div>
               <div class="metric-box">
                 <div class="metric-lbl">{{ t('nd_metric_memory') }}</div>
                 <div class="metric-val">{{ node.ram ?? t('common_dash') }}<span class="metric-unit">%</span></div>
                 <div class="metric-bar"><div class="metric-fill" :style="`width:${node.ram ?? 0}%;background:${ramColor}`" /></div>
-                <div class="metric-sub">{{ ramUsed }} / {{ ramTotal }} GB</div>
+                <div class="metric-sub">{{ ramUsed }} / {{ ramTotalGb ? ramTotalGb.toFixed(0) + ' GB' : '—' }}</div>
               </div>
               <div class="metric-box">
                 <div class="metric-lbl">{{ t('nd_metric_disk_label') }}</div>
                 <div class="metric-val">{{ node.disk ?? t('common_dash') }}<span class="metric-unit">%</span></div>
                 <div class="metric-bar"><div class="metric-fill" :style="`width:${node.disk ?? 0}%;background:${diskColor}`" /></div>
-                <div class="metric-sub">15.4 / 29.3 GB</div>
+                <div class="metric-sub">{{ diskUsed }} / {{ diskTotalGb ? diskTotalGb.toFixed(0) + ' GB' : '—' }}</div>
               </div>
               <div class="metric-box">
                 <div class="metric-lbl">{{ t('nd_metric_temp_label') }}</div>
@@ -491,7 +691,6 @@ async function deleteNode() {
           <div class="card-header">
             <div class="card-title">{{ t('nd_peers_card_title') }}</div>
             <span class="peers-count">{{ t('nd_peers_count', { active: wgActiveCount, total: wgPeersLocal.length }) }}</span>
-            <button class="btn-ghost-sm" @click="showPeersMgmt = true">{{ t('common_manage') }}</button>
           </div>
           <div class="peers-table">
             <div class="peers-head">
@@ -520,7 +719,7 @@ async function deleteNode() {
                 <span class="traffic-up">↑ {{ p.upMb >= 1000 ? `${(p.upMb/1000).toFixed(1)} GB` : `${p.upMb} MB` }}</span>
                 <span class="traffic-down">↓ {{ p.downGb }}</span>
               </div>
-              <span class="peer-handshake">{{ peerHandshake(p.handshakeKey) }}</span>
+              <span class="peer-handshake">{{ peerHandshake(p) }}</span>
               <span class="peer-status" :class="p.status === 'active' ? 'ps-active' : 'ps-inactive'">
                 <span class="peer-sdot" />{{ p.status === 'active' ? t('nd_peer_active') : t('nd_peer_inactive') }}
               </span>
@@ -557,13 +756,12 @@ async function deleteNode() {
         <div class="card">
           <div class="card-header"><div class="card-title">{{ t('nd_machine_title') }}</div></div>
           <div class="card-body card-body--tight">
-            <div class="info-row"><span class="info-lbl">{{ t('nd_info_hardware') }}</span><span class="info-val">{{ t('nd_info_hw_value') }}</span></div>
-            <div class="info-row"><span class="info-lbl">{{ t('nd_metric_ram') }}</span><span class="info-val">4 GB</span></div>
-            <div class="info-row"><span class="info-lbl">{{ t('nd_machine_os') }}</span><span class="info-val">Ubuntu 24.04 LTS</span></div>
-            <div class="info-row"><span class="info-lbl">{{ t('nd_info_arch') }}</span><span class="info-val">arm64</span></div>
-            <div class="info-row"><span class="info-lbl">{{ t('nd_info_pubip') }}</span><span class="info-val">203.0.113.42 <span class="badge-blue">IPv4</span></span></div>
-            <div class="info-row"><span class="info-lbl">{{ t('nd_info_loc') }}</span><span class="info-val">{{ node.location }}</span></div>
-            <div class="info-row"><span class="info-lbl">{{ t('nd_info_isp') }}</span><span class="info-val">{{ t('nd_info_isp_value') }}</span></div>
+            <div class="info-row"><span class="info-lbl">{{ t('nd_info_hardware') }}<InfoTip :text="t('nd_info_hardware_tip')" /></span><span class="info-val">{{ node.hardwareModel ?? t('common_dash') }}</span></div>
+            <div class="info-row"><span class="info-lbl">{{ t('nd_info_arch') }}<InfoTip :text="t('nd_info_arch_tip')" /></span><span class="info-val">{{ node.arch ?? t('common_dash') }}</span></div>
+            <div class="info-row"><span class="info-lbl">{{ t('nd_machine_os') }}<InfoTip :text="t('nd_info_os_tip')" /></span><span class="info-val">{{ node.osVersion ?? t('common_dash') }}</span></div>
+            <div class="info-row"><span class="info-lbl">{{ t('nd_info_pubip') }}<InfoTip :text="t('nd_info_pubip_tip')" /></span><span class="info-val">{{ node.ipAddress ?? t('common_dash') }}<span v-if="node.ipAddress" class="badge-blue">IPv4</span></span></div>
+            <div class="info-row"><span class="info-lbl">{{ t('nd_info_loc') }}<InfoTip :text="t('nd_info_loc_tip')" /></span><span class="info-val">{{ node.location }}</span></div>
+            <div class="info-row"><span class="info-lbl">{{ t('nd_info_isp') }}<InfoTip :text="t('nd_info_isp_tip')" /></span><span class="info-val">{{ t('common_dash') }}</span></div>
           </div>
         </div>
 
@@ -574,26 +772,18 @@ async function deleteNode() {
             <span class="badge-accent">{{ t('nd_wg_iface_badge') }}</span>
           </div>
           <div class="card-body card-body--tight">
-            <div class="info-row"><span class="info-lbl">{{ t('nd_wg_vpnip_label') }}</span><span class="info-val">{{ node.ip }}/32</span></div>
-            <div class="info-row">
-              <span class="info-lbl">{{ t('nd_wg_port_label') }}<InfoTip :text="t('nd_wg_info_port')" /></span>
-              <span class="info-val">:51820 UDP</span>
-            </div>
-            <div class="info-row">
-              <span class="info-lbl">{{ t('nd_wg_mtu') }}<InfoTip :text="t('nd_wg_info_mtu')" /></span>
-              <span class="info-val">1420</span>
-            </div>
-            <div class="info-row">
-              <span class="info-lbl">{{ t('nd_wg_dns') }}<InfoTip :text="t('nd_wg_info_dns')" /></span>
-              <span class="info-val">1.1.1.1, 8.8.8.8</span>
-            </div>
+            <div class="info-row"><span class="info-lbl">{{ t('nd_wg_vpnip_label') }}</span><span class="info-val">{{ node.ip !== '—' ? `${node.ip}/32` : t('common_dash') }}</span></div>
             <div class="info-row">
               <span class="info-lbl">{{ t('nd_wg_pubkey_label') }}<InfoTip :text="t('nd_wg_info_pubkey')" /></span>
-              <span class="info-val">xK3mP2…n9Qa <button class="copy-btn" :title="copiedKey ? t('nd_wg_pubkey_copied') : t('nd_wg_pubkey_copy')" @click="copyPubkey"><UIcon :name="copiedKey ? 'i-lucide-check' : 'i-lucide-copy'" style="width:10px;height:10px" /></button></span>
+              <span class="info-val">
+                <template v-if="node.wireguardPubkey">{{ node.wireguardPubkey.slice(0,6) }}…{{ node.wireguardPubkey.slice(-4) }}</template>
+                <template v-else>{{ t('common_dash') }}</template>
+                <button v-if="node.wireguardPubkey" class="copy-btn" :title="copiedKey ? t('nd_wg_pubkey_copied') : t('nd_wg_pubkey_copy')" @click="copyPubkey"><UIcon :name="copiedKey ? 'i-lucide-check' : 'i-lucide-copy'" style="width:10px;height:10px" /></button>
+              </span>
             </div>
             <div class="info-row">
               <span class="info-lbl">{{ t('nd_wg_peers') }}<InfoTip :text="t('nd_wg_info_peers')" /></span>
-              <span class="info-val">{{ t('nd_wg_peers_short') }}</span>
+              <span class="info-val">{{ t('nd_wg_peers_short', { n: wgActiveCount }) }}</span>
             </div>
           </div>
         </div>
@@ -605,18 +795,18 @@ async function deleteNode() {
             <div class="info-row">
               <span class="info-lbl">{{ t('nd_version_label') }}</span>
               <span class="info-val">
-                v{{ currentVersion }}
-                <span v-if="!updateAvailable" class="badge-green">{{ t('nd_version_uptodate') }}</span>
-                <span v-else class="badge-warning">{{ t('nd_version_avail', { v: latestVersion }) }}</span>
+                {{ node.agentVersion ? `v${node.agentVersion}` : t('common_dash') }}
+                <span v-if="node.agentVersion && !updateAvailable" class="badge-green">{{ t('nd_version_uptodate') }}</span>
+                <span v-if="updateAvailable" class="badge-warning">{{ t('nd_version_avail', { v: latestVersion }) }}</span>
               </span>
             </div>
             <div class="info-row">
               <span class="info-lbl">{{ t('nd_agent_heartbeat_label') }}<InfoTip :text="t('nd_agent_info_hb')" /></span>
-              <span class="info-val accent">{{ t('nd_agent_heartbeat_val') }}</span>
+              <span class="info-val accent">{{ lastSeenAgo }}</span>
             </div>
             <div class="info-row">
               <span class="info-lbl">{{ t('nd_agent_interval_label') }}<InfoTip :text="t('nd_agent_info_int')" /></span>
-              <span class="info-val">30s</span>
+              <span class="info-val">10s</span>
             </div>
             <div class="info-row">
               <span class="info-lbl">{{ t('nd_agent_autoupdate_label') }}<InfoTip :text="t('nd_agent_info_au')" /></span>
@@ -644,17 +834,13 @@ async function deleteNode() {
               <UIcon name="i-lucide-rotate-ccw" style="width:13px;height:13px" :class="{ 'icon-spin': restarting }" />
               {{ restarting ? t('nd_action_restarting') : t('nd_action_restart') }}
             </button>
-            <button class="action-btn" @click="showRegenConfirm = true">
-              <UIcon name="i-lucide-key" style="width:13px;height:13px" />
-              {{ t('nd_action_regen_wg') }}
-            </button>
-            <button class="action-btn" @click="downloadConf">
-              <UIcon name="i-lucide-download" style="width:13px;height:13px" />
-              {{ t('nd_action_dl_conf') }}
-            </button>
             <button class="action-btn" @click="showLogsModal = true">
               <UIcon name="i-lucide-file-text" style="width:13px;height:13px" />
               {{ t('nd_action_view_logs') }}
+            </button>
+            <button class="action-btn" @click="generateEnrollToken">
+              <UIcon name="i-lucide-arrow-right-left" style="width:13px;height:13px" />
+              {{ t('nd_action_enroll') }}
             </button>
             <div class="actions-separator" />
             <button class="action-btn danger" @click="showDeleteConfirm = true">
@@ -773,84 +959,6 @@ async function deleteNode() {
     </div>
 
 
-    <!-- WireGuard Config modal -->
-    <div v-if="showConfig" class="modal-overlay" @click.self="showConfig = false">
-      <div class="modal">
-        <div class="modal-header">
-          <div><div class="modal-title">{{ t('nd_cfg_title') }}</div><div class="modal-sub">{{ t('nd_cfg_sub', { name: node.name }) }}</div></div>
-          <button class="close-btn" @click="showConfig = false"><UIcon name="i-lucide-x" style="width:12px;height:12px" /></button>
-        </div>
-        <div class="modal-body">
-          <div class="cfg-grid">
-            <div class="form-group">
-              <label class="form-label">
-                <span class="form-label-text">{{ t('nd_cfg_port_label') }}<InfoTip :text="t('nd_cfg_info_port')" position="bottom" /></span>
-              </label>
-              <input v-model="cfgPort" class="form-input" placeholder="51820" />
-            </div>
-            <div class="form-group">
-              <label class="form-label">
-                <span class="form-label-text">{{ t('nd_cfg_mtu_label') }}<InfoTip :text="t('nd_cfg_info_mtu')" position="bottom" /></span>
-              </label>
-              <input v-model="cfgMtu" class="form-input" placeholder="1420" />
-            </div>
-            <div class="form-group" style="grid-column: span 2">
-              <label class="form-label">
-                <span class="form-label-text">{{ t('nd_cfg_dns_label') }}<InfoTip :text="t('nd_cfg_info_dns')" position="bottom" /></span>
-              </label>
-              <input v-model="cfgDns" class="form-input" placeholder="1.1.1.1, 8.8.8.8" />
-            </div>
-            <div class="form-group" style="grid-column: span 2">
-              <label class="form-label">
-                <span class="form-label-text">{{ t('nd_cfg_allowed_label') }}<InfoTip :text="t('nd_cfg_info_allowed')" position="bottom" /></span>
-              </label>
-              <input v-model="cfgAllowedIPs" class="form-input" placeholder="100.64.0.0/10" />
-            </div>
-          </div>
-        </div>
-        <div class="modal-footer">
-          <button class="btn-ghost-sm" @click="showConfig = false">{{ t('common_cancel') }}</button>
-          <button class="btn-accent-sm" @click="showConfig = false; notify(t('nd_cfg_save_notif'), 'success')">{{ t('nd_cfg_save') }}</button>
-        </div>
-      </div>
-    </div>
-
-    <!-- WG Peers management modal -->
-    <div v-if="showPeersMgmt" class="modal-overlay" @click.self="showPeersMgmt = false">
-      <div class="modal">
-        <div class="modal-header">
-          <div><div class="modal-title">{{ t('nd_peers_mgmt_title') }}</div><div class="modal-sub">{{ t('nd_peers_mgmt_sub', { total: wgPeersLocal.length, active: wgActiveCount }) }}</div></div>
-          <button class="close-btn" @click="showPeersMgmt = false"><UIcon name="i-lucide-x" style="width:12px;height:12px" /></button>
-        </div>
-        <div class="modal-body">
-          <div class="peers-mgmt-list">
-            <div v-for="p in wgPeersLocal" :key="p.id" class="peers-mgmt-row">
-              <div class="peer-avatar" :style="`background:${p.color}`">{{ p.avatar }}</div>
-              <div class="peers-mgmt-info">
-                <div class="peer-name">{{ p.name }}</div>
-                <div class="peer-device">{{ p.device }} · {{ p.ip }}</div>
-              </div>
-              <span class="peer-status" :class="p.status === 'active' ? 'ps-active' : 'ps-inactive'" style="margin-right:8px">
-                <span class="peer-sdot" />{{ p.status === 'active' ? t('nd_peer_active') : t('nd_peer_inactive') }}
-              </span>
-              <button class="revoke-btn" @click="removePeer(p.id)"><UIcon name="i-lucide-x" style="width:10px;height:10px" /></button>
-            </div>
-          </div>
-          <div class="form-group" style="margin-top:14px">
-            <label class="form-label">{{ t('nd_peers_add_label') }}</label>
-            <div class="peers-add-row">
-              <input v-model="newPeerKey" class="form-input" :placeholder="t('nd_peers_add_key_ph')" style="flex:2" />
-              <input v-model="newPeerIp"  class="form-input" :placeholder="t('nd_peers_add_ip_ph')" style="flex:1" />
-              <button class="btn-accent-sm" :disabled="!newPeerKey || !newPeerIp" @click="addPeer">{{ t('nd_peers_add_btn') }}</button>
-            </div>
-          </div>
-        </div>
-        <div class="modal-footer">
-          <button class="btn-ghost-sm" @click="showPeersMgmt = false">{{ t('common_close') }}</button>
-        </div>
-      </div>
-    </div>
-
     <!-- Logs modal -->
     <div v-if="showLogsModal" class="modal-overlay" @click.self="showLogsModal = false">
       <div class="modal">
@@ -878,22 +986,74 @@ async function deleteNode() {
       </div>
     </div>
 
-    <!-- Regen keys confirm -->
-    <div v-if="showRegenConfirm" class="modal-overlay" @click.self="showRegenConfirm = false">
-      <div class="modal confirm-modal">
+    <!-- Migrate node modal -->
+    <div v-if="showEnrollModal" class="modal-overlay" @click.self="closeEnrollModal">
+      <div class="modal enroll-modal">
         <div class="modal-header">
-          <div class="modal-title">{{ t('nd_regen_modal_title') }}</div>
-          <button class="close-btn" @click="showRegenConfirm = false"><UIcon name="i-lucide-x" style="width:12px;height:12px" /></button>
+          <div>
+            <div class="modal-title">{{ t('nd_enroll_title') }}</div>
+            <div class="modal-sub">{{ node.name }}</div>
+          </div>
+          <button class="close-btn" @click="closeEnrollModal"><UIcon name="i-lucide-x" style="width:12px;height:12px" /></button>
         </div>
         <div class="modal-body">
-          <div class="confirm-warn">
-            <UIcon name="i-lucide-triangle-alert" style="width:14px;height:14px;flex-shrink:0" />
-            {{ t('nd_regen_modal_warn') }}
-          </div>
+          <div class="enroll-desc">{{ t('nd_enroll_desc') }}</div>
+
+          <div v-if="enrollLoading" class="enroll-loading">{{ t('onb_cmd_generating') }}</div>
+
+          <template v-else-if="enrollToken">
+            <!-- Expired banner -->
+            <div v-if="enrollExpired" class="token-expired-banner">
+              <div class="token-expired-icon"><UIcon name="i-lucide-clock-alert" style="width:14px;height:14px" /></div>
+              <div class="token-expired-body">
+                <div class="token-expired-title">{{ t('addnode_expired_title') }}</div>
+                <div class="token-expired-desc">{{ t('addnode_expired_desc') }}</div>
+              </div>
+              <button class="btn-regen" :disabled="enrollRegenerating" @click="regenerateEnrollToken">
+                <UIcon :name="enrollRegenerating ? 'i-lucide-loader-circle' : 'i-lucide-rotate-ccw'" :class="{ spin: enrollRegenerating }" style="width:10px;height:10px" />
+                {{ enrollRegenerating ? t('addnode_regen_loading') : t('addnode_regen') }}
+              </button>
+            </div>
+
+            <template v-else>
+              <!-- Step 1 -->
+              <div class="migrate-step">
+                <label class="form-label">{{ t('nd_enroll_step1') }}</label>
+                <div class="cmd-block">
+                  <button class="cmd-copy" @click="copyEnrollStop">
+                    <template v-if="enrollCopiedStop"><UIcon name="i-lucide-check" style="width:10px;height:10px" /> {{ t('nd_enroll_copied') }}</template>
+                    <template v-else>{{ t('onb_cmd_copy') }}</template>
+                  </button>
+                  <div class="cmd-scroll"><pre class="cmd-pre">sudo umbra-agent stop</pre></div>
+                </div>
+              </div>
+
+              <!-- Step 2 — install command -->
+              <div class="migrate-step">
+                <label class="form-label">{{ t('nd_enroll_step2') }}</label>
+                <div class="cmd-block">
+                  <button class="cmd-copy" @click="copyEnrollCmd">
+                    <template v-if="enrollCopiedCmd"><UIcon name="i-lucide-check" style="width:10px;height:10px" /> {{ t('nd_enroll_copied') }}</template>
+                    <template v-else>{{ t('onb_cmd_copy') }}</template>
+                  </button>
+                  <div class="cmd-scroll">
+<pre class="cmd-pre">curl -sSL <span class="cmd-muted">{{ enrollInstallCmd?.split('/install.sh')[0] }}</span>/install.sh | bash -s -- \
+  --name=<span class="cmd-accent">{{ node.name }}</span> \
+  --category=<span class="cmd-accent3">{{ node.category }}</span> \
+  --token=<span class="cmd-accent2">{{ enrollToken }}</span></pre>
+                  </div>
+                </div>
+              </div>
+
+              <div class="migrate-warn">
+                <UIcon name="i-lucide-clock" style="width:11px;height:11px;flex-shrink:0" />
+                {{ t('nd_enroll_warn') }} · {{ enrollExpiresLabel }}
+              </div>
+            </template>
+          </template>
         </div>
         <div class="modal-footer">
-          <button class="btn-ghost-sm" @click="showRegenConfirm = false">{{ t('common_cancel') }}</button>
-          <button class="btn-danger-sm" @click="regenKeys">{{ t('nd_regen_modal_btn') }}</button>
+          <button class="btn-ghost-sm" @click="closeEnrollModal">{{ t('common_close') }}</button>
         </div>
       </div>
     </div>
@@ -962,6 +1122,23 @@ async function deleteNode() {
   background: color-mix(in srgb, var(--warning) 10%, transparent);
   border: 1px solid color-mix(in srgb, var(--warning) 25%, transparent);
   color: var(--warning); font-size: 12px; line-height: 1.5;
+}
+
+.enroll-modal { max-width: 540px; }
+.enroll-desc  { font-size: 12px; color: var(--muted); line-height: 1.6; }
+.enroll-loading { text-align: center; padding: 24px; color: var(--muted); font-size: 12px; }
+
+.migrate-step { margin-bottom: 14px; }
+.migrate-step .cmd-block { margin-top: 6px; }
+.migrate-raw {
+  margin-bottom: 14px; font-size: 11px; color: var(--muted);
+}
+.migrate-raw summary { cursor: pointer; user-select: none; }
+.migrate-warn {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 10px; color: var(--muted);
+  padding: 6px 10px; border-radius: var(--r);
+  background: var(--surface2); margin-top: 4px;
 }
 
 </style>

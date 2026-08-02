@@ -21,7 +21,7 @@ const { t } = useT()
     <div class="vpn-dot" />
     <div class="vpn-info">
       <NuxtLink :to="`/nodes/${node.id}`" class="vpn-name">{{ node.name }} — {{ node.location }}</NuxtLink>
-      <div class="vpn-detail">{{ node.ip }} · WireGuard · umbra0</div>
+      <div class="vpn-detail">{{ node.ip }} · WireGuard · tailscale0</div>
     </div>
     <div class="vpn-stats">
       <div class="vstat">

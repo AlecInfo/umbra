@@ -429,7 +429,7 @@ const TERM_SRC: Array<{ text: string; cls: string; abs?: number }> = [
   { text: '$ curl -sSL https://get.umbravpn.io | bash', cls: 'cmd' },
   { text: '  Téléchargement UMBRA v0.3.0...', cls: 'info', abs: 1500 },
   { text: '  [✓] WireGuard détecté (1.0.20210914)', cls: 'ok', abs: 2000 },
-  { text: '  [✓] Interface umbra0 → 100.64.0.1', cls: 'ok', abs: 2450 },
+  { text: '  [✓] Interface tailscale0 → 100.64.0.1', cls: 'ok', abs: 2450 },
   { text: '  [✓] Service démarré et actif', cls: 'ok', abs: 2900 },
   { text: '  [✓] Nœud enregistré: raspi-home', cls: 'ok', abs: 3350 },
   { text: '', cls: 'plain', abs: 3900 },
