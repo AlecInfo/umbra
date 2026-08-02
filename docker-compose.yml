@@ -29,10 +29,14 @@ services:
     container_name: umbra-postgres
     restart: unless-stopped
     ports:
-      - '5432:5432'
+      # Loopback only: the dev API (pnpm dev) connects from the host, but the
+      # database must never be reachable from the network on a public VPS.
+      - '127.0.0.1:5432:5432'
     environment:
       POSTGRES_USER: umbra
-      POSTGRES_PASSWORD: umbra
+      # Only used at first init of the volume — changing it later requires
+      # ALTER USER inside postgres. Set DB_PASSWORD in .env before first deploy.
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-umbra}
       POSTGRES_DB: umbra
     volumes:
       - umbra-pgdata:/var/lib/postgresql/data
@@ -61,7 +65,7 @@ services:
       DB_HOST: postgres
       DB_PORT: 5432
       DB_USER: umbra
-      DB_PASSWORD: umbra
+      DB_PASSWORD: ${DB_PASSWORD:-umbra}
       DB_DATABASE: umbra
       HEADSCALE_URL: http://umbra-headscale:8080
       API_PUBLIC_URL: ${API_PUBLIC_URL:-http://localhost:3333/api/v1}

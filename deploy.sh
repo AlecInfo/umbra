@@ -85,6 +85,12 @@ export WEB_HOST=$(python3 -c "from urllib.parse import urlparse; import os; u=os
 
 echo "Caddy hostnames: web=$WEB_HOST  api=$API_HOST  hs=$HS_HOST"
 
+if [ -z "${DB_PASSWORD:-}" ]; then
+  echo "WARNING: DB_PASSWORD is not set — postgres uses the default password."
+  echo "         It only listens on 127.0.0.1, but set DB_PASSWORD in .env"
+  echo "         BEFORE the first deploy (it is baked in at volume init)."
+fi
+
 PROFILES=(--profile prod)
 [ -n "${CLOUDFLARE_TUNNEL_TOKEN:-}" ] && PROFILES+=(--profile tunnel)
 # Run the derper here only when THIS host has a public IP (VPS deployment).
