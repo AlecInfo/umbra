@@ -89,23 +89,30 @@ class HeadscaleClient {
     return data.nodes ?? []
   }
 
-  // Enable all advertised exit-node routes for the node with the given Tailscale IP.
-  // Returns true when every advertised route ends up enabled, false when the node
-  // is not (yet) known to Headscale. Throws on Headscale API errors.
-  async enableExitRoutes(tailscaleIP: string, user: string): Promise<boolean> {
-    if (!tailscaleIP) return false
+  // Enable all advertised routes for the node with the given Tailscale IP.
+  // This is THE mechanism that activates exit routes: headscale v0.23
+  // autoApprovers are non-functional (verified empirically — routes stay
+  // enabled=false whatever the approver syntax). Throws on Headscale API errors.
+  async enableExitRoutes(
+    tailscaleIP: string,
+    user: string
+  ): Promise<{ found: boolean; advertised: number; enabled: number }> {
+    if (!tailscaleIP) return { found: false, advertised: 0, enabled: 0 }
     const ip = tailscaleIP.split('/')[0]!
     const nodes = await this.getNodesByUser(user)
     const node = nodes.find((n) => n.ipAddresses.includes(ip))
-    if (!node) return false
+    if (!node) return { found: false, advertised: 0, enabled: 0 }
 
     const routes = await this.getNodeRoutes(node.id)
+    let advertised = 0
+    let enabled = 0
     for (const route of routes) {
-      if (route.advertised && !route.enabled) {
-        await this.enableRoute(route.id)
-      }
+      if (!route.advertised) continue
+      advertised++
+      if (!route.enabled) await this.enableRoute(route.id)
+      enabled++
     }
-    return true
+    return { found: true, advertised, enabled }
   }
 }
 

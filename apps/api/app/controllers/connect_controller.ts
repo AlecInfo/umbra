@@ -42,10 +42,13 @@ export default class ConnectController {
 
       // Make sure the exit node's advertised routes are enabled BEFORE handing
       // out the connect command — otherwise `--exit-node` fails client-side.
+      // (v0.23 autoApprovers do nothing: this call is the real activation.)
       try {
-        const enabled = await headscaleClient.enableExitRoutes(exitIp, headscaleUser)
-        if (!enabled) {
+        const res = await headscaleClient.enableExitRoutes(exitIp, headscaleUser)
+        if (!res.found) {
           console.error(`Exit node ${node.id} (${exitIp}) not found in Headscale — routes not enabled`)
+        } else if (res.advertised === 0) {
+          console.error(`Exit node ${node.id} (${exitIp}) advertises no exit routes — did the agent run tailscale up with --advertise-exit-node?`)
         }
       } catch (err) {
         console.error(`enableExitRoutes failed for node ${node.id}:`, err)

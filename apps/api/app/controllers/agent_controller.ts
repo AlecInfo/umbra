@@ -11,6 +11,10 @@ import { hashAgentToken } from '#services/agent_auth'
 import { allocateWireguardIp } from '#services/ip_allocator'
 import { headscaleClient } from '#services/headscale_client'
 
+// Next allowed attempt (epoch ms) of the per-node exit-route self-heal.
+// In-memory on purpose: resets on API restart, and the operation is idempotent.
+const nextRouteEnsureAt = new Map<string, number>()
+
 export default class AgentController {
   // POST /api/v1/agent/register — Go agent spec format
   // Token in body as "token" + X-Agent-Token header
@@ -239,6 +243,26 @@ export default class AgentController {
       await node.save()
     }
 
+    // Self-heal: ensure this node's advertised routes are enabled in Headscale.
+    // Required because v0.23 autoApprovers do nothing — without this (or the
+    // /connect call), an exit node advertises 0.0.0.0/0 but routes no client.
+    const headscaleUser = process.env.HEADSCALE_USER ?? 'umbra'
+    if (headscaleClient.isConfigured && node.wireguardIp) {
+      const now = Date.now()
+      if (now >= (nextRouteEnsureAt.get(node.id) ?? 0)) {
+        try {
+          const res = await headscaleClient.enableExitRoutes(node.wireguardIp, headscaleUser)
+          // Routes confirmed: recheck hourly. Node not joined yet, or nothing
+          // advertised (local client, or tailscale up still settling): retry in 1 min.
+          const delay = res.found && res.advertised > 0 ? 60 * 60_000 : 60_000
+          nextRouteEnsureAt.set(node.id, now + delay)
+        } catch (err) {
+          console.error(`enableExitRoutes failed for node ${node.id}:`, err)
+          nextRouteEnsureAt.set(node.id, now + 60_000)
+        }
+      }
+    }
+
     // Resolve exit node: return the Tailscale IP (wireguard_ip after first heartbeat)
     let exitNodeId: string | null = null
     let exitNodeIP: string | null = null
@@ -258,16 +282,8 @@ export default class AgentController {
           if (exitNodeIP?.includes('/')) {
             exitNodeIP = exitNodeIP.split('/')[0]
           }
-          // Safety net: /connect already enables routes, but retry on every
-          // heartbeat in case the node had not joined Headscale at that point.
-          const headscaleUser = process.env.HEADSCALE_USER ?? 'umbra'
-          if (headscaleClient.isConfigured) {
-            headscaleClient
-              .enableExitRoutes(exitNode.wireguardIp ?? '', headscaleUser)
-              .catch((err) =>
-                console.error(`enableExitRoutes failed for node ${exitNode.id}:`, err)
-              )
-          }
+          // Route enabling happens in /connect and in the per-node self-heal
+          // above — no need to re-trigger it from the client's heartbeat.
         }
       }
     }
