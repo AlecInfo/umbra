@@ -128,17 +128,23 @@ class HeadscaleClient {
     return (data.users ?? []).map((u) => u.name)
   }
 
-  // Regenerate and push the tenant-isolation ACL policy. One self-only rule
-  // per headscale user: tenants cannot see or reach each other. Requires
-  // `policy.mode: database` in the headscale config (verified on v0.23).
-  // The autoApprovers block is non-functional in v0.23 (see enableExitRoutes)
-  // but kept so approval becomes automatic after a headscale upgrade.
+  // Regenerate and push the tenant-isolation ACL policy. Per headscale user
+  // (= tenant), two rules:
+  //   - <user> → <user>:*          intra-tenant traffic; tenants stay isolated
+  //   - <user> → autogroup:internet exit-node traffic to the internet
+  // Without the second rule the client is allowed to reach peers but NOT to
+  // route out through an exit node — the exit node silently does nothing
+  // (verified 2026-08-03: ping worked, web traffic was dropped client-side).
+  // Requires `policy.mode: database` in the headscale config (verified v0.23).
   async syncPolicy(): Promise<void> {
     const users = await this.listUsers()
     if (users.length === 0) return
 
     const policy = {
-      acls: users.map((u) => ({ action: 'accept', src: [u], dst: [`${u}:*`] })),
+      acls: users.flatMap((u) => [
+        { action: 'accept', src: [u], dst: [`${u}:*`] },
+        { action: 'accept', src: [u], dst: ['autogroup:internet:*'] },
+      ]),
       autoApprovers: {
         exitNode: users,
         routes: { '0.0.0.0/0': users, '::/0': users },
