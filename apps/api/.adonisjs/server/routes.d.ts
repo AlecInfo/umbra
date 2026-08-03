@@ -28,10 +28,11 @@ export type ScannedRoutes = {
     'api_keys.destroy': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'alerts.index': { paramsTuple?: []; params?: {} }
     'connections.index': { paramsTuple?: []; params?: {} }
-    'agent.enroll': { paramsTuple?: []; params?: {} }
+    'connect.connect': { paramsTuple?: []; params?: {} }
+    'connect.disconnect': { paramsTuple?: []; params?: {} }
+    'agent.register': { paramsTuple?: []; params?: {} }
+    'agent.version': { paramsTuple?: []; params?: {} }
     'agent.heartbeat': { paramsTuple?: []; params?: {} }
-    'agent.metrics': { paramsTuple?: []; params?: {} }
-    'agent.peers': { paramsTuple?: []; params?: {} }
   }
   GET: {
     'auth.me': { paramsTuple?: []; params?: {} }
@@ -44,6 +45,7 @@ export type ScannedRoutes = {
     'api_keys.index': { paramsTuple?: []; params?: {} }
     'alerts.index': { paramsTuple?: []; params?: {} }
     'connections.index': { paramsTuple?: []; params?: {} }
+    'agent.version': { paramsTuple?: []; params?: {} }
   }
   HEAD: {
     'auth.me': { paramsTuple?: []; params?: {} }
@@ -56,6 +58,7 @@ export type ScannedRoutes = {
     'api_keys.index': { paramsTuple?: []; params?: {} }
     'alerts.index': { paramsTuple?: []; params?: {} }
     'connections.index': { paramsTuple?: []; params?: {} }
+    'agent.version': { paramsTuple?: []; params?: {} }
   }
   POST: {
     'auth.register': { paramsTuple?: []; params?: {} }
@@ -65,10 +68,9 @@ export type ScannedRoutes = {
     'nodes.store': { paramsTuple?: []; params?: {} }
     'nodes.enroll_token': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'api_keys.store': { paramsTuple?: []; params?: {} }
-    'agent.enroll': { paramsTuple?: []; params?: {} }
+    'connect.connect': { paramsTuple?: []; params?: {} }
+    'agent.register': { paramsTuple?: []; params?: {} }
     'agent.heartbeat': { paramsTuple?: []; params?: {} }
-    'agent.metrics': { paramsTuple?: []; params?: {} }
-    'agent.peers': { paramsTuple?: []; params?: {} }
   }
   PATCH: {
     'auth.update_profile': { paramsTuple?: []; params?: {} }
@@ -80,6 +82,7 @@ export type ScannedRoutes = {
     'auth.delete_account': { paramsTuple?: []; params?: {} }
     'nodes.destroy': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'api_keys.destroy': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+    'connect.disconnect': { paramsTuple?: []; params?: {} }
   }
 }
 declare module '@adonisjs/core/types/http' {
