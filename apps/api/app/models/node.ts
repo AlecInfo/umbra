@@ -81,6 +81,9 @@ export default class Node extends BaseModel {
   declare hardwareModel: string | null
 
   @column()
+  declare arch: string | null
+
+  @column()
   declare osVersion: string | null
 
   @column()

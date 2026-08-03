@@ -5,10 +5,8 @@ import Node from '#models/node'
 
 export default class NodeMetric extends BaseModel {
   public static table = 'node_metrics'
-  public static primaryKey = 'nodeId'
-  public static selfAssignPrimaryKey = true
 
-  @column({ isPrimary: true })
+  @column()
   declare nodeId: string
 
   @column.dateTime()
@@ -48,6 +46,18 @@ export default class NodeMetric extends BaseModel {
 
   @column()
   declare activePeers: number | null
+
+  @column()
+  declare cpuCores: number | null
+
+  @column()
+  declare loadAvg: number | null
+
+  @column()
+  declare memTotalGb: number | null
+
+  @column()
+  declare diskTotalGb: number | null
 
   @belongsTo(() => Node, { foreignKey: 'nodeId' })
   declare node: BelongsTo<typeof Node>

@@ -50,6 +50,9 @@ export default class User extends compose(BaseModel, AuthFinder) {
   @column.dateTime({ autoCreate: true, autoUpdate: true })
   declare updatedAt: DateTime
 
+  @column()
+  declare exitNodeId: string | null
+
   @column.dateTime()
   declare deletedAt: DateTime | null
 
