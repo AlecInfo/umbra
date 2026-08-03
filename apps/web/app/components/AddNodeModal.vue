@@ -18,6 +18,7 @@ const error    = ref<string | null>(null)
 
 const createdNodeId  = ref<string | null>(null)
 const enrollToken    = ref<string | null>(null)
+const installCommand = ref<string | null>(null)
 const tokenExpiresAt = ref<string | null>(null)
 const polling        = ref(false)
 const enrolled       = ref(false)
@@ -92,8 +93,9 @@ async function createNode() {
       installCommand: string
     }>(`/nodes/${node.id}/enroll-token`, { method: 'POST' })
 
-    enrollToken.value = enrollRes.enrollToken
+    enrollToken.value    = enrollRes.enrollToken
     tokenExpiresAt.value = enrollRes.expiresAt
+    installCommand.value = enrollRes.installCommand
     expired.value = false
 
     startPolling(node.id)
@@ -162,12 +164,13 @@ async function regenerateToken() {
   error.value = null
   try {
     const api = useApi()
-    const res = await api<{ enrollToken: string; expiresAt: string }>(
+    const res = await api<{ enrollToken: string; expiresAt: string; installCommand: string }>(
       `/nodes/${createdNodeId.value}/enroll-token`,
       { method: 'POST' }
     )
     enrollToken.value    = res.enrollToken
     tokenExpiresAt.value = res.expiresAt
+    installCommand.value = res.installCommand
     expired.value        = false
     startPolling(createdNodeId.value)
   } catch (e: any) {
@@ -177,19 +180,25 @@ async function regenerateToken() {
   }
 }
 
-const installCmd = computed(() => {
-  if (!enrollToken.value) return null
-  return [
-    'curl -sSL https://get.umbravpn.io | bash -s -- \\',
-    `  --name=${slug.value} \\`,
-    `  --category=${category.value} \\`,
-    `  --token=${enrollToken.value}`,
-  ].join('\n')
-})
+const { public: runtimeConfig } = useRuntimeConfig()
+const installBaseUrl = computed(() => (runtimeConfig.apiBase as string).replace(/\/api\/v1\/?$/, ''))
+const installCmd = computed(() => installCommand.value ?? null)
 
 function copyCmd() {
   if (!installCmd.value) return
-  navigator.clipboard.writeText(installCmd.value)
+  const text = installCmd.value
+  if (navigator.clipboard) {
+    navigator.clipboard.writeText(text)
+  } else {
+    const ta = document.createElement('textarea')
+    ta.value = text
+    ta.style.position = 'fixed'
+    ta.style.opacity = '0'
+    document.body.appendChild(ta)
+    ta.select()
+    document.execCommand('copy')
+    document.body.removeChild(ta)
+  }
   copied.value = true
   setTimeout(() => { copied.value = false }, 2000)
 }
@@ -280,7 +289,7 @@ onUnmounted(() => {
                 </button>
                 <div class="cmd-scroll">
 <pre class="cmd-pre"><span class="cmd-comment">{{ t('onb_cmd_comment') }}</span>
-curl -sSL https://get.umbravpn.io | bash -s -- \
+curl -sSL <span class="cmd-muted">{{ installBaseUrl }}</span>/install.sh | bash -s -- \
   --name=<span class="cmd-accent">{{ slug }}</span> \
   --category=<span class="cmd-accent3">{{ category }}</span> \
   --token=<span class="cmd-accent2">{{ enrollToken }}</span></pre>

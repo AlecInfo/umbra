@@ -43,6 +43,8 @@ interface ApiNode {
     diskPercent: number | null
     temperatureCelsius: number | null
     uptimeSeconds: string | number | null
+    bytesSent: number | null
+    bytesReceived: number | null
   } | null
 }
 
@@ -71,6 +73,13 @@ function mapApiNode(a: ApiNode): Node {
   }
 }
 
+// bytes/s → "X B/s" | "X KB/s" | "X MB/s"
+function formatSpeed(bps: number): string {
+  if (bps >= 1_000_000) return `${(bps / 1_000_000).toFixed(1)} MB/s`
+  if (bps >= 1_000)     return `${(bps / 1_000).toFixed(0)} KB/s`
+  return `${Math.round(bps)} B/s`
+}
+
 export const useNodesStore = defineStore('nodes', () => {
   const connectedId = useLocalStorage<string | null>('umbra-connected-id', null)
   const lastUsedId  = useLocalStorage<string | null>('umbra-last-used-id', null)
@@ -79,6 +88,12 @@ export const useNodesStore = defineStore('nodes', () => {
   const loading = ref(false)
   const error = ref<string | null>(null)
   const savedStatus = ref<Record<string, NodeStatus>>({})
+
+  // Track cumulative bytes per node to compute upload/download rates
+  const prevBytes = ref<Record<string, { sent: number; received: number; ts: number }>>({})
+  const uploadSpeed   = ref<string>('0 B/s')
+  const downloadSpeed = ref<string>('0 B/s')
+
   let pollHandle: ReturnType<typeof setInterval> | null = null
   let pollSubscribers = 0
 
@@ -97,6 +112,26 @@ export const useNodesStore = defineStore('nodes', () => {
         }
       }
       nodes.value = mapped
+
+      // Compute upload/download rate for the connected node
+      if (connectedId.value) {
+        const raw = res.data.find(n => n.id === connectedId.value)
+        const m = raw?.latestMetric
+        if (m?.bytesSent != null && m?.bytesReceived != null) {
+          const now = Date.now()
+          const prev = prevBytes.value[connectedId.value]
+          if (prev) {
+            const dt = (now - prev.ts) / 1000
+            if (dt > 0) {
+              const upBps   = Math.max(0, (m.bytesSent    - prev.sent)     / dt)
+              const downBps = Math.max(0, (m.bytesReceived - prev.received) / dt)
+              uploadSpeed.value   = formatSpeed(upBps)
+              downloadSpeed.value = formatSpeed(downBps)
+            }
+          }
+          prevBytes.value[connectedId.value] = { sent: m.bytesSent, received: m.bytesReceived, ts: now }
+        }
+      }
     } catch (e: any) {
       error.value = e?.data?.message || 'Impossible de charger les noeuds.'
       nodes.value = []
@@ -106,8 +141,51 @@ export const useNodesStore = defineStore('nodes', () => {
   }
 
   const connectedAt = ref<number | null>(null)
+  const connecting = ref(false)
 
-  function setConnected(id: string) {
+  interface ConnectCommands {
+    nodeName: string
+    connectCommand: string | null
+    switchCommand: string | null
+    disconnectCommand: string
+  }
+  const connectCommands = ref<ConnectCommands | null>(null)
+
+  // Restore local state only (no API call) — used after page reload
+  function restoreConnected(id: string) {
+    connectedId.value = id
+    connectedAt.value = Date.now()
+    nodes.value = nodes.value.map(n => {
+      if (n.id === id) {
+        savedStatus.value[id] = n.status
+        return { ...n, status: 'connected' }
+      }
+      if (n.status === 'connected') {
+        const orig = savedStatus.value[n.id] ?? 'online'
+        return { ...n, status: orig }
+      }
+      return n
+    })
+  }
+
+  async function setConnected(id: string) {
+    connecting.value = true
+    try {
+      const api = useApi()
+      const res = await api<any>('/connect', { method: 'POST', body: { nodeId: id } })
+      if (res.exitNodeIp || res.connectCommand) {
+        connectCommands.value = {
+          nodeName:         res.nodeName ?? '',
+          connectCommand:   res.connectCommand ?? null,
+          switchCommand:    res.switchCommand ?? null,
+          disconnectCommand: res.disconnectCommand ?? 'tailscale set --exit-node=',
+        }
+      }
+    } catch {
+      // API call failed but keep UI state in sync anyway
+    } finally {
+      connecting.value = false
+    }
     connectedId.value = id
     lastUsedId.value  = id
     connectedAt.value = Date.now()
@@ -124,7 +202,16 @@ export const useNodesStore = defineStore('nodes', () => {
     })
   }
 
-  function disconnect() {
+  async function disconnect(): Promise<string> {
+    let disconnectCmd = 'tailscale set --exit-node='
+    try {
+      const api = useApi()
+      const res = await api<any>('/connect', { method: 'DELETE' })
+      if (res?.disconnectCommand) disconnectCmd = res.disconnectCommand
+    } catch {
+      // API call failed but keep UI state in sync anyway
+    }
+    connectCommands.value = null
     connectedId.value = null
     connectedAt.value = null
     nodes.value = nodes.value.map(n => {
@@ -132,6 +219,7 @@ export const useNodesStore = defineStore('nodes', () => {
       const orig = savedStatus.value[n.id] ?? 'online'
       return { ...n, status: orig }
     })
+    return disconnectCmd
   }
 
   function deleteNode(id: string) {
@@ -175,5 +263,5 @@ export const useNodesStore = defineStore('nodes', () => {
     return Math.round(active.reduce((sum, n) => sum + n.latency!, 0) / active.length)
   })
 
-  return { nodes, loading, error, fetchNodes, setConnected, disconnect, deleteNode, startPolling, stopPolling, connectedNode, onlineCount, warningCount, avgLatency, lastUsedId, connectedAt, savedStatus, connectedId }
+  return { nodes, loading, error, fetchNodes, setConnected, restoreConnected, disconnect, deleteNode, startPolling, stopPolling, connectedNode, onlineCount, warningCount, avgLatency, lastUsedId, connectedAt, savedStatus, connectedId, connecting, uploadSpeed, downloadSpeed, connectCommands }
 })

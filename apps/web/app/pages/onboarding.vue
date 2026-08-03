@@ -18,6 +18,7 @@ const copied   = ref(false)
 
 const createdNodeId  = ref<string | null>(null)
 const enrollToken    = ref<string | null>(null)
+const installCommand = ref<string | null>(null)
 const tokenExpiresAt = ref<string | null>(null)
 const enrolledNode   = ref<{ id: string; name: string } | null>(null)
 const error          = ref<string | null>(null)
@@ -61,12 +62,13 @@ async function createNode() {
     })
     createdNodeId.value = node.id
 
-    const enrollRes = await api<{ enrollToken: string; expiresAt: string }>(
+    const enrollRes = await api<{ enrollToken: string; expiresAt: string; installCommand: string }>(
       `/nodes/${node.id}/enroll-token`,
       { method: 'POST' },
     )
     enrollToken.value    = enrollRes.enrollToken
     tokenExpiresAt.value = enrollRes.expiresAt
+    installCommand.value = enrollRes.installCommand
     startPolling(node.id)
   } catch (e: any) {
     error.value = e?.data?.message || t('onb_err_create')
@@ -126,12 +128,7 @@ function stopPolling() {
 
 const installCmd = computed(() => {
   if (!enrollToken.value) return null
-  return [
-    'curl -sSL https://get.umbravpn.io | bash -s -- \\',
-    `  --name=${slug.value} \\`,
-    `  --category=${category.value} \\`,
-    `  --token=${enrollToken.value}`,
-  ].join('\n')
+  return installCommand.value ?? `curl -sSL http://localhost:3333/install.sh | bash -s -- --name=${slug.value} --category=${category.value} --token=${enrollToken.value}`
 })
 
 function copyCmd() {

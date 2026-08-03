@@ -35,6 +35,7 @@ export default defineNuxtConfig({
     },
   },
   runtimeConfig: {
+    apiBaseSsr: process.env.NUXT_API_BASE_SSR || '',
     public: {
       apiBase: process.env.NUXT_PUBLIC_API_BASE || 'http://localhost:3333/api/v1',
     },

@@ -7,6 +7,6 @@ export default defineNuxtPlugin(() => {
   const id = localStorage.getItem('umbra-connected-id')
   if (!id || id === 'null') return
   if (store.nodes.some(n => n.id === id)) {
-    store.setConnected(id)
+    store.restoreConnected(id)
   }
 })

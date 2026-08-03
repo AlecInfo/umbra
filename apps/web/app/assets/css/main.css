@@ -265,6 +265,10 @@ button, input, select, textarea, a {
   font-size: 11px;
   color: var(--muted);
   margin-top: 3px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 700px;
 }
 
 /* ─── Buttons ──────────────────────────────────────────── */
@@ -970,13 +974,14 @@ body:has(.vpn-bar) .notif-stack { bottom: 84px; }
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 8px;
   padding: 8px 0;
   border-bottom: 1px solid var(--border);
   font-size: 11px;
 }
 .info-row:last-child { border-bottom: none; }
 .info-key { color: var(--muted); }
-.info-val { color: var(--text); font-family: var(--font-mono); }
+.info-val { color: var(--text); font-family: var(--font-mono); min-width: 0; max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: right; }
 .info-val.mono { font-size: 10px; }
 
 /* ─── WireGuard config block ───────────────────────────── */
@@ -1406,6 +1411,7 @@ body:has(.vpn-bar) .notif-stack { bottom: 84px; }
 .cmd-copy:hover { color: var(--text); }
 
 .cmd-comment { color: var(--muted); }
+.cmd-muted   { color: var(--muted); }
 .cmd-accent  { color: var(--accent); }
 .cmd-accent2 { color: var(--accent2); }
 .cmd-accent3 { color: var(--pending); }
@@ -2019,7 +2025,7 @@ body:has(.vpn-bar) .notif-stack { bottom: 84px; }
 /* ─── Node detail — right column ───────────────────────── */
 .card-body--tight { padding: 6px 16px; }
 
-.info-lbl { color: var(--muted); display: flex; align-items: center; }
+.info-lbl { color: var(--muted); display: flex; align-items: center; gap: 3px; flex-shrink: 0; }
 
 .badge-accent   { font-size: 9px; background: rgba(79,255,176,.08); color: var(--accent); border: 1px solid rgba(79,255,176,.18); padding: 2px 7px; border-radius: 10px; }
 .badge-green    { font-size: 9px; background: rgba(79,255,176,.1); color: var(--accent); padding: 1px 5px; border-radius: 3px; }

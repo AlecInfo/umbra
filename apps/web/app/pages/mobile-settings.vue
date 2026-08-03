@@ -1,7 +1,7 @@
 <script setup lang="ts">
 definePageMeta({ layout: 'mobile' })
 
-const { t } = useT()
+const { t, lang, setLang } = useT()
 const colorMode = useColorMode()
 const isDark = computed(() => colorMode.value === 'dark')
 
@@ -180,6 +180,16 @@ function signOut() {
             <div class="ms-segment">
               <button class="ms-seg-btn" :class="{ active: !isDark }" @click="colorMode.preference = 'light'">{{ t('mset_theme_light') }}</button>
               <button class="ms-seg-btn" :class="{ active: isDark }"  @click="colorMode.preference = 'dark'">{{ t('mset_theme_dark') }}</button>
+            </div>
+          </div>
+
+          <div class="ms-divider" />
+
+          <div class="ms-row">
+            <span class="ms-row-label">{{ t('settings_lang_label') }}</span>
+            <div class="ms-segment">
+              <button class="ms-seg-btn" :class="{ active: lang === 'fr' }" @click="setLang('fr')">FR</button>
+              <button class="ms-seg-btn" :class="{ active: lang === 'en' }" @click="setLang('en')">EN</button>
             </div>
           </div>
 

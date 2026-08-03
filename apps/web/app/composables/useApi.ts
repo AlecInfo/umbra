@@ -1,7 +1,9 @@
 import { useAuthStore } from '~/stores/auth'
 
 export function useApi() {
-  const { public: { apiBase } } = useRuntimeConfig()
+  const config = useRuntimeConfig()
+  // On the server side use the internal SSR URL (Docker network), fall back to public URL
+  const apiBase = (import.meta.server && config.apiBaseSsr) ? config.apiBaseSsr : config.public.apiBase
   const auth = useAuthStore()
 
   return $fetch.create({

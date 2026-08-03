@@ -6,7 +6,21 @@ const store = useNodesStore()
 const auth  = useAuthStore()
 const route  = useRoute()
 const colorMode = useColorMode()
+const toast = useToast()
 const { t } = useT()
+
+const showConnectModal = computed(() => store.connectCommands !== null)
+
+async function handleDisconnect() {
+  const cmd = await store.disconnect()
+  toast.add({
+    title: t('conn_disconnect_toast_title'),
+    description: cmd,
+    color: 'neutral',
+    duration: 8000,
+    icon: 'i-lucide-unplug',
+  })
+}
 
 const displayName = computed(() => auth.user?.name?.trim() || auth.user?.email?.split('@')[0] || t('side_account_label'))
 const avatarInitial = computed(() => displayName.value.charAt(0).toUpperCase())
@@ -122,9 +136,18 @@ async function logout() {
       <VpnBar
         v-if="store.connectedNode"
         :node="store.connectedNode"
-        upload="1.2 MB/s"
-        download="4.8 MB/s"
-        @cut="store.disconnect()"
+        :upload="store.uploadSpeed"
+        :download="store.downloadSpeed"
+        @cut="handleDisconnect()"
+      />
+
+      <!-- Connect modal — shown after clicking Connect on any node -->
+      <ConnectModal
+        :open="showConnectModal"
+        :node-name="store.connectCommands?.nodeName ?? ''"
+        :connect-command="store.connectCommands?.connectCommand ?? null"
+        :switch-command="store.connectCommands?.switchCommand ?? null"
+        @close="store.connectCommands = null"
       />
 
     </div>

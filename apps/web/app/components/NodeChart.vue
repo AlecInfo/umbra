@@ -23,8 +23,19 @@ function defaultFmt(ts: number): string {
   return d.getHours().toString().padStart(2, '0') + ':' + d.getMinutes().toString().padStart(2, '0')
 }
 
-// Reactive: re-evaluates when props.xFmt changes (period switch in parent)
-const activeXFmt      = computed(() => props.xFmt ?? defaultFmt)
+const activeXFmt = computed(() => props.xFmt ?? defaultFmt)
+
+// unovis uses array index as x — map index → ts for axis tick labels
+const xTickFmt = computed(() => {
+  const data = props.data
+  const fmt  = activeXFmt.value
+  return (idx: number) => {
+    const point = data[Math.round(idx)]
+    return point ? fmt(point.ts ?? 0) : ''
+  }
+})
+
+// Tooltip receives the full data record, so ts is directly available
 const tooltipTitleFmt = computed(() => (data: Record<string, number>) => activeXFmt.value(data.ts ?? 0))
 
 const lastPoint = computed(() => props.data[props.data.length - 1] ?? {})
@@ -56,7 +67,7 @@ const chartCategories = computed(() =>
             v-if="cat.fmt"
             class="nc-item-val"
             :style="`color: ${valColor ?? cat.color ?? 'var(--text)'}`"
-          >{{ cat.fmt(lastPoint[String(key)] ?? 0) }}</span>
+          >{{ lastPoint[String(key)] != null ? cat.fmt(lastPoint[String(key)]!) : '—' }}</span>
         </template>
 
       </div>
@@ -67,7 +78,7 @@ const chartCategories = computed(() =>
       :data="data"
       :categories="chartCategories"
       :height="height"
-      :x-formatter="activeXFmt"
+      :x-formatter="xTickFmt"
       :tooltip-title-formatter="tooltipTitleFmt"
       :x-num-ticks="5"
       :hide-legend="true"
@@ -79,7 +90,7 @@ const chartCategories = computed(() =>
       :data="data"
       :categories="chartCategories"
       :height="height"
-      :x-formatter="activeXFmt"
+      :x-formatter="xTickFmt"
       :tooltip-title-formatter="tooltipTitleFmt"
       :x-num-ticks="5"
       :hide-legend="true"
