@@ -1,0 +1,22 @@
+{
+    auto_https off
+    servers {
+        protocols h1
+    }
+}
+
+{$HS_HOST} {
+    reverse_proxy headscale:8080 {
+        header_up Connection Upgrade
+        header_up Upgrade {http.request.header.Upgrade}
+        flush_interval -1
+    }
+}
+
+{$API_HOST} {
+    reverse_proxy api:3333
+}
+
+{$WEB_HOST} {
+    reverse_proxy web:3000
+}
