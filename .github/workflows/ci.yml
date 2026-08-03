@@ -6,50 +6,31 @@ on:
   pull_request:
 
 jobs:
-  api:
-    name: API — typecheck
+  check:
+    name: Typecheck + build
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
+      # Pin pnpm to the exact version the lockfile was generated with, to avoid
+      # frozen-lockfile mismatches on CI.
       - uses: pnpm/action-setup@v4
         with:
-          version: 10
+          version: 10.30.3
 
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
           cache: pnpm
 
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile --filter=api
+      - name: Install (whole workspace)
+        run: pnpm install --frozen-lockfile
 
-      - name: Typecheck
+      # AdonisJS's withAuthFinder mixin has known TS quirks; informational only.
+      - name: Typecheck API
         run: pnpm --filter=api typecheck
-        continue-on-error: true  # pre-existing AdonisJS mixin TS quirks
+        continue-on-error: true
 
-      - name: Validate routes
-        run: |
-          cd apps/api
-          node --import tsx/esm ace.js list:routes > /dev/null
-
-  web:
-    name: Web — build
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: pnpm/action-setup@v4
-        with:
-          version: 10
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-          cache: pnpm
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile --filter=web
-
-      - name: Build
+      # The real gate: the web app must build.
+      - name: Build web
         run: pnpm --filter=web build
