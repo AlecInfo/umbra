@@ -178,6 +178,13 @@ export default class AgentController {
         await NodePeerStat.updateOrCreate(
           { nodeId: node.id, peerPubkey: peer.public_key },
           {
+            // Identity, not just counters: peerName and allowedIps are how a
+            // peer gets matched to a device, and therefore how a session's
+            // traffic gets attributed. They were dropped here until now, which
+            // is why both columns were always null.
+            peerName: peer.name?.slice(0, 100) ?? null,
+            allowedIps: peer.allowed_ips ?? null,
+            endpoint: peer.endpoint ?? null,
             lastHandshakeAt: peer.last_handshake_at ? DateTime.fromISO(peer.last_handshake_at) : null,
             bytesSent: peer.bytes_sent ?? 0,
             bytesReceived: peer.bytes_received ?? 0,

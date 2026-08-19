@@ -133,7 +133,7 @@ export class AuthSessionSchema extends BaseModel {
 }
 
 export class ConnectionLogSchema extends BaseModel {
-  static $columns = ['bytesReceived', 'bytesSent', 'clientIp', 'connectedAt', 'deviceId', 'disconnectedAt', 'id', 'nodeId', 'protocol', 'userId'] as const
+  static $columns = ['bytesReceived', 'bytesSent', 'clientIp', 'connectedAt', 'deviceId', 'disconnectedAt', 'headscalePreauthKey', 'id', 'lastPeerBytesReceived', 'lastPeerBytesSent', 'nodeId', 'protocol', 'userId'] as const
   $columns = ConnectionLogSchema.$columns
   @column()
   declare bytesReceived: bigint | number | null
@@ -147,8 +147,14 @@ export class ConnectionLogSchema extends BaseModel {
   declare deviceId: string | null
   @column.dateTime()
   declare disconnectedAt: DateTime | null
+  @column()
+  declare headscalePreauthKey: string | null
   @column({ isPrimary: true })
   declare id: string
+  @column()
+  declare lastPeerBytesReceived: bigint | number | null
+  @column()
+  declare lastPeerBytesSent: bigint | number | null
   @column()
   declare nodeId: string
   @column()

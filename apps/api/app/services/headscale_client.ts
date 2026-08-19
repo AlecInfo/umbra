@@ -18,11 +18,18 @@ interface HeadscaleRoute {
   isPrimary: boolean
 }
 
-interface HeadscaleNode {
+export interface HeadscaleNode {
   id: string
   name: string
+  givenName?: string
+  nodeKey?: string
   ipAddresses: string[]
   user: { name: string }
+  lastSeen?: string
+  online?: boolean
+  // Reported for nodes registered with an auth key: how a session gets tied to
+  // the exact machine that redeemed the key we issued (see connection_traffic).
+  preAuthKey?: { key: string; id: string } | null
 }
 
 // Headscale user (= network tenant) for a node/resource owner.

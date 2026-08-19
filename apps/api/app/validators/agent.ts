@@ -43,6 +43,11 @@ export const heartbeatValidator = vine.compile(
       .array(
         vine.object({
           public_key: vine.string().maxLength(500),
+          // peer_name is varchar(100) in the schema; the controller truncates
+          // rather than rejecting a heartbeat over a long hostname.
+          name: vine.string().maxLength(255).optional(),
+          allowed_ips: vine.array(vine.string().maxLength(64)).optional(),
+          endpoint: vine.string().maxLength(255).optional(),
           last_handshake_at: vine.string().optional(),
           bytes_sent: vine.number().min(0).optional(),
           bytes_received: vine.number().min(0).optional(),

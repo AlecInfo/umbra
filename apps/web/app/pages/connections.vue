@@ -17,6 +17,8 @@ interface Connection {
   disconnectedAt: string | null
   upload:         string
   download:       string
+  bytesSent:      number
+  bytesReceived:  number
   clientIp:       string | null
   status:         'active' | 'ended'
 }
@@ -74,12 +76,58 @@ const statusFilters = computed(() => [
   { value: 'ended',  label: t('conn_filter_ended'),  count: connections.value.filter(c => c.status === 'ended').length },
 ])
 
-// Stats computed from real data
-const todayConns    = computed(() => connections.value.filter(c => new Date(c.connectedAt).toDateString() === new Date().toDateString()).length)
-const activeNode    = computed(() => {
-  const active = connections.value.find(c => c.status === 'active')
-  return active?.node ?? t('common_dash')
+// Stats — each tile now computes what its label claims. They used to show
+// unrelated counts (the "data transferred" tile displayed the number of active
+// sessions) because no traffic data existed to put there.
+const pluralCount = (key: string, n: number) => t(n > 1 ? `${key}_many` : `${key}_one`, { n })
+
+const isToday    = (iso: string) => new Date(iso).toDateString() === new Date().toDateString()
+const todayList  = computed(() => connections.value.filter(c => isToday(c.connectedAt)))
+const todayConns = computed(() => todayList.value.length)
+
+const yesterdayConns = computed(() => {
+  const y = new Date()
+  y.setDate(y.getDate() - 1)
+  return connections.value.filter(c => new Date(c.connectedAt).toDateString() === y.toDateString()).length
 })
+const todayDelta = computed(() => {
+  const d = todayConns.value - yesterdayConns.value
+  return `${d >= 0 ? '+' : ''}${d} ${t('conn_stat_vs_yesterday')}`
+})
+
+// A session still open counts up to now.
+const todayDuration = computed(() => {
+  const ms = todayList.value.reduce((sum, c) => {
+    const end = c.disconnectedAt ? new Date(c.disconnectedAt).getTime() : Date.now()
+    return sum + Math.max(0, end - new Date(c.connectedAt).getTime())
+  }, 0)
+  const h = Math.floor(ms / 3_600_000)
+  const m = Math.floor((ms % 3_600_000) / 60_000)
+  return h > 0 ? `${h}h ${m.toString().padStart(2, '0')}` : `${m}min`
+})
+
+const todayTraffic = computed(() => {
+  const total = todayList.value.reduce((sum, c) => sum + c.bytesSent + c.bytesReceived, 0)
+  if (total >= 1_073_741_824) return `${(total / 1_073_741_824).toFixed(1)} GB`
+  if (total >= 1_048_576)     return `${(total / 1_048_576).toFixed(0)} MB`
+  if (total >= 1024)          return `${(total / 1024).toFixed(0)} KB`
+  return `${total} B`
+})
+
+// Favourite node = the one with the most sessions, not merely the active one.
+const favouriteNode = computed(() => {
+  const counts = new Map<string, number>()
+  for (const c of connections.value) counts.set(c.node, (counts.get(c.node) ?? 0) + 1)
+  let best: { node: string; count: number } | null = null
+  for (const [node, count] of counts) {
+    if (!best || count > best.count) best = { node, count }
+  }
+  return best
+})
+const favouriteNodeName  = computed(() => favouriteNode.value?.node ?? t('common_dash'))
+const favouriteNodeCount = computed(() =>
+  favouriteNode.value ? pluralCount('conn_stat_sessions', favouriteNode.value.count) : t('common_dash')
+)
 </script>
 
 <template>
@@ -96,22 +144,22 @@ const activeNode    = computed(() => {
       <div class="stat-card">
         <div class="stat-lbl">{{ t('conn_stat_today') }}</div>
         <div class="stat-val"><span style="color: var(--accent)">{{ todayConns }}</span></div>
-        <div class="stat-sub">{{ t('conn_stat_today_sub') }}</div>
+        <div class="stat-sub">{{ todayDelta }}</div>
       </div>
       <div class="stat-card">
         <div class="stat-lbl">{{ t('conn_stat_dur') }}</div>
-        <div class="stat-val"><span>{{ connections.length }}</span><span class="stat-suffix"></span></div>
+        <div class="stat-val"><span>{{ todayDuration }}</span></div>
         <div class="stat-sub">{{ t('conn_stat_dur_sub') }}</div>
       </div>
       <div class="stat-card">
         <div class="stat-lbl">{{ t('conn_stat_data') }}</div>
-        <div class="stat-val"><span style="color: var(--accent)">{{ statusFilters[1].count }}</span></div>
+        <div class="stat-val"><span style="color: var(--accent)">{{ todayTraffic }}</span></div>
         <div class="stat-sub">{{ t('conn_stat_data_sub') }}</div>
       </div>
       <div class="stat-card">
         <div class="stat-lbl">{{ t('conn_stat_fav') }}</div>
-        <div class="stat-val" style="font-size: 18px"><span>{{ activeNode }}</span></div>
-        <div class="stat-sub">{{ t('conn_stat_fav_sub') }}</div>
+        <div class="stat-val" style="font-size: 18px"><span>{{ favouriteNodeName }}</span></div>
+        <div class="stat-sub">{{ favouriteNodeCount }}</div>
       </div>
     </div>
 

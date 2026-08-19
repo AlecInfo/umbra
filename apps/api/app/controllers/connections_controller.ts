@@ -42,6 +42,10 @@ export default class ConnectionsController {
         disconnectedAt:  c.disconnectedAt?.toISO() ?? null,
         upload:          fmtBytes(Number(c.bytesSent)),
         download:        fmtBytes(Number(c.bytesReceived)),
+        // Raw counts too: the dashboard aggregates them across sessions, which
+        // it cannot do from the formatted strings.
+        bytesSent:       Number(c.bytesSent),
+        bytesReceived:   Number(c.bytesReceived),
         clientIp:        c.clientIp ?? null,
         status:          c.disconnectedAt ? 'ended' : 'active',
       })),

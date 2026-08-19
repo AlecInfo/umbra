@@ -66,10 +66,16 @@ type MetricsPayload struct {
 }
 
 type PeerPayload struct {
-	PublicKey       string `json:"public_key"`
-	LastHandshakeAt string `json:"last_handshake_at,omitempty"`
-	BytesSent       uint64 `json:"bytes_sent"`
-	BytesReceived   uint64 `json:"bytes_received"`
+	PublicKey string `json:"public_key"`
+	// Name and AllowedIPs are what let the API tell which account a peer
+	// belongs to — without them a peer is an anonymous set of byte counters
+	// and no session can be attributed to a device.
+	Name            string   `json:"name,omitempty"`
+	AllowedIPs      []string `json:"allowed_ips,omitempty"`
+	Endpoint        string   `json:"endpoint,omitempty"`
+	LastHandshakeAt string   `json:"last_handshake_at,omitempty"`
+	BytesSent       uint64   `json:"bytes_sent"`
+	BytesReceived   uint64   `json:"bytes_received"`
 }
 
 type HeartbeatRequest struct {

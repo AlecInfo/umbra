@@ -19,13 +19,17 @@ export default class ConnectController {
       .whereNull('disconnected_at')
       .update({ disconnected_at: DateTime.now().toSQL() })
 
-    await ConnectionLog.create({
+    const log = await ConnectionLog.create({
       nodeId: node.id,
       userId: user.id,
+      // deviceId and the byte counters are filled in later, once the exit node
+      // reports a peer that matches one of this account's devices — the client
+      // has not joined the mesh yet at this point (it is about to run the
+      // command we are returning). See services/connection_traffic.ts.
       deviceId: null,
       bytesSent: 0,
       bytesReceived: 0,
-      clientIp: null,
+      clientIp: request.ip(),
       protocol: 'wireguard',
     })
 
@@ -62,6 +66,11 @@ export default class ConnectController {
         await headscaleClient.syncPolicy()
         const authKey = await headscaleClient.createPreAuthKey(tenant)
         connectCommand = `sudo tailscale up --login-server=${headscaleURL} --authkey=${authKey} --exit-node=${exitIp} --accept-routes --accept-dns=false --reset`
+
+        // Remember which key this session handed out: Headscale reports it back
+        // on whichever machine redeems it, which identifies the device exactly.
+        log.headscalePreauthKey = authKey
+        await log.save()
       } catch (err) {
         console.error('Failed to create pre-auth key for connect:', err)
       }

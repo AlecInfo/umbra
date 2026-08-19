@@ -38,6 +38,19 @@ export default class ConnectionLog extends BaseModel {
   @column()
   declare protocol: VpnProtocol
 
+  // Set at /connect, matched back against Headscale to identify the device that
+  // actually joined. Null for a client that reused an existing enrollment.
+  @column({ serializeAs: null })
+  declare headscalePreauthKey: string | null
+
+  // Last peer counters observed for this session; traffic is accumulated from
+  // the deltas (see services/connection_traffic.ts).
+  @column({ serializeAs: null })
+  declare lastPeerBytesSent: number | null
+
+  @column({ serializeAs: null })
+  declare lastPeerBytesReceived: number | null
+
   @belongsTo(() => Node, { foreignKey: 'nodeId' })
   declare node: BelongsTo<typeof Node>
 
