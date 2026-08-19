@@ -1,0 +1,3 @@
+package version
+
+var Current = "1.0.0"
