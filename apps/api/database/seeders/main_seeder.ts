@@ -3,7 +3,6 @@ import { createHash, randomBytes } from 'node:crypto'
 import { BaseSeeder } from '@adonisjs/lucid/seeders'
 import User from '#models/user'
 import Node from '#models/node'
-import NodeMetric from '#models/node_metric'
 import db from '@adonisjs/lucid/services/db'
 
 type SeedStatus = 'online' | 'offline' | 'warning' | 'pending'

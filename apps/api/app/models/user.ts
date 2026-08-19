@@ -1,7 +1,7 @@
 import { DateTime } from 'luxon'
 import hash from '@adonisjs/core/services/hash'
 import { compose } from '@adonisjs/core/helpers'
-import { BaseModel, beforeSave, column, hasMany, manyToMany } from '@adonisjs/lucid/orm'
+import { BaseModel, column, hasMany, manyToMany } from '@adonisjs/lucid/orm'
 import type { HasMany, ManyToMany } from '@adonisjs/lucid/types/relations'
 import { withAuthFinder } from '@adonisjs/auth/mixins/lucid'
 import { DbAccessTokensProvider } from '@adonisjs/auth/access_tokens'
@@ -56,14 +56,11 @@ export default class User extends compose(BaseModel, AuthFinder) {
   @column.dateTime()
   declare deletedAt: DateTime | null
 
-  @beforeSave()
-  static async hashPassword(user: User) {
-    if (user.$dirty.passwordHash && user.passwordHash) {
-      if (!user.passwordHash.startsWith('$scrypt')) {
-        user.passwordHash = await hash.use('scrypt').make(user.passwordHash)
-      }
-    }
-  }
+  // Password hashing is handled by the AuthFinder mixin's own beforeSave hook
+  // (scrypt, on the passwordHash column). Redeclaring a `hashPassword` static
+  // here shadowed it with a narrower signature, which broke the model's whole
+  // static type — every caller of User.verifyCredentials then saw an opaque
+  // LucidRow instead of a User.
 
   @manyToMany(() => Organization, {
     pivotTable: 'org_members',

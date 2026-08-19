@@ -16,5 +16,5 @@ ignitor
   .handle(process.argv.splice(2))
   .catch((error) => {
     process.exitCode = 1
-    console.error(error)
+    prettyPrintError(error)
   })
