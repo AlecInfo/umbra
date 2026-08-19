@@ -13,7 +13,9 @@ export const plugins: Config['plugins'] = [
 ]
 
 export const runnerHooks: Required<Pick<Config, 'setup' | 'teardown'>> = {
-  setup: [() => testUtils.httpServer().start()],
+  // migrate() first: the suite runs against its own database (DB_DATABASE in
+  // .env.test), so a freshly created, empty one is enough to get going.
+  setup: [() => testUtils.db().migrate(), () => testUtils.httpServer().start()],
   teardown: [],
 }
 
