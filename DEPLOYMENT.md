@@ -81,6 +81,23 @@ pnpm --filter api dev             # API on :3333
 pnpm web                          # web on :3000
 ```
 
+## Agent binaries
+
+`install.sh` downloads the agent from your own server (`GET /releases/<file>`),
+so that endpoint must actually serve something — an API with an empty
+`apps/api/resources/releases/` directory hands every new node a 404.
+
+- **Using the published image** (`ghcr.io/alecinfo/umbra-api`): nothing to do.
+  CI builds and signs the binaries into the image.
+- **Building the image yourself**: run `./agent/build-releases.sh` first. It
+  drops signed binaries and `manifest.json` into `apps/api/resources/releases/`,
+  which the Dockerfile copies in.
+- **Running the API from source** (`pnpm --filter api dev`): same script. The
+  artifacts are gitignored, so a fresh clone has none.
+
+See [agent/README.md](agent/README.md) for the signing key, and why losing it
+strands every deployed agent.
+
 ## Environment reference
 
 | Variable | Purpose |

@@ -41,10 +41,10 @@ umbra/
 ├── apps/
 │   ├── web/             Nuxt 4 dashboard (main frontend)
 │   ├── landing/         Marketing site (umbravpn.io)
-│   └── api/             AdonisJS 6 API              (planned)
+│   └── api/             AdonisJS 6 API
 ├── packages/
 │   └── types/           Shared TypeScript types
-└── umbra-agent/         Go system agent              (planned)
+└── agent/               Go system agent — see agent/README.md
 ```
 
 ### Tech stack
