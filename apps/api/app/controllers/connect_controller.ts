@@ -51,6 +51,12 @@ export default class ConnectController {
       // out the connect command — otherwise `--exit-node` fails client-side.
       // (v0.23 autoApprovers do nothing: this call is the real activation.)
       try {
+        // Same safeguard as the heartbeat: a node sitting in the wrong tenant
+        // is invisible to this account's clients, and its routes cannot even
+        // be looked up. Cheap to check, and it fails the connection loudly
+        // rather than handing out a command that silently routes nothing.
+        await headscaleClient.ensureNodeTenant(exitIp, tenant)
+
         const res = await headscaleClient.enableExitRoutes(exitIp, tenant)
         if (!res.found) {
           console.error(`Exit node ${node.id} (${exitIp}) not found in Headscale — routes not enabled`)

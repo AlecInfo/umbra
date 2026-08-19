@@ -226,6 +226,17 @@ export default class AgentController {
       if (now >= (nextRouteEnsureAt.get(node.id) ?? 0)) {
         try {
           const tenant = tenantForOwner(node.ownerUserId, node.ownerOrgId)
+
+          // A machine re-enrolled into another account keeps its original
+          // Headscale owner, which leaves it unreachable for the new account's
+          // clients. Put it back where it belongs before touching its routes —
+          // those are looked up within the tenant.
+          const tenantState = await headscaleClient.ensureNodeTenant(node.wireguardIp, tenant)
+          if (tenantState === 'moved') {
+            console.info(`Node ${node.id} (${node.wireguardIp}) moved to tenant ${tenant}`)
+            await headscaleClient.syncPolicy()
+          }
+
           const res = await headscaleClient.enableExitRoutes(node.wireguardIp, tenant)
           // Routes confirmed: recheck hourly. Node not joined yet, or nothing
           // advertised (local client, or tailscale up still settling): retry in 1 min.

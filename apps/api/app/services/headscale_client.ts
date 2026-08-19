@@ -104,6 +104,44 @@ class HeadscaleClient {
     return data.nodes ?? []
   }
 
+  async listAllNodes(): Promise<HeadscaleNode[]> {
+    const data = await this.#fetch<{ nodes: HeadscaleNode[] }>('/node')
+    return data.nodes ?? []
+  }
+
+  async moveNode(nodeId: string, user: string): Promise<void> {
+    await this.#fetch(`/node/${nodeId}/user?user=${encodeURIComponent(user)}`, { method: 'POST' })
+  }
+
+  /**
+   * Make sure the machine holding this Tailscale IP belongs to `user`.
+   *
+   * Headscale identifies a machine by its machine key and keeps its original
+   * owner across re-registrations — `tailscale up --reset` with an auth key
+   * from another tenant does NOT move it. A node re-enrolled into a different
+   * account therefore stays in the old tenant: it shows up healthy in the
+   * dashboard while the isolation policy quietly stops every client of the new
+   * account from reaching it.
+   */
+  async ensureNodeTenant(
+    tailscaleIP: string,
+    user: string
+  ): Promise<'ok' | 'moved' | 'not_found'> {
+    if (!tailscaleIP) return 'not_found'
+    const ip = tailscaleIP.split('/')[0]!
+
+    const own = await this.getNodesByUser(user)
+    if (own.some((n) => n.ipAddresses.includes(ip))) return 'ok'
+
+    // Not in the expected tenant — look across all of them.
+    const all = await this.listAllNodes()
+    const stray = all.find((n) => n.ipAddresses.includes(ip))
+    if (!stray) return 'not_found'
+
+    await this.moveNode(stray.id, user)
+    return 'moved'
+  }
+
   // Enable all advertised routes for the node with the given Tailscale IP.
   // This is THE mechanism that activates exit routes: headscale v0.23
   // autoApprovers are non-functional (verified empirically — routes stay
