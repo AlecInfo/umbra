@@ -8,7 +8,7 @@ dist
 cloudflared/creds.json
 cloudflared/config.yaml
 
-# Local test overrides
+# Local escape hatch, auto-loaded by docker compose. The TLS topology is no
+# longer configured this way — it lives in the committed docker-compose.tls.yml
+# (see DEPLOYMENT.md), so an override here now shadows it. Use with care.
 docker-compose.override.yml
-headscale/config.tls.yaml
-Caddyfile.tls

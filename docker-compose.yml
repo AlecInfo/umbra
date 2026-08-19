@@ -1,6 +1,11 @@
 services:
 
   # ── Headscale (WireGuard control plane) ─────────────────────────────────────
+  # Plain HTTP on 8080 — LAN/dev only. For any deployment that must serve
+  # clients behind CGNAT, set HEADSCALE_TLS_HOSTNAME and let deploy.sh add
+  # docker-compose.tls.yml (native TLS on 443 + embedded DERP, no proxy).
+  # See DEPLOYMENT.md: Headscale must never sit behind a reverse proxy unless
+  # a standalone derper (--profile derp) provides the relay instead.
   headscale:
     image: headscale/headscale:v0.23.0
     container_name: umbra-headscale

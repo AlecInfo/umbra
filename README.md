@@ -98,6 +98,10 @@ umbra/
 | **Half self-hosted** | UMBRA cloud   | Your devices  | Easy setup, your hardware |
 | **Full cloud**       | UMBRA cloud   | UMBRA + yours | Fastest onboarding        |
 
+Running the whole stack — **[DEPLOYMENT.md](DEPLOYMENT.md)**. Read it before
+putting Headscale behind a reverse proxy: it cannot carry the DERP relay, and
+clients behind CGNAT will silently fail to connect.
+
 ## License
 
 This project is licensed under the Apache License 2.0 — see the [LICENSE](LICENSE) file for details.

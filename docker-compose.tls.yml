@@ -1,0 +1,53 @@
+# Headscale in native-TLS mode — the topology validated end-to-end on
+# 2026-08-03 (Raspberry Pi exit node + phone on 5G/CGNAT relayed through DERP).
+#
+# Usage (deploy.sh adds this file automatically when HEADSCALE_TLS_HOSTNAME is set):
+#   docker compose -f docker-compose.yml -f docker-compose.tls.yml up -d
+#
+# WHY THIS EXISTS — read before "simplifying" it away:
+# Headscale serves the control plane AND its embedded DERP relay on the same
+# listener. A reverse proxy (Caddy, Cloudflare Tunnel, nginx) can carry the
+# control plane, but NOT the DERP channel: DERP is a long-lived non-WebSocket
+# HTTP upgrade and STUN is UDP. Put anything in front of Headscale and clients
+# behind CGNAT fail with "Relay server unavailable" — verified in practice.
+# So in this mode Headscale terminates TLS itself, on port 443, exposed
+# directly. TLS-ALPN-01 does the ACME challenge on 443 (port 80 not needed).
+#
+# Requirements on the host/network:
+#   - DNS A record for $HEADSCALE_TLS_HOSTNAME → this host's public IP,
+#     resolved DIRECTLY. On Cloudflare that means DNS-only (grey cloud):
+#     the orange cloud proxies 443 and breaks both DERP and the ACME challenge.
+#   - Port forwards on the router: 443/tcp (control plane + DERP) and
+#     3478/udp (STUN). Port 80 is NOT required.
+#   - HEADSCALE_EXTERNAL_URL=https://$HEADSCALE_TLS_HOSTNAME
+#
+# The alternative topology (Headscale behind a proxy) is only valid together
+# with a standalone derper on a public host — see `--profile derp` and
+# DEPLOYMENT.md.
+
+services:
+
+  headscale:
+    ports:
+      # 8080 stays published by the base file but nothing listens on it in this
+      # mode (listen_addr moves to :443). Harmless; kept to avoid `!override`.
+      - '443:443'         # control plane (TS2021) + embedded DERP over TLS
+      - '3478:3478/udp'   # STUN, for UDP hole punching
+    environment:
+      HEADSCALE_LISTEN_ADDR: 0.0.0.0:443
+      HEADSCALE_TLS_LETSENCRYPT_HOSTNAME: ${HEADSCALE_TLS_HOSTNAME:?HEADSCALE_TLS_HOSTNAME is required in TLS mode}
+      HEADSCALE_TLS_LETSENCRYPT_CHALLENGE_TYPE: TLS-ALPN-01
+      HEADSCALE_TLS_LETSENCRYPT_CACHE_DIR: /var/lib/headscale/cache
+    networks:
+      default:
+        aliases:
+          # Lets the API reach Headscale by its public hostname from inside the
+          # compose network — the TLS certificate matches, and it does not
+          # depend on the router supporting NAT hairpinning.
+          - ${HEADSCALE_TLS_HOSTNAME:?HEADSCALE_TLS_HOSTNAME is required in TLS mode}
+
+  api:
+    environment:
+      # Overrides http://umbra-headscale:8080 from the base file: in TLS mode
+      # Headscale has no plaintext listener at all.
+      HEADSCALE_URL: https://${HEADSCALE_TLS_HOSTNAME:?HEADSCALE_TLS_HOSTNAME is required in TLS mode}
