@@ -1,4 +1,5 @@
 import vine from '@vinejs/vine'
+import { isoDateTime } from '#validators/rules/iso_datetime'
 
 // Used by POST /api/v1/agent/register (Go agent spec)
 export const registerValidator = vine.compile(
@@ -19,7 +20,7 @@ export const registerValidator = vine.compile(
 export const heartbeatValidator = vine.compile(
   vine.object({
     node_id: vine.string().optional(),
-    timestamp: vine.string().optional(),
+    timestamp: isoDateTime().optional(),
     agent_version: vine.string().trim().maxLength(20).optional(),
     metrics: vine
       .object({
@@ -48,7 +49,7 @@ export const heartbeatValidator = vine.compile(
           name: vine.string().maxLength(255).optional(),
           allowed_ips: vine.array(vine.string().maxLength(64)).optional(),
           endpoint: vine.string().maxLength(255).optional(),
-          last_handshake_at: vine.string().optional(),
+          last_handshake_at: isoDateTime().optional(),
           bytes_sent: vine.number().min(0).optional(),
           bytes_received: vine.number().min(0).optional(),
         })

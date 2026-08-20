@@ -1,5 +1,6 @@
 import router from '@adonisjs/core/services/router'
 import { middleware } from '#start/kernel'
+import { loginThrottle, registerThrottle, agentRegisterThrottle } from '#start/limiter'
 
 const AuthController        = () => import('#controllers/auth_controller')
 const NodesController       = () => import('#controllers/nodes_controller')
@@ -15,8 +16,8 @@ router
 
     router
       .group(() => {
-        router.post('/register', [AuthController, 'register'])
-        router.post('/login', [AuthController, 'login'])
+        router.post('/register', [AuthController, 'register']).use(registerThrottle)
+        router.post('/login', [AuthController, 'login']).use(loginThrottle)
 
         router
           .group(() => {
@@ -60,7 +61,7 @@ router
     router
       .group(() => {
         // No agent auth — register uses the enroll token, version is public
-        router.post('/register', [AgentController, 'register'])
+        router.post('/register', [AgentController, 'register']).use(agentRegisterThrottle)
         router.get('/version', [AgentController, 'version'])
 
         router
