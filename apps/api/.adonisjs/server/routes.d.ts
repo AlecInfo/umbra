@@ -28,6 +28,18 @@ export type ScannedRoutes = {
     'api_keys.destroy': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'alerts.index': { paramsTuple?: []; params?: {} }
     'connections.index': { paramsTuple?: []; params?: {} }
+    'orgs.index': { paramsTuple?: []; params?: {} }
+    'orgs.store': { paramsTuple?: []; params?: {} }
+    'orgs.accept_invitation': { paramsTuple?: []; params?: {} }
+    'orgs.show': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+    'orgs.update': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+    'orgs.destroy': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+    'orgs.members': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+    'orgs.update_member': { paramsTuple: [ParamValue,ParamValue]; params: {'id': ParamValue,'userId': ParamValue} }
+    'orgs.remove_member': { paramsTuple: [ParamValue,ParamValue]; params: {'id': ParamValue,'userId': ParamValue} }
+    'orgs.invitations': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+    'orgs.invite': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+    'orgs.revoke_invitation': { paramsTuple: [ParamValue,ParamValue]; params: {'id': ParamValue,'invitationId': ParamValue} }
     'connect.connect': { paramsTuple?: []; params?: {} }
     'connect.disconnect': { paramsTuple?: []; params?: {} }
     'agent.register': { paramsTuple?: []; params?: {} }
@@ -45,6 +57,10 @@ export type ScannedRoutes = {
     'api_keys.index': { paramsTuple?: []; params?: {} }
     'alerts.index': { paramsTuple?: []; params?: {} }
     'connections.index': { paramsTuple?: []; params?: {} }
+    'orgs.index': { paramsTuple?: []; params?: {} }
+    'orgs.show': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+    'orgs.members': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+    'orgs.invitations': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'agent.version': { paramsTuple?: []; params?: {} }
   }
   HEAD: {
@@ -58,6 +74,10 @@ export type ScannedRoutes = {
     'api_keys.index': { paramsTuple?: []; params?: {} }
     'alerts.index': { paramsTuple?: []; params?: {} }
     'connections.index': { paramsTuple?: []; params?: {} }
+    'orgs.index': { paramsTuple?: []; params?: {} }
+    'orgs.show': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+    'orgs.members': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+    'orgs.invitations': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'agent.version': { paramsTuple?: []; params?: {} }
   }
   POST: {
@@ -68,6 +88,9 @@ export type ScannedRoutes = {
     'nodes.store': { paramsTuple?: []; params?: {} }
     'nodes.enroll_token': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'api_keys.store': { paramsTuple?: []; params?: {} }
+    'orgs.store': { paramsTuple?: []; params?: {} }
+    'orgs.accept_invitation': { paramsTuple?: []; params?: {} }
+    'orgs.invite': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'connect.connect': { paramsTuple?: []; params?: {} }
     'agent.register': { paramsTuple?: []; params?: {} }
     'agent.heartbeat': { paramsTuple?: []; params?: {} }
@@ -76,12 +99,17 @@ export type ScannedRoutes = {
     'auth.update_profile': { paramsTuple?: []; params?: {} }
     'nodes.update': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'api_keys.revoke': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+    'orgs.update': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+    'orgs.update_member': { paramsTuple: [ParamValue,ParamValue]; params: {'id': ParamValue,'userId': ParamValue} }
   }
   DELETE: {
     'auth.revoke_session': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'auth.delete_account': { paramsTuple?: []; params?: {} }
     'nodes.destroy': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'api_keys.destroy': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+    'orgs.destroy': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+    'orgs.remove_member': { paramsTuple: [ParamValue,ParamValue]; params: {'id': ParamValue,'userId': ParamValue} }
+    'orgs.revoke_invitation': { paramsTuple: [ParamValue,ParamValue]; params: {'id': ParamValue,'invitationId': ParamValue} }
     'connect.disconnect': { paramsTuple?: []; params?: {} }
   }
 }

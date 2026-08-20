@@ -9,6 +9,7 @@ const ApiKeysController     = () => import('#controllers/api_keys_controller')
 const AlertsController      = () => import('#controllers/alerts_controller')
 const ConnectionsController = () => import('#controllers/connections_controller')
 const ConnectController     = () => import('#controllers/connect_controller')
+const OrgsController        = () => import('#controllers/organizations_controller')
 
 router
   .group(() => {
@@ -52,6 +53,20 @@ router
 
         router.get('/alerts', [AlertsController, 'index'])
         router.get('/connections', [ConnectionsController, 'index'])
+
+        router.get('/orgs', [OrgsController, 'index'])
+        router.post('/orgs', [OrgsController, 'store'])
+        // Before /orgs/:id so "invitations" is not read as an org id.
+        router.post('/orgs/invitations/accept', [OrgsController, 'acceptInvitation'])
+        router.get('/orgs/:id', [OrgsController, 'show'])
+        router.patch('/orgs/:id', [OrgsController, 'update'])
+        router.delete('/orgs/:id', [OrgsController, 'destroy'])
+        router.get('/orgs/:id/members', [OrgsController, 'members'])
+        router.patch('/orgs/:id/members/:userId', [OrgsController, 'updateMember'])
+        router.delete('/orgs/:id/members/:userId', [OrgsController, 'removeMember'])
+        router.get('/orgs/:id/invitations', [OrgsController, 'invitations'])
+        router.post('/orgs/:id/invitations', [OrgsController, 'invite'])
+        router.delete('/orgs/:id/invitations/:invitationId', [OrgsController, 'revokeInvitation'])
 
         router.post('/connect', [ConnectController, 'connect'])
         router.delete('/connect', [ConnectController, 'disconnect'])
