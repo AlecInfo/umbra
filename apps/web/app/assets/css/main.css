@@ -1876,6 +1876,16 @@ body:has(.vpn-bar) .notif-stack { bottom: 84px; }
 .role-static   { font-family: var(--font-mono); font-size: 9px; color: var(--muted); padding: 3px 6px; }
 
 /* Marks a node owned by an organisation rather than by the account itself. */
+/* Tells a non-admin visitor what they hold on this node, so that missing
+   buttons read as a permission level rather than a broken page. */
+.perm-chip {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 9px; font-family: var(--font-mono);
+  color: var(--muted); background: var(--surface2);
+  border: 1px solid var(--border2);
+  padding: 3px 8px; border-radius: 3px;
+}
+
 .org-chip {
   display: inline-flex; align-items: center; gap: 3px;
   font-size: 9px; font-family: var(--font-mono);

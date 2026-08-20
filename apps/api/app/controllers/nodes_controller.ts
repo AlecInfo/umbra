@@ -10,7 +10,7 @@ import { hashAgentToken } from '#services/agent_auth'
 import { resolveOrgRole } from '#services/organizations'
 import { headscaleClient, tenantForOwner } from '#services/headscale_client'
 import { userOrgIds, accessibleNodesQuery } from '#services/node_scope'
-import { findNodeWithPermission } from '#services/permissions'
+import { resolveNodePermission, findNodeWithPermission } from '#services/permissions'
 import OrgMember from '#models/org_member'
 import {
   createNodeValidator,
@@ -70,11 +70,15 @@ export default class NodesController {
     const nodes = paginator.all()
     const nodeIds = nodes.map((n) => n.id)
     const metricMap = await latestMetricForNodes(nodeIds)
+    // What the caller may do with each node, so the dashboard can hide actions
+    // the API would refuse instead of offering buttons that return 404.
+    const permissions = await Promise.all(nodes.map((n) => resolveNodePermission(user.id, n)))
     return {
       meta: paginator.getMeta(),
-      data: nodes.map((n) => ({
+      data: nodes.map((n, i) => ({
         ...n.serialize(),
         org: n.ownerOrg ? { id: n.ownerOrg.id, name: n.ownerOrg.name } : null,
+        permission: permissions[i],
         latestMetric: metricMap[n.id] ?? null,
       })),
     }
@@ -124,6 +128,7 @@ export default class NodesController {
       node: {
         ...node.serialize(),
         org: node.ownerOrg ? { id: node.ownerOrg.id, name: node.ownerOrg.name } : null,
+        permission: await resolveNodePermission(auth.getUserOrFail().id, node),
         latestMetric: metricMap[node.id] ?? null,
       },
     }

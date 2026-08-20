@@ -300,3 +300,42 @@ test.group('Node ownership transfer', () => {
     refused.assertStatus(404)
   })
 })
+
+test.group('Permission surfaced to the UI', () => {
+  test('each role sees its own permission on the same node', async ({ client, assert }) => {
+    const { owner, orgId } = await orgWithOwner(client, 'perm-owner@test.io')
+    const admin  = await joinOrg(client, orgId, owner.token, 'perm-admin@test.io', 'admin')
+    const member = await joinOrg(client, orgId, owner.token, 'perm-member@test.io', 'member')
+
+    const created = await client
+      .post('/api/v1/nodes')
+      .headers(auth(owner.token))
+      .json({ name: 'perm-node', category: 'vps', orgId })
+    const nodeId = created.body().node.id
+
+    const seenBy = async (token: string) => {
+      const res = await client.get(`/api/v1/nodes/${nodeId}`).headers(auth(token))
+      return res.body().node.permission
+    }
+
+    assert.equal(await seenBy(owner.token), 'admin')
+    assert.equal(await seenBy(admin.user.token), 'admin')
+    // A member may use the node, not administer it — which is exactly what the
+    // dashboard needs to know before drawing a delete button.
+    assert.equal(await seenBy(member.user.token), 'connect')
+
+    const list = await client.get('/api/v1/nodes').headers(auth(member.user.token))
+    assert.equal(list.body().data[0].permission, 'connect')
+  })
+
+  test('a personal node reports admin to its owner', async ({ client, assert }) => {
+    const me = await account(client, 'solo@test.io')
+    const created = await client
+      .post('/api/v1/nodes')
+      .headers(auth(me.token))
+      .json({ name: 'my-own', category: 'sbc' })
+
+    const res = await client.get(`/api/v1/nodes/${created.body().node.id}`).headers(auth(me.token))
+    assert.equal(res.body().node.permission, 'admin')
+  })
+})

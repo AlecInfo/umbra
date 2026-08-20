@@ -534,6 +534,18 @@ async function deleteNode() {
     deleting.value = false
   }
 }
+/* ── Ce que l'appelant a le droit de faire ──────────────────────────────── */
+// Mirrors #services/permissions server-side: read < connect < manage < admin.
+// The UI hides what the API would refuse rather than surfacing a 404 on click.
+type NodePermission = 'read' | 'connect' | 'manage' | 'admin'
+const PERM_LEVEL: Record<NodePermission, number> = { read: 1, connect: 2, manage: 3, admin: 4 }
+const permission = computed<NodePermission | null>(() => apiNode.value?.permission ?? null)
+const can = (required: NodePermission) =>
+  permission.value !== null && PERM_LEVEL[permission.value] >= PERM_LEVEL[required]
+const canConnect = computed(() => can('connect'))
+const canManage  = computed(() => can('manage'))
+const canAdmin   = computed(() => can('admin'))
+
 /* ── Transfert de propriété ─────────────────────────────────────────────── */
 interface TransferTarget { id: string | null; name: string }
 const showTransfer   = ref(false)
@@ -603,8 +615,14 @@ async function doTransfer() {
         <div class="page-sub">{{ node.ip }}{{ node.hardwareModel ? ' · ' + node.hardwareModel : '' }}{{ node.osVersion ? ' · ' + node.osVersion : '' }}{{ node.agentVersion ? ' · Agent v' + node.agentVersion : '' }}</div>
       </div>
       <div class="header-actions">
-        <button class="btn-ghost" @click="showShare = true">{{ t('nd_share') }}</button>
+        <!-- Without this, a read-only visitor just sees buttons missing with no
+             explanation of why. -->
+        <span v-if="permission && !canAdmin" class="perm-chip">
+          <UIcon name="i-lucide-shield" style="width:10px;height:10px" /> {{ t(`nd_perm_${permission}`) }}
+        </span>
+        <button v-if="canAdmin" class="btn-ghost" @click="showShare = true">{{ t('nd_share') }}</button>
         <button
+          v-if="canConnect"
           class="btn-primary"
           :class="{ 'btn-danger': node.status === 'connected' }"
           :disabled="node.status === 'offline'"
@@ -874,7 +892,7 @@ async function doTransfer() {
               <UIcon name="i-lucide-arrow-up-circle" style="width:13px;height:13px" />
               {{ t('nd_action_update_to', { v: latestVersion }) }}
             </button>
-            <button class="action-btn" :disabled="restarting" @click="restartAgent">
+            <button v-if="canManage" class="action-btn" :disabled="restarting" @click="restartAgent">
               <UIcon name="i-lucide-rotate-ccw" style="width:13px;height:13px" :class="{ 'icon-spin': restarting }" />
               {{ restarting ? t('nd_action_restarting') : t('nd_action_restart') }}
             </button>
@@ -882,16 +900,16 @@ async function doTransfer() {
               <UIcon name="i-lucide-file-text" style="width:13px;height:13px" />
               {{ t('nd_action_view_logs') }}
             </button>
-            <button class="action-btn" @click="generateEnrollToken">
+            <button v-if="canManage" class="action-btn" @click="generateEnrollToken">
               <UIcon name="i-lucide-arrow-right-left" style="width:13px;height:13px" />
               {{ t('nd_action_enroll') }}
             </button>
-            <button v-if="transferTargets.length > 1" class="action-btn" @click="openTransfer">
+            <button v-if="canAdmin && transferTargets.length > 1" class="action-btn" @click="openTransfer">
               <UIcon name="i-lucide-users" style="width:13px;height:13px" />
               {{ t('nd_action_transfer') }}
             </button>
             <div class="actions-separator" />
-            <button class="action-btn danger" @click="showDeleteConfirm = true">
+            <button v-if="canAdmin" class="action-btn danger" @click="showDeleteConfirm = true">
               <UIcon name="i-lucide-trash-2" style="width:13px;height:13px" />
               {{ t('nd_action_delete') }}
             </button>

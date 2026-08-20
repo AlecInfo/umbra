@@ -72,7 +72,9 @@ function onAction() {
     </span>
 
     <div class="cell-action">
+      <!-- Read-only access gets no connect button rather than a failing one. -->
       <button
+        v-if="node.permission !== 'read'"
         class="conn-btn"
         :class="{ cut: node.status === 'connected' }"
         :disabled="node.status === 'offline' || node.status === 'pending'"

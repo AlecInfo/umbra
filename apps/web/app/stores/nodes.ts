@@ -25,12 +25,16 @@ export interface Node {
   // Set when the node belongs to an organisation rather than to the account
   // directly — that is what a shared node looks like from here.
   orgName:     string | null
+  // What this account may do with the node — mirrors the server's
+  // read < connect < manage < admin ladder.
+  permission:  'read' | 'connect' | 'manage' | 'admin' | null
 }
 
 interface ApiNode {
   id: string
   name: string
   org: { id: string; name: string } | null
+  permission: 'read' | 'connect' | 'manage' | 'admin' | null
   ipAddress: string | null
   wireguardIp: string | null
   status: 'pending' | 'online' | 'warning' | 'offline' | 'error'
@@ -75,6 +79,7 @@ function mapApiNode(a: ApiNode): Node {
     uptime: m?.uptimeSeconds != null ? Number(m.uptimeSeconds) : null,
     lastSeen: a.lastSeenAt,
     orgName: a.org?.name ?? null,
+    permission: a.permission ?? null,
   }
 }
 
