@@ -75,6 +75,22 @@ onMounted(() => {
   window.addEventListener('beforeunload', onBeforeUnload)
 })
 
+// Orgs the caller may create a node in — the API only accepts owner/admin.
+interface OwnerOrg { id: string; name: string; role: string }
+const orgs     = ref<OwnerOrg[]>([])
+const ownerSel = ref<string>('')   // '' = personal
+
+async function fetchOrgs() {
+  try {
+    const api = useApi()
+    const res = await api<{ data: OwnerOrg[] }>('/orgs')
+    orgs.value = res.data.filter((o) => o.role === 'owner' || o.role === 'admin')
+  } catch {
+    orgs.value = []
+  }
+}
+onMounted(fetchOrgs)
+
 async function createNode() {
   if (inFlight || !slug.value) return
   inFlight = true
@@ -83,7 +99,11 @@ async function createNode() {
     const api = useApi()
     const { node } = await api<{ node: { id: string } }>('/nodes', {
       method: 'POST',
-      body: { name: slug.value, category: category.value },
+      body: {
+        name: slug.value,
+        category: category.value,
+        ...(ownerSel.value ? { orgId: ownerSel.value } : {}),
+      },
     })
     createdNodeId.value = node.id
 
@@ -241,6 +261,15 @@ onUnmounted(() => {
         <div class="form-group">
           <label class="form-label">{{ t('addnode_name') }}</label>
           <input v-model="nodeName" class="form-input" type="text" :placeholder="t('addnode_name_ph')" autofocus />
+        </div>
+
+        <div v-if="orgs.length" class="form-group">
+          <label class="form-label">{{ t('addnode_owner') }}</label>
+          <select v-model="ownerSel" class="form-input">
+            <option value="">{{ t('addnode_owner_personal') }}</option>
+            <option v-for="o in orgs" :key="o.id" :value="o.id">{{ o.name }}</option>
+          </select>
+          <div class="form-sub" style="margin-bottom:0">{{ t('addnode_owner_hint') }}</div>
         </div>
 
         <div class="form-group">

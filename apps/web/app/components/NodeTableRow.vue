@@ -46,7 +46,12 @@ function onAction() {
         <UIcon :name="categoryIcons[node.category]" style="width:15px;height:15px" />
       </div>
       <div>
-        <div class="nname">{{ node.name }}</div>
+        <div class="nname">
+          {{ node.name }}
+          <span v-if="node.orgName" class="org-chip" :title="node.orgName">
+            <UIcon name="i-lucide-users" style="width:9px;height:9px" /> {{ node.orgName }}
+          </span>
+        </div>
         <div class="nid">
           {{ node.ip }}
           <span v-if="node.status === 'warning'" class="warn-hint"><UIcon name="i-lucide-triangle-alert" style="width:9px;height:9px" /> {{ t('row_warn_cpu') }} {{ node.cpu }}%</span>

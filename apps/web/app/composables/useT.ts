@@ -129,6 +129,10 @@ const TR: Record<Lang, Record<string, string>> = {
 
     // Settings — team
     common_create: 'Créer',
+    addnode_owner: 'Propriétaire',
+    addnode_owner_personal: 'Personnel',
+    addnode_owner_hint: "Un noeud d'organisation est accessible à tous ses membres.",
+    node_org_badge: 'Org',
     org_you: 'vous',
     org_pending: 'En attente',
     org_role_admin: 'Admin',
@@ -1022,6 +1026,10 @@ const TR: Record<Lang, Record<string, string>> = {
 
     // Settings — team
     common_create: 'Create',
+    addnode_owner: 'Owner',
+    addnode_owner_personal: 'Personal',
+    addnode_owner_hint: "An organisation's node is reachable by all of its members.",
+    node_org_badge: 'Org',
     org_you: 'you',
     org_pending: 'Pending',
     org_role_admin: 'Admin',

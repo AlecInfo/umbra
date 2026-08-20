@@ -22,11 +22,15 @@ export interface Node {
   temp:        number | null
   uptime:      number | null
   lastSeen:    string | null
+  // Set when the node belongs to an organisation rather than to the account
+  // directly — that is what a shared node looks like from here.
+  orgName:     string | null
 }
 
 interface ApiNode {
   id: string
   name: string
+  org: { id: string; name: string } | null
   ipAddress: string | null
   wireguardIp: string | null
   status: 'pending' | 'online' | 'warning' | 'offline' | 'error'
@@ -70,6 +74,7 @@ function mapApiNode(a: ApiNode): Node {
     temp: m?.temperatureCelsius ?? null,
     uptime: m?.uptimeSeconds != null ? Number(m.uptimeSeconds) : null,
     lastSeen: a.lastSeenAt,
+    orgName: a.org?.name ?? null,
   }
 }
 

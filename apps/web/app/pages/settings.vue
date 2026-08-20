@@ -577,6 +577,7 @@ async function removeMember(member: OrgMember) {
                 :key="m.id"
                 :member="m"
                 :is-me="m.id === auth.user?.id"
+                :can-manage="canManage"
                 :roles="assignableRoles"
                 @update:role="(r) => changeRole(m, r)"
                 @remove="removeMember(m)"

@@ -430,7 +430,7 @@ button, input, select, textarea, a {
 .nicon.cat-desktop { background: rgba(200,200,220,.1);  color: var(--muted);   }
 .nicon.cat-other   { background: var(--surface2);       color: var(--muted);   }
 
-.nname { font-size: 12px; font-weight: 500; color: var(--text); }
+.nname { font-size: 12px; font-weight: 500; color: var(--text); display: flex; align-items: center; gap: 6px; }
 .nid   { font-size: 9px;  color: var(--muted); margin-top: 1px; }
 .warn-hint { color: var(--warning); margin-left: 4px; }
 
@@ -1868,6 +1868,23 @@ body:has(.vpn-bar) .notif-stack { bottom: 84px; }
 .remove-btn         { background: none; border: none; color: var(--muted); font-size: 11px; cursor: pointer; padding: 3px 5px; border-radius: 3px; transition: all .15s; }
 .remove-btn:hover   { color: var(--offline); background: rgba(255,79,107,.08); }
 .remove-placeholder { width: 24px; }
+
+/* Right-hand column of a member row. Owner badge, role select, pending chip
+   and static label all have different widths; without a fixed column they
+   drift and the rows look ragged. */
+.member-role   { width: 92px; display: flex; justify-content: flex-end; flex-shrink: 0; }
+.role-static   { font-family: var(--font-mono); font-size: 9px; color: var(--muted); padding: 3px 6px; }
+
+/* Marks a node owned by an organisation rather than by the account itself. */
+.org-chip {
+  display: inline-flex; align-items: center; gap: 3px;
+  font-size: 9px; font-family: var(--font-mono);
+  color: var(--accent2);
+  background: color-mix(in srgb, var(--accent2) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent2) 25%, transparent);
+  padding: 1px 5px; border-radius: 3px; vertical-align: middle;
+  max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
 
 /* Settings card-body override */
 .settings-page .card-body { padding: 0; }

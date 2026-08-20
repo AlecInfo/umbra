@@ -62,13 +62,20 @@ export default class NodesController {
 
     const page = filters.page ?? 1
     const perPage = filters.perPage ?? 50
+    // The owning org travels with the node: the dashboard has to distinguish
+    // a personal node from a shared one, and it only has ids otherwise.
+    query.preload('ownerOrg', (q) => q.select('id', 'name'))
     const paginator = await query.orderBy('created_at', 'desc').paginate(page, perPage)
     const nodes = paginator.all()
     const nodeIds = nodes.map((n) => n.id)
     const metricMap = await latestMetricForNodes(nodeIds)
     return {
       meta: paginator.getMeta(),
-      data: nodes.map((n) => ({ ...n.serialize(), latestMetric: metricMap[n.id] ?? null })),
+      data: nodes.map((n) => ({
+        ...n.serialize(),
+        org: n.ownerOrg ? { id: n.ownerOrg.id, name: n.ownerOrg.name } : null,
+        latestMetric: metricMap[n.id] ?? null,
+      })),
     }
   }
 
@@ -111,7 +118,14 @@ export default class NodesController {
     const node = await findNodeWithPermission(auth.getUserOrFail().id, params.id, 'read')
     if (!node) return response.notFound({ message: 'Node introuvable' })
     const metricMap = await latestMetricForNodes([node.id])
-    return { node: { ...node.serialize(), latestMetric: metricMap[node.id] ?? null } }
+    if (node.ownerOrgId) await node.load('ownerOrg', (q) => q.select('id', 'name'))
+    return {
+      node: {
+        ...node.serialize(),
+        org: node.ownerOrg ? { id: node.ownerOrg.id, name: node.ownerOrg.name } : null,
+        latestMetric: metricMap[node.id] ?? null,
+      },
+    }
   }
 
   async update({ auth, params, request, response }: HttpContext) {
