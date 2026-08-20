@@ -8,6 +8,7 @@ interface HeadscalePreAuthKey {
   ephemeral: boolean
   used: boolean
   expiration: string
+  createdAt: string
 }
 
 interface HeadscaleRoute {
@@ -87,6 +88,62 @@ class HeadscaleClient {
       body: JSON.stringify({ user, reusable: false, ephemeral: false, expiration }),
     })
     return data.preAuthKey.key
+  }
+
+  async listPreAuthKeys(user: string): Promise<HeadscalePreAuthKey[]> {
+    const data = await this.#fetch<{ preAuthKeys: HeadscalePreAuthKey[] }>(
+      `/preauthkey?user=${encodeURIComponent(user)}`
+    )
+    return data.preAuthKeys ?? []
+  }
+
+  async expirePreAuthKey(user: string, key: string): Promise<void> {
+    await this.#fetch('/preauthkey/expire', {
+      method: 'POST',
+      body: JSON.stringify({ user, key }),
+    })
+  }
+
+  /**
+   * A pre-auth key the client can use, without minting a new one every time.
+   *
+   * Keys are single-use and valid for 90 days, and /connect used to create one
+   * on every click. A user who opens the connect dialog and never runs the
+   * command leaves a live key behind — they piled up indefinitely, each one a
+   * standing invitation to join the tenant.
+   *
+   * So: reuse the tenant's newest unredeemed key when it still has comfortable
+   * life left, and expire the stale ones. Keys younger than an hour are left
+   * alone — an enrollment could be in flight with one of them.
+   */
+  async getOrCreatePreAuthKey(user: string): Promise<string> {
+    let keys: HeadscalePreAuthKey[] = []
+    try {
+      keys = await this.listPreAuthKeys(user)
+    } catch (err) {
+      // Listing is an optimisation; never fail a connection over it.
+      console.error(`Listing pre-auth keys failed for ${user}:`, err)
+      return this.createPreAuthKey(user)
+    }
+
+    const now = DateTime.now()
+    const usable = keys
+      .filter((k) => !k.used && DateTime.fromISO(k.expiration) > now.plus({ hours: 1 }))
+      .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1))
+
+    const reused = usable[0]
+    const staleCutoff = now.minus({ hours: 1 })
+
+    for (const k of usable.slice(1)) {
+      if (DateTime.fromISO(k.createdAt) >= staleCutoff) continue
+      try {
+        await this.expirePreAuthKey(user, k.key)
+      } catch (err) {
+        console.error(`Expiring stale pre-auth key ${k.id} failed:`, err)
+      }
+    }
+
+    return reused ? reused.key : this.createPreAuthKey(user)
   }
 
   async getNodeRoutes(nodeId: string): Promise<HeadscaleRoute[]> {

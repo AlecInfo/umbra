@@ -70,7 +70,9 @@ export default class ConnectController {
       try {
         await headscaleClient.ensureUser(tenant)
         await headscaleClient.syncPolicy()
-        const authKey = await headscaleClient.createPreAuthKey(tenant)
+        // Reuses the tenant's outstanding key rather than minting one per
+        // click, and expires the stale ones on the way through.
+        const authKey = await headscaleClient.getOrCreatePreAuthKey(tenant)
         connectCommand = `sudo tailscale up --login-server=${headscaleURL} --authkey=${authKey} --exit-node=${exitIp} --accept-routes --accept-dns=false --reset`
 
         // Remember which key this session handed out: Headscale reports it back
