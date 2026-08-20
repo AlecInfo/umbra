@@ -290,51 +290,112 @@ function peerHandshake(p: any) {
 }
 
 
-// Share modal
+// Share modal — real grants, backed by /nodes/:id/members
 type Permission = 'read' | 'connect' | 'manage' | 'admin'
 
-interface NodeMember {
+interface ShareGrant {
   id:     string
-  email:  string
   name:   string
+  email:  string
   perm:   Permission
   avatar: string
   color:  string
-  status: 'active' | 'pending'
+  isOrg:  boolean
 }
 
-const showShare    = ref(false)
-const searchQuery  = ref('')
-const sharePerm    = ref<Permission>('connect')
+const showShare     = ref(false)
+const searchQuery   = ref('')
+const sharePerm     = ref<Permission>('connect')
 const searchFocused = ref(false)
+const members       = ref<ShareGrant[]>([])
+const canShareNode  = ref(false)
+const shareBusy     = ref(false)
 
-const members = ref<NodeMember[]>([
-  { id: '1', email: 'marie@example.com',  name: 'marie',  perm: 'connect', avatar: 'M', color: 'linear-gradient(135deg,#ff6b6b,#ffa726)',      status: 'active'  },
-  { id: '2', email: 'thomas@example.com', name: 'thomas', perm: 'read',    avatar: 'T', color: 'linear-gradient(135deg,#4fa8ff,#7b6ef6)',       status: 'active'  },
-  { id: '3', email: 'sam@example.com',    name: 'sam',    perm: 'connect', avatar: 'S', color: 'var(--surface2)',                               status: 'pending' },
-])
+const SHARE_COLORS = ['#4fffb0', '#7b6ef6', '#4fa8ff', '#ffb74f', '#ff4f6b']
+function colorFor(seed: string) {
+  let h = 0
+  for (const c of seed) h = (h * 31 + c.charCodeAt(0)) >>> 0
+  return SHARE_COLORS[h % SHARE_COLORS.length]
+}
 
-const umbraUsers = [
-  { id: 'u1', email: 'alice@example.com', name: 'alice', avatar: 'A', color: 'linear-gradient(135deg,#a78bfa,#7b6ef6)' },
-  { id: 'u2', email: 'bob@example.com',   name: 'bob',   avatar: 'B', color: 'linear-gradient(135deg,#f59e0b,#ef4444)' },
-  { id: 'u3', email: 'lea@example.com',   name: 'léa',   avatar: 'L', color: 'linear-gradient(135deg,#10b981,#3b82f6)' },
-  { id: 'u4', email: 'marc@example.com',  name: 'marc',  avatar: 'M', color: 'linear-gradient(135deg,#ec4899,#8b5cf6)' },
-]
+function toGrant(g: any): ShareGrant {
+  // A grant targets a person or a whole org, never both.
+  if (g.org) {
+    return {
+      id: g.id, name: g.org.name, email: t('nd_share_org_target'), perm: g.permission,
+      avatar: g.org.name[0].toUpperCase(), color: 'var(--surface2)', isOrg: true,
+    }
+  }
+  const label = g.user?.name || g.user?.email || '?'
+  return {
+    id: g.id, name: label, email: g.user?.email ?? '', perm: g.permission,
+    avatar: label[0].toUpperCase(), color: colorFor(g.user?.id ?? label), isOrg: false,
+  }
+}
 
-const existingEmails = computed(() => members.value.map(m => m.email))
-const searchResults  = computed(() => {
-  const q = searchQuery.value.trim().toLowerCase()
-  if (!q || q.length < 2) return []
-  return umbraUsers.filter(u =>
-    !existingEmails.value.includes(u.email) && (u.name.includes(q) || u.email.includes(q))
-  )
-})
+async function fetchShares() {
+  try {
+    const api = useApi()
+    const res = await api<{ data: any[]; canShare: boolean }>(`/nodes/${route.params.id}/members`)
+    members.value = res.data.map(toGrant)
+    canShareNode.value = res.canShare
+  } catch {
+    members.value = []
+    canShareNode.value = false
+  }
+}
+watch(showShare, (open) => { if (open) fetchShares() })
+
 const isValidEmail = (s: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s)
-const showExternalInvite = computed(() => {
-  const q = searchQuery.value.trim()
-  if (!q || searchResults.value.length > 0) return false
-  return isValidEmail(q) && !existingEmails.value.includes(q)
-})
+// There is no user directory endpoint on purpose — exposing one would leak the
+// account list. Sharing goes by exact address, and the API says whether it
+// matches an account.
+const canSubmitShare = computed(() => isValidEmail(searchQuery.value.trim()) && !shareBusy.value)
+
+async function shareWithEmail() {
+  const email = searchQuery.value.trim()
+  if (!isValidEmail(email) || shareBusy.value) return
+  shareBusy.value = true
+  try {
+    const api = useApi()
+    await api(`/nodes/${route.params.id}/members`, {
+      method: 'POST',
+      body: { email, permission: sharePerm.value },
+    })
+    searchQuery.value = ''
+    await fetchShares()
+    notify({ title: t('notif_share_done'), type: 'success' })
+  } catch (e: any) {
+    notify({ title: t('notif_share_failed'), description: e?.data?.message, type: 'error' })
+  } finally {
+    shareBusy.value = false
+  }
+}
+
+async function changeGrant(grant: ShareGrant, perm: Permission) {
+  try {
+    const api = useApi()
+    await api(`/nodes/${route.params.id}/members/${grant.id}`, {
+      method: 'PATCH',
+      body: { permission: perm },
+    })
+    await fetchShares()
+  } catch (e: any) {
+    notify({ title: t('notif_share_failed'), description: e?.data?.message, type: 'error' })
+  }
+}
+
+async function revokeMember(id: string) {
+  try {
+    const api = useApi()
+    await api(`/nodes/${route.params.id}/members/${id}`, { method: 'DELETE' })
+    await fetchShares()
+  } catch (e: any) {
+    notify({ title: t('notif_share_failed'), description: e?.data?.message, type: 'error' })
+  }
+}
+
+function blurSearch() { setTimeout(() => { searchFocused.value = false }, 150) }
 
 const permOptions = computed(() => [
   { value: 'read'    as Permission, label: t('nd_share_perm_read'),  desc: t('nd_share_perm_read_d'),  icon: 'i-lucide-eye',         color: '#4fa8ff' },
@@ -343,23 +404,9 @@ const permOptions = computed(() => [
   { value: 'admin'   as Permission, label: t('nd_share_perm_admin'), desc: t('nd_share_perm_admin_d'), icon: 'i-lucide-chess-queen', color: '#7b6ef6' },
 ])
 
-function selectUser(user: typeof umbraUsers[0]) {
-  members.value.push({ id: Date.now().toString(), email: user.email, name: user.name, perm: sharePerm.value, avatar: user.avatar, color: user.color, status: 'active' })
-  searchQuery.value = ''
-}
-function inviteExternal() {
-  const email = searchQuery.value.trim()
-  if (!isValidEmail(email)) return
-  members.value.push({ id: Date.now().toString(), email, name: email.split('@')[0] ?? email, perm: sharePerm.value, avatar: (email[0] ?? '?').toUpperCase(), color: 'var(--surface2)', status: 'pending' })
-  searchQuery.value = ''
-}
-function blurSearch() { setTimeout(() => { searchFocused.value = false }, 150) }
-
-function revokeMember(id: string) {
-  members.value = members.value.filter(m => m.id !== id)
-}
-const activeMembers  = computed(() => members.value.filter(m => m.status === 'active'))
-const pendingMembers = computed(() => members.value.filter(m => m.status === 'pending'))
+// A node share always targets an existing account or org, so there is no
+// pending state here — unlike an org invitation.
+const activeMembers = computed(() => members.value)
 
 // Activity log (first 5 shown by default, all when expanded)
 const extendedActivity = computed(() => [
@@ -934,7 +981,7 @@ async function doTransfer() {
           <!-- Search -->
           <div class="form-group">
             <label class="form-label">{{ t('nd_share_add_user') }}</label>
-            <div class="search-wrap">
+            <div v-if="canShareNode" class="search-wrap">
               <div class="search-input-row">
                 <UIcon name="i-lucide-search" class="search-ico" style="width:13px;height:13px" />
                 <input
@@ -943,31 +990,24 @@ async function doTransfer() {
                   :placeholder="t('nd_share_search_ph')"
                   @focus="searchFocused = true"
                   @blur="blurSearch()"
+                  @keyup.enter="shareWithEmail"
                 />
+                <button class="btn-accent-sm" :disabled="!canSubmitShare" @click="shareWithEmail">
+                  {{ t('nd_share_add') }}
+                </button>
               </div>
-              <div v-if="searchFocused && (searchResults.length > 0 || showExternalInvite)" class="search-dropdown">
-                <div v-for="u in searchResults" :key="u.id" class="search-result" @mousedown.prevent="selectUser(u)">
-                  <div class="result-avatar" :style="`background: ${u.color}`">{{ u.avatar }}</div>
+              <div v-if="searchFocused && searchQuery.trim() && !canSubmitShare" class="search-dropdown">
+                <div class="search-result">
                   <div class="result-info">
-                    <div class="result-name">{{ u.name }}</div>
-                    <div class="result-email">{{ u.email }}</div>
+                    <div class="result-email">{{ t('nd_share_email_hint') }}</div>
                   </div>
-                  <span class="result-badge">{{ t('nd_share_badge_umbra') }}</span>
-                </div>
-                <div v-if="showExternalInvite" class="search-result external" @mousedown.prevent="inviteExternal">
-                  <div class="result-avatar ext-avatar">✉</div>
-                  <div class="result-info">
-                    <div class="result-name">{{ t('nd_share_invite', { q: searchQuery }) }}</div>
-                    <div class="result-email">{{ t('nd_share_invite_sub') }}</div>
-                  </div>
-                  <span class="result-badge ext">{{ t('nd_share_badge_new') }}</span>
                 </div>
               </div>
             </div>
           </div>
 
           <!-- Permission picker -->
-          <div class="form-group">
+          <div v-if="canShareNode" class="form-group">
             <label class="form-label">{{ t('nd_share_default_perm') }}</label>
             <div class="share-perm-grid">
               <div
@@ -992,25 +1032,16 @@ async function doTransfer() {
                   <div class="member-name">{{ m.name }}</div>
                   <div class="member-email">{{ m.email }}</div>
                 </div>
-                <select class="perm-select" :value="m.perm" @change="m.perm = ($event.target as HTMLSelectElement).value as Permission">
+                <select
+                  v-if="canShareNode"
+                  class="perm-select"
+                  :value="m.perm"
+                  @change="changeGrant(m, ($event.target as HTMLSelectElement).value as Permission)"
+                >
                   <option v-for="p in permOptions" :key="p.value" :value="p.value">{{ p.label }}</option>
                 </select>
-                <button class="revoke-btn" @click="revokeMember(m.id)"><UIcon name="i-lucide-x" style="width:10px;height:10px" /></button>
-              </div>
-            </div>
-          </div>
-
-          <!-- Pending -->
-          <div v-if="pendingMembers.length > 0" class="form-group">
-            <label class="form-label">{{ t('nd_share_pending', { n: pendingMembers.length }) }}</label>
-            <div class="members-list">
-              <div v-for="m in pendingMembers" :key="m.id" class="member-item pending">
-                <div class="pending-avatar">?</div>
-                <div class="member-info">
-                  <div class="member-name">{{ m.email }}</div>
-                  <div class="member-email pending-lbl"><UIcon name="i-lucide-hourglass" style="width:10px;height:10px" /> {{ t('nd_share_pending_lbl', { p: m.perm }) }}</div>
-                </div>
-                <button class="revoke-btn" @click="revokeMember(m.id)"><UIcon name="i-lucide-x" style="width:10px;height:10px" /></button>
+                <span v-else class="role-static">{{ m.perm }}</span>
+                <button v-if="canShareNode" class="revoke-btn" @click="revokeMember(m.id)"><UIcon name="i-lucide-x" style="width:10px;height:10px" /></button>
               </div>
             </div>
           </div>

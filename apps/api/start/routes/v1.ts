@@ -10,6 +10,7 @@ const AlertsController      = () => import('#controllers/alerts_controller')
 const ConnectionsController = () => import('#controllers/connections_controller')
 const ConnectController     = () => import('#controllers/connect_controller')
 const OrgsController        = () => import('#controllers/organizations_controller')
+const NodeMembersController = () => import('#controllers/node_members_controller')
 
 router
   .group(() => {
@@ -46,6 +47,10 @@ router
         router.get('/nodes/:id/peers', [NodesController, 'peers'])
         router.post('/nodes/:id/enroll-token', [NodesController, 'enrollToken'])
         router.post('/nodes/:id/transfer', [NodesController, 'transfer'])
+        router.get('/nodes/:id/members', [NodeMembersController, 'index'])
+        router.post('/nodes/:id/members', [NodeMembersController, 'store'])
+        router.patch('/nodes/:id/members/:memberId', [NodeMembersController, 'update'])
+        router.delete('/nodes/:id/members/:memberId', [NodeMembersController, 'destroy'])
 
         router.get('/api-keys', [ApiKeysController, 'index'])
         router.post('/api-keys', [ApiKeysController, 'store'])

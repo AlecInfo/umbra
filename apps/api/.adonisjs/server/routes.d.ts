@@ -23,6 +23,10 @@ export type ScannedRoutes = {
     'nodes.peers': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'nodes.enroll_token': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'nodes.transfer': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+    'node_members.index': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+    'node_members.store': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+    'node_members.update': { paramsTuple: [ParamValue,ParamValue]; params: {'id': ParamValue,'memberId': ParamValue} }
+    'node_members.destroy': { paramsTuple: [ParamValue,ParamValue]; params: {'id': ParamValue,'memberId': ParamValue} }
     'api_keys.index': { paramsTuple?: []; params?: {} }
     'api_keys.store': { paramsTuple?: []; params?: {} }
     'api_keys.revoke': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
@@ -55,6 +59,7 @@ export type ScannedRoutes = {
     'nodes.show': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'nodes.metrics': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'nodes.peers': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+    'node_members.index': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'api_keys.index': { paramsTuple?: []; params?: {} }
     'alerts.index': { paramsTuple?: []; params?: {} }
     'connections.index': { paramsTuple?: []; params?: {} }
@@ -72,6 +77,7 @@ export type ScannedRoutes = {
     'nodes.show': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'nodes.metrics': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'nodes.peers': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+    'node_members.index': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'api_keys.index': { paramsTuple?: []; params?: {} }
     'alerts.index': { paramsTuple?: []; params?: {} }
     'connections.index': { paramsTuple?: []; params?: {} }
@@ -89,6 +95,7 @@ export type ScannedRoutes = {
     'nodes.store': { paramsTuple?: []; params?: {} }
     'nodes.enroll_token': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'nodes.transfer': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+    'node_members.store': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'api_keys.store': { paramsTuple?: []; params?: {} }
     'orgs.store': { paramsTuple?: []; params?: {} }
     'orgs.accept_invitation': { paramsTuple?: []; params?: {} }
@@ -100,6 +107,7 @@ export type ScannedRoutes = {
   PATCH: {
     'auth.update_profile': { paramsTuple?: []; params?: {} }
     'nodes.update': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+    'node_members.update': { paramsTuple: [ParamValue,ParamValue]; params: {'id': ParamValue,'memberId': ParamValue} }
     'api_keys.revoke': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'orgs.update': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'orgs.update_member': { paramsTuple: [ParamValue,ParamValue]; params: {'id': ParamValue,'userId': ParamValue} }
@@ -108,6 +116,7 @@ export type ScannedRoutes = {
     'auth.revoke_session': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'auth.delete_account': { paramsTuple?: []; params?: {} }
     'nodes.destroy': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+    'node_members.destroy': { paramsTuple: [ParamValue,ParamValue]; params: {'id': ParamValue,'memberId': ParamValue} }
     'api_keys.destroy': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'orgs.destroy': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'orgs.remove_member': { paramsTuple: [ParamValue,ParamValue]; params: {'id': ParamValue,'userId': ParamValue} }

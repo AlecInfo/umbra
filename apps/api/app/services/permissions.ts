@@ -58,3 +58,22 @@ export async function findNodeWithPermission(
   const granted = await resolveNodePermission(userId, node)
   return hasPermission(granted, required) ? node : null
 }
+
+/**
+ * Who may extend access to a node.
+ *
+ * Deliberately stricter than holding 'admin' on it: someone granted admin
+ * through a share can administer the machine, but cannot pass it on. Access
+ * spreads only from the account that actually owns the node — otherwise a
+ * chain of re-shares grows without the owner ever seeing it.
+ */
+export async function canShareNode(userId: string, node: Node): Promise<boolean> {
+  if (node.ownerUserId === userId) return true
+  if (!node.ownerOrgId) return false
+
+  const membership = await OrgMember.query()
+    .where('user_id', userId)
+    .where('org_id', node.ownerOrgId)
+    .first()
+  return membership?.role === 'owner' || membership?.role === 'admin'
+}
