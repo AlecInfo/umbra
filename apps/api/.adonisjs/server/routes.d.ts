@@ -22,6 +22,7 @@ export type ScannedRoutes = {
     'nodes.metrics': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'nodes.peers': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'nodes.enroll_token': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+    'nodes.transfer': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'api_keys.index': { paramsTuple?: []; params?: {} }
     'api_keys.store': { paramsTuple?: []; params?: {} }
     'api_keys.revoke': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
@@ -87,6 +88,7 @@ export type ScannedRoutes = {
     'auth.change_password': { paramsTuple?: []; params?: {} }
     'nodes.store': { paramsTuple?: []; params?: {} }
     'nodes.enroll_token': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+    'nodes.transfer': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'api_keys.store': { paramsTuple?: []; params?: {} }
     'orgs.store': { paramsTuple?: []; params?: {} }
     'orgs.accept_invitation': { paramsTuple?: []; params?: {} }

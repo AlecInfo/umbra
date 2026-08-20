@@ -534,6 +534,50 @@ async function deleteNode() {
     deleting.value = false
   }
 }
+/* ── Transfert de propriété ─────────────────────────────────────────────── */
+interface TransferTarget { id: string | null; name: string }
+const showTransfer   = ref(false)
+const transferring   = ref(false)
+const transferTarget = ref<string | null>(null)
+const myOrgs         = ref<{ id: string; name: string; role: string }[]>([])
+
+// Personal plus every org the caller administers — the only moves the API takes.
+const transferTargets = computed<TransferTarget[]>(() => [
+  { id: null, name: t('addnode_owner_personal') },
+  ...myOrgs.value.map((o) => ({ id: o.id, name: o.name })),
+])
+
+onMounted(async () => {
+  try {
+    const api = useApi()
+    const res = await api<{ data: { id: string; name: string; role: string }[] }>('/orgs')
+    myOrgs.value = res.data.filter((o) => o.role === 'owner' || o.role === 'admin')
+  } catch { myOrgs.value = [] }
+})
+
+function openTransfer() {
+  transferTarget.value = apiNode.value?.ownerOrgId ?? null
+  showTransfer.value = true
+}
+
+async function doTransfer() {
+  if (transferring.value || !node.value) return
+  transferring.value = true
+  try {
+    const api = useApi()
+    await api(`/nodes/${node.value.id}/transfer`, {
+      method: 'POST',
+      body: { orgId: transferTarget.value },
+    })
+    showTransfer.value = false
+    await fetchNode()
+    notify({ title: t('notif_transfer_done'), type: 'success' })
+  } catch (e: any) {
+    notify({ title: t('notif_transfer_failed'), description: e?.data?.message, type: 'error' })
+  } finally {
+    transferring.value = false
+  }
+}
 </script>
 
 <template>
@@ -842,6 +886,10 @@ async function deleteNode() {
               <UIcon name="i-lucide-arrow-right-left" style="width:13px;height:13px" />
               {{ t('nd_action_enroll') }}
             </button>
+            <button v-if="transferTargets.length > 1" class="action-btn" @click="openTransfer">
+              <UIcon name="i-lucide-users" style="width:13px;height:13px" />
+              {{ t('nd_action_transfer') }}
+            </button>
             <div class="actions-separator" />
             <button class="action-btn danger" @click="showDeleteConfirm = true">
               <UIcon name="i-lucide-trash-2" style="width:13px;height:13px" />
@@ -1082,6 +1130,30 @@ async function deleteNode() {
 
   <div v-else-if="store.loading" class="state-msg">{{ t('nd_state_loading') }}</div>
   <div v-else class="state-msg">{{ t('nd_state_not_found') }}</div>
+  <!-- Transfer ownership -->
+  <div v-if="showTransfer" class="modal-overlay" @click.self="showTransfer = false">
+    <div class="modal" style="max-width:440px">
+      <div class="modal-header">
+        <div>
+          <div class="modal-title">{{ t('nd_transfer_title') }}</div>
+          <div class="modal-sub">{{ t('nd_transfer_sub') }}</div>
+        </div>
+        <button class="close-btn" @click="showTransfer = false"><UIcon name="i-lucide-x" style="width:12px;height:12px" /></button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label class="form-label">{{ t('addnode_owner') }}</label>
+          <select v-model="transferTarget" class="form-input">
+            <option v-for="o in transferTargets" :key="o.id ?? 'personal'" :value="o.id">{{ o.name }}</option>
+          </select>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-ghost" @click="showTransfer = false">{{ t('common_cancel') }}</button>
+        <button class="btn-accent-sm" :disabled="transferring" @click="doTransfer">{{ t('nd_transfer_confirm') }}</button>
+      </div>
+    </div>
+  </div>
 </template>
 
 <style scoped>

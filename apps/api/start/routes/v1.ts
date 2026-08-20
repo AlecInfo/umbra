@@ -45,6 +45,7 @@ router
         router.get('/nodes/:id/metrics', [NodesController, 'metrics'])
         router.get('/nodes/:id/peers', [NodesController, 'peers'])
         router.post('/nodes/:id/enroll-token', [NodesController, 'enrollToken'])
+        router.post('/nodes/:id/transfer', [NodesController, 'transfer'])
 
         router.get('/api-keys', [ApiKeysController, 'index'])
         router.post('/api-keys', [ApiKeysController, 'store'])

@@ -44,3 +44,13 @@ export const listNodesValidator = vine.compile(
     perPage: vine.number().range([1, 200]).optional(),
   })
 )
+
+// Moving a node between owners. null means "back to me, personally".
+export const transferNodeValidator = vine.compile(
+  vine.object({
+    orgId: vine
+      .string()
+      .regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)
+      .nullable(),
+  })
+)

@@ -7,13 +7,14 @@ import NodeMetric from '#models/node_metric'
 import NodePeerStat from '#models/node_peer_stat'
 import AgentToken from '#models/agent_token'
 import { hashAgentToken } from '#services/agent_auth'
+import { resolveOrgRole } from '#services/organizations'
 import { headscaleClient, tenantForOwner } from '#services/headscale_client'
 import { userOrgIds, accessibleNodesQuery } from '#services/node_scope'
 import { findNodeWithPermission } from '#services/permissions'
 import OrgMember from '#models/org_member'
 import {
   createNodeValidator,
-  updateNodeValidator,
+  updateNodeValidator, transferNodeValidator,
   listNodesValidator,
 } from '#validators/node'
 
@@ -136,6 +137,60 @@ export default class NodesController {
     node.merge(payload)
     await node.save()
     return { node: node.serialize() }
+  }
+
+  // POST /nodes/:id/transfer — move a node between personal and org ownership
+  //
+  // This is not a cosmetic field: ownership decides the Headscale tenant, and
+  // therefore who can reach the machine at all. Doing it through the generic
+  // PATCH would hide that behind a field update.
+  async transfer({ auth, params, request, response }: HttpContext) {
+    const user = auth.getUserOrFail()
+    const node = await findNodeWithPermission(user.id, params.id, 'admin')
+    if (!node) return response.notFound({ message: 'Node introuvable' })
+
+    const { orgId } = await request.validateUsing(transferNodeValidator)
+
+    if (orgId) {
+      // You cannot hand a node to an org you do not administer.
+      const role = await resolveOrgRole(user.id, orgId)
+      if (role !== 'owner' && role !== 'admin') {
+        return response.forbidden({ message: "Vous n'administrez pas cette organisation" })
+      }
+    }
+
+    if (node.ownerOrgId === orgId && (orgId || node.ownerUserId === user.id)) {
+      return { node: node.serialize(), moved: false }
+    }
+
+    node.ownerUserId = orgId ? null : user.id
+    node.ownerOrgId = orgId
+    await node.save()
+
+    // Move it in Headscale straight away. The heartbeat self-heal would get
+    // there eventually, but its throttle can be an hour out — and until then
+    // the new owners cannot reach a node the dashboard shows as theirs.
+    let moved = false
+    if (headscaleClient.isConfigured && node.wireguardIp) {
+      const tenant = tenantForOwner(node.ownerUserId, node.ownerOrgId)
+      try {
+        await headscaleClient.ensureUser(tenant)
+        moved = (await headscaleClient.ensureNodeTenant(node.wireguardIp, tenant)) === 'moved'
+        await headscaleClient.syncPolicy()
+        await headscaleClient.enableExitRoutes(node.wireguardIp, tenant)
+      } catch (err) {
+        console.error(`Moving node ${node.id} to tenant ${tenant} failed:`, err)
+      }
+    }
+
+    if (node.ownerOrgId) await node.load('ownerOrg', (q) => q.select('id', 'name'))
+    return {
+      node: {
+        ...node.serialize(),
+        org: node.ownerOrg ? { id: node.ownerOrg.id, name: node.ownerOrg.name } : null,
+      },
+      moved,
+    }
   }
 
   async destroy({ auth, params, response }: HttpContext) {

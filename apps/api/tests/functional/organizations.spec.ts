@@ -217,3 +217,86 @@ test.group('Organizations', () => {
     assert.notEqual(created.body().org.id, first.orgId)
   })
 })
+
+test.group('Node ownership transfer', () => {
+  test('an owner moves a personal node into their org, and back', async ({ client, assert }) => {
+    const { owner, orgId } = await orgWithOwner(client, 'transfer@test.io')
+
+    const created = await client
+      .post('/api/v1/nodes')
+      .headers(auth(owner.token))
+      .json({ name: 'my-pi', category: 'sbc' })
+    const nodeId = created.body().node.id
+
+    const moved = await client
+      .post(`/api/v1/nodes/${nodeId}/transfer`)
+      .headers(auth(owner.token))
+      .json({ orgId })
+    moved.assertStatus(200)
+    assert.equal(moved.body().node.ownerOrgId, orgId)
+    assert.isNull(moved.body().node.ownerUserId)
+    assert.equal(moved.body().node.org.id, orgId)
+
+    const back = await client
+      .post(`/api/v1/nodes/${nodeId}/transfer`)
+      .headers(auth(owner.token))
+      .json({ orgId: null })
+    back.assertStatus(200)
+    assert.isNull(back.body().node.ownerOrgId)
+    assert.equal(back.body().node.ownerUserId, owner.id)
+  })
+
+  test('a member of the org sees a transferred node', async ({ client, assert }) => {
+    const { owner, orgId } = await orgWithOwner(client, 'sharer@test.io')
+    const member = await joinOrg(client, orgId, owner.token, 'sees@test.io', 'member')
+
+    const created = await client
+      .post('/api/v1/nodes')
+      .headers(auth(owner.token))
+      .json({ name: 'shared-pi', category: 'sbc' })
+
+    const before = await client.get('/api/v1/nodes').headers(auth(member.user.token))
+    assert.lengthOf(before.body().data, 0)
+
+    await client
+      .post(`/api/v1/nodes/${created.body().node.id}/transfer`)
+      .headers(auth(owner.token))
+      .json({ orgId })
+
+    const after = await client.get('/api/v1/nodes').headers(auth(member.user.token))
+    assert.lengthOf(after.body().data, 1)
+    assert.equal(after.body().data[0].org.name, 'Acme Corp')
+  })
+
+  test('you cannot hand a node to an org you do not administer', async ({ client }) => {
+    const { owner, orgId } = await orgWithOwner(client, 'boss@test.io')
+    const member = await joinOrg(client, orgId, owner.token, 'lowly@test.io', 'member')
+
+    const own = await client
+      .post('/api/v1/nodes')
+      .headers(auth(member.user.token))
+      .json({ name: 'personal-pi', category: 'sbc' })
+
+    const refused = await client
+      .post(`/api/v1/nodes/${own.body().node.id}/transfer`)
+      .headers(auth(member.user.token))
+      .json({ orgId })
+    refused.assertStatus(403)
+  })
+
+  test("someone else's node cannot be transferred", async ({ client }) => {
+    const { owner } = await orgWithOwner(client, 'mine@test.io')
+    const stranger = await account(client, 'thief@test.io')
+
+    const created = await client
+      .post('/api/v1/nodes')
+      .headers(auth(owner.token))
+      .json({ name: 'not-yours', category: 'sbc' })
+
+    const refused = await client
+      .post(`/api/v1/nodes/${created.body().node.id}/transfer`)
+      .headers(auth(stranger.token))
+      .json({ orgId: null })
+    refused.assertStatus(404)
+  })
+})
