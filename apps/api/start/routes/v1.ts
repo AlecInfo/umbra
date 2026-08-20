@@ -11,6 +11,7 @@ const ConnectionsController = () => import('#controllers/connections_controller'
 const ConnectController     = () => import('#controllers/connect_controller')
 const OrgsController        = () => import('#controllers/organizations_controller')
 const NodeMembersController = () => import('#controllers/node_members_controller')
+const AdminController       = () => import('#controllers/admin_controller')
 
 router
   .group(() => {
@@ -78,6 +79,21 @@ router
         router.delete('/connect', [ConnectController, 'disconnect'])
       })
       .use(middleware.auth())
+
+    // Instance administration. Outside the node permission system on purpose:
+    // an operator manages accounts, never gains access to their machines.
+    router
+      .group(() => {
+        router.get('/overview', [AdminController, 'overview'])
+        router.get('/users', [AdminController, 'users'])
+        router.post('/users', [AdminController, 'createUser'])
+        router.patch('/users/:id', [AdminController, 'updateUser'])
+        router.delete('/users/:id', [AdminController, 'deleteUser'])
+        router.get('/settings', [AdminController, 'settings'])
+        router.patch('/settings', [AdminController, 'updateSettings'])
+      })
+      .prefix('/admin')
+      .use([middleware.auth(), middleware.operator()])
 
     router
       .group(() => {

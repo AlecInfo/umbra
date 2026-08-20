@@ -44,6 +44,14 @@ export default class User extends compose(BaseModel, AuthFinder) {
   @column()
   declare isActive: boolean
 
+  // 'operator' runs this deployment: accounts and instance settings. It grants
+  // no permission on anyone's nodes — see services/instance.ts.
+  @column()
+  declare instanceRole: 'user' | 'operator'
+
+  @column({ serializeAs: null })
+  declare mustChangePassword: boolean
+
   @column.dateTime({ autoCreate: true })
   declare createdAt: DateTime
 

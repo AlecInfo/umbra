@@ -14,4 +14,5 @@ export const middleware = router.named({
   auth: () => import('#middleware/auth'),
   silentAuth: () => import('#middleware/silent_auth'),
   agent: () => import('#middleware/agent_auth_middleware'),
+  operator: () => import('#middleware/operator_middleware'),
 })

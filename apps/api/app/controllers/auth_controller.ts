@@ -1,6 +1,9 @@
 import type { HttpContext } from '@adonisjs/core/http'
 import hash from '@adonisjs/core/services/hash'
+import { DateTime } from 'luxon'
 import User from '#models/user'
+import Invitation from '#models/invitation'
+import { getInstanceSettings, isFirstAccount } from '#services/instance'
 import AuditLog from '#models/audit_log'
 import { headscaleClient, tenantForOwner } from '#services/headscale_client'
 import {
@@ -19,12 +22,40 @@ export default class AuthController {
       return response.conflict({ message: 'Un compte existe déjà avec cet email' })
     }
 
+    // The first account always gets in and becomes the operator: a fresh
+    // install with registration closed would otherwise lock out the very
+    // person who just deployed it.
+    const first = await isFirstAccount()
+    if (!first) {
+      const { registrationMode } = await getInstanceSettings()
+
+      if (registrationMode === 'closed') {
+        return response.forbidden({
+          message: 'Les inscriptions sont fermées sur cette instance',
+        })
+      }
+
+      if (registrationMode === 'invite_only') {
+        const invited = await Invitation.query()
+          .whereRaw('lower(email) = ?', [payload.email.toLowerCase()])
+          .whereNull('accepted_at')
+          .where('expires_at', '>', DateTime.now().toSQL())
+          .first()
+        if (!invited) {
+          return response.forbidden({
+            message: 'Cette instance est sur invitation uniquement',
+          })
+        }
+      }
+    }
+
     const user = await User.create({
       email: payload.email,
       passwordHash: payload.password,
       name: payload.name ?? null,
       emailVerified: false,
       isActive: true,
+      instanceRole: first ? 'operator' : 'user',
     })
 
     const token = await User.accessTokens.create(user, ['*'], {
@@ -69,6 +100,8 @@ export default class AuthController {
 
     return {
       user: user.serialize(),
+      // The dashboard forces a change before letting them do anything else.
+      mustChangePassword: user.mustChangePassword,
       token: {
         type: token.type,
         value: token.value!.release(),
@@ -99,7 +132,7 @@ export default class AuthController {
 
   async me({ auth }: HttpContext) {
     const user = auth.getUserOrFail()
-    return { user: user.serialize() }
+    return { user: user.serialize(), mustChangePassword: user.mustChangePassword }
   }
 
   async updateProfile({ auth, request }: HttpContext) {
@@ -126,6 +159,8 @@ export default class AuthController {
     }
 
     user.passwordHash = newPassword
+    // Whatever brought them here, the temporary password is now gone.
+    user.mustChangePassword = false
     await user.save()
 
     return response.noContent()

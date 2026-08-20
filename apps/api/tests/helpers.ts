@@ -25,6 +25,14 @@ export async function resetDatabase() {
     await db.rawQuery(`TRUNCATE TABLE "${table}" CASCADE`)
   }
 
+  // Instance settings are a single pinned row rather than tenant data, so
+  // truncation leaves them alone — and a test that closes registration would
+  // otherwise lock every later test out.
+  await db.rawQuery(`
+    INSERT INTO instance_settings (id, registration_mode) VALUES (1, 'open')
+    ON CONFLICT (id) DO UPDATE SET registration_mode = 'open'
+  `)
+
   // Throttles count per IP, and the whole suite comes from 127.0.0.1: without
   // this, tests would exhaust the real signup limit a few files in. Clearing
   // between tests keeps production limits honest instead of loosening them for

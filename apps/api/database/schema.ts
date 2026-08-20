@@ -192,6 +192,17 @@ export class DeviceSchema extends BaseModel {
   declare wireguardPubkey: string | null
 }
 
+export class InstanceSettingSchema extends BaseModel {
+  static $columns = ['id', 'registrationMode', 'updatedAt'] as const
+  $columns = InstanceSettingSchema.$columns
+  @column({ isPrimary: true })
+  declare id: number
+  @column()
+  declare registrationMode: string
+  @column.dateTime({ autoCreate: true, autoUpdate: true })
+  declare updatedAt: DateTime
+}
+
 export class InvitationSchema extends BaseModel {
   static $columns = ['acceptedAt', 'createdAt', 'email', 'expiresAt', 'id', 'invitedBy', 'nodeId', 'orgId', 'permission', 'role', 'tokenHash'] as const
   $columns = InvitationSchema.$columns
@@ -425,7 +436,7 @@ export class OrganizationSchema extends BaseModel {
 }
 
 export class UserSchema extends BaseModel {
-  static $columns = ['avatarUrl', 'createdAt', 'deletedAt', 'email', 'emailVerified', 'exitNodeId', 'githubId', 'googleId', 'id', 'isActive', 'name', 'passwordHash', 'updatedAt'] as const
+  static $columns = ['avatarUrl', 'createdAt', 'deletedAt', 'email', 'emailVerified', 'exitNodeId', 'githubId', 'googleId', 'id', 'instanceRole', 'isActive', 'mustChangePassword', 'name', 'passwordHash', 'updatedAt'] as const
   $columns = UserSchema.$columns
   @column()
   declare avatarUrl: string | null
@@ -446,7 +457,11 @@ export class UserSchema extends BaseModel {
   @column({ isPrimary: true })
   declare id: string
   @column()
+  declare instanceRole: string
+  @column()
   declare isActive: boolean
+  @column()
+  declare mustChangePassword: boolean
   @column()
   declare name: string | null
   @column()
