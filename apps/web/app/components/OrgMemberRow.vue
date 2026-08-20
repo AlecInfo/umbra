@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import type { OrgMember, OrgRole } from '~/types/settings'
 
+const { t } = useT()
+
 defineProps<{
   member: OrgMember
   isMe?:  boolean
@@ -20,12 +22,12 @@ defineEmits<{
     <div class="member-info">
       <div class="member-name">
         {{ member.name }}
-        <span v-if="isMe" class="you-badge">vous</span>
+        <span v-if="isMe" class="you-badge">{{ t('org_you') }}</span>
       </div>
       <div class="member-email">{{ member.email }}</div>
     </div>
 
-    <div v-if="member.status === 'pending'" class="pending-chip"><UIcon name="i-lucide-hourglass" style="width:10px;height:10px" /> En attente</div>
+    <div v-if="member.status === 'pending'" class="pending-chip"><UIcon name="i-lucide-hourglass" style="width:10px;height:10px" /> {{ t('org_pending') }}</div>
     <select
       v-else-if="member.role !== 'owner'"
       class="role-select"

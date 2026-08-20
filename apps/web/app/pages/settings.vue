@@ -255,6 +255,195 @@ async function deleteAccount() {
     deleteAccConfirm.value  = ''
   }
 }
+/* ── Organisations ─────────────────────────────────────────────────────── */
+import type { OrgRole, OrgMember } from '~/types/settings'
+
+interface Org { id: string; name: string; slug: string; plan: string; role: OrgRole; memberCount: number }
+interface PendingInvite { id: string; email: string; role: OrgRole; expiresAt: string }
+
+const orgs        = ref<Org[]>([])
+const activeOrgId = ref<string | null>(null)
+const members     = ref<OrgMember[]>([])
+const pending     = ref<PendingInvite[]>([])
+const orgLoading  = ref(false)
+
+const activeOrg = computed(() => orgs.value.find(o => o.id === activeOrgId.value) ?? null)
+const canManage = computed(() => activeOrg.value?.role === 'owner' || activeOrg.value?.role === 'admin')
+
+const assignableRoles = computed(() => [
+  { value: 'admin'  as OrgRole, label: t('org_role_admin') },
+  { value: 'member' as OrgRole, label: t('org_role_member') },
+])
+
+// Deterministic avatar colour so a member keeps the same one across reloads.
+const AVATAR_COLORS = ['#4fffb0', '#7b6ef6', '#4fa8ff', '#ffb74f', '#ff4f6b']
+function avatarFor(seed: string) {
+  let h = 0
+  for (const c of seed) h = (h * 31 + c.charCodeAt(0)) >>> 0
+  return AVATAR_COLORS[h % AVATAR_COLORS.length]
+}
+function toMember(m: any): OrgMember {
+  const label = m.name || m.email || '?'
+  return {
+    id:     m.userId,
+    name:   label,
+    email:  m.email ?? '',
+    avatar: label[0].toUpperCase(),
+    color:  avatarFor(m.userId),
+    role:   m.role,
+    status: 'active',
+  }
+}
+function inviteAsMember(i: PendingInvite): OrgMember {
+  return {
+    id:     i.id,
+    name:   i.email,
+    email:  i.email,
+    avatar: i.email[0].toUpperCase(),
+    color:  'var(--surface2)',
+    role:   i.role,
+    status: 'pending',
+  }
+}
+// Pending invitations sit under the real members, visibly waiting.
+const memberRows = computed(() => [...members.value, ...pending.value.map(inviteAsMember)])
+
+async function fetchOrgs() {
+  orgLoading.value = true
+  try {
+    const api = useApi()
+    const res = await api<{ data: Org[] }>('/orgs')
+    orgs.value = res.data
+    if (!activeOrgId.value || !res.data.some(o => o.id === activeOrgId.value)) {
+      activeOrgId.value = res.data[0]?.id ?? null
+    }
+    if (activeOrgId.value) await fetchOrgDetail()
+    else { members.value = []; pending.value = [] }
+  } catch {
+    orgs.value = []
+  } finally {
+    orgLoading.value = false
+  }
+}
+
+async function fetchOrgDetail() {
+  if (!activeOrgId.value) return
+  const api = useApi()
+  const detail = await api<{ members: any[] }>(`/orgs/${activeOrgId.value}`)
+  members.value = detail.members.map(toMember)
+
+  pending.value = []
+  if (!canManage.value) return
+  try {
+    const inv = await api<{ data: PendingInvite[] }>(`/orgs/${activeOrgId.value}/invitations`)
+    pending.value = inv.data
+  } catch { /* a member simply has no business seeing these */ }
+}
+
+onMounted(fetchOrgs)
+
+/* Create */
+const showCreateOrg = ref(false)
+const newOrgName    = ref('')
+const creatingOrg   = ref(false)
+async function createOrg() {
+  if (!newOrgName.value.trim() || creatingOrg.value) return
+  creatingOrg.value = true
+  try {
+    const api = useApi()
+    const res = await api<{ org: Org }>('/orgs', { method: 'POST', body: { name: newOrgName.value.trim() } })
+    activeOrgId.value = res.org.id
+    showCreateOrg.value = false
+    newOrgName.value = ''
+    await fetchOrgs()
+    notify({ title: t('notif_org_created'), type: 'success' })
+  } catch (e: any) {
+    notify({ title: t('notif_org_create_failed'), description: e?.data?.message, type: 'error' })
+  } finally {
+    creatingOrg.value = false
+  }
+}
+
+/* Invite — mail is not wired up, so the token is shown once for the inviter to pass on */
+const showInvite   = ref(false)
+const inviteEmail  = ref('')
+const inviteRole   = ref<OrgRole>('member')
+const inviting     = ref(false)
+const inviteToken  = ref<string | null>(null)
+const inviteCopied = ref(false)
+function openInvite() {
+  inviteEmail.value = ''
+  inviteRole.value  = 'member'
+  inviteToken.value = null
+  showInvite.value  = true
+}
+async function sendInvite() {
+  if (!inviteEmail.value.trim() || inviting.value || !activeOrgId.value) return
+  inviting.value = true
+  try {
+    const api = useApi()
+    const res = await api<{ token: string }>(`/orgs/${activeOrgId.value}/invitations`, {
+      method: 'POST',
+      body: { email: inviteEmail.value.trim(), role: inviteRole.value },
+    })
+    inviteToken.value = res.token
+    await fetchOrgDetail()
+  } catch (e: any) {
+    notify({ title: t('notif_invite_failed'), description: e?.data?.message, type: 'error' })
+  } finally {
+    inviting.value = false
+  }
+}
+async function copyInvite() {
+  if (!inviteToken.value) return
+  await navigator.clipboard.writeText(inviteToken.value)
+  inviteCopied.value = true
+  setTimeout(() => (inviteCopied.value = false), 2000)
+}
+
+/* Join */
+const joinToken  = ref('')
+const joining    = ref(false)
+async function joinOrg() {
+  if (!joinToken.value.trim() || joining.value) return
+  joining.value = true
+  try {
+    const api = useApi()
+    await api('/orgs/invitations/accept', { method: 'POST', body: { token: joinToken.value.trim() } })
+    joinToken.value = ''
+    await fetchOrgs()
+    notify({ title: t('notif_org_joined'), type: 'success' })
+  } catch (e: any) {
+    notify({ title: t('notif_org_join_failed'), description: e?.data?.message, type: 'error' })
+  } finally {
+    joining.value = false
+  }
+}
+
+/* Members */
+async function changeRole(member: OrgMember, role: OrgRole) {
+  try {
+    const api = useApi()
+    await api(`/orgs/${activeOrgId.value}/members/${member.id}`, { method: 'PATCH', body: { role } })
+    await fetchOrgDetail()
+  } catch (e: any) {
+    notify({ title: t('notif_role_failed'), description: e?.data?.message, type: 'error' })
+  }
+}
+
+async function removeMember(member: OrgMember) {
+  try {
+    const api = useApi()
+    if (member.status === 'pending') {
+      await api(`/orgs/${activeOrgId.value}/invitations/${member.id}`, { method: 'DELETE' })
+    } else {
+      await api(`/orgs/${activeOrgId.value}/members/${member.id}`, { method: 'DELETE' })
+    }
+    await fetchOrgs()
+  } catch (e: any) {
+    notify({ title: t('notif_remove_failed'), description: e?.data?.message, type: 'error' })
+  }
+}
 </script>
 
 <template>
@@ -362,13 +551,47 @@ async function deleteAccount() {
         <div id="equipe" class="card">
           <div class="card-header">
             <div class="card-title">{{ t('settings_team_title') }}</div>
-            <span style="font-size:10px;color:var(--muted)">{{ t('common_soon') }}</span>
+            <select v-if="orgs.length > 1" v-model="activeOrgId" class="role-select" @change="fetchOrgDetail">
+              <option v-for="o in orgs" :key="o.id" :value="o.id">{{ o.name }}</option>
+            </select>
+            <span v-else-if="activeOrg" style="font-size:10px;color:var(--muted)">{{ activeOrg.name }}</span>
           </div>
-          <div class="card-body">
-            <SettingRow :label="t('settings_team_invite_label')" :sub="t('settings_team_invite_sub')">
-              <span style="font-size:10px;color:var(--muted)">{{ t('common_soon') }}</span>
+
+          <!-- No org yet: create one, or redeem an invitation -->
+          <div v-if="!activeOrg" class="card-body">
+            <SettingRow :label="t('settings_team_create_label')" :sub="t('settings_team_create_sub')">
+              <button class="btn-accent-sm" @click="showCreateOrg = true">{{ t('settings_team_create') }}</button>
+            </SettingRow>
+            <SettingRow :label="t('settings_team_join_label')" :sub="t('settings_team_join_sub')">
+              <div style="display:flex;gap:6px">
+                <input v-model="joinToken" class="form-input" style="width:200px" :placeholder="t('settings_team_join_ph')" @keyup.enter="joinOrg" />
+                <button class="btn-ghost" :disabled="joining" @click="joinOrg">{{ t('settings_team_join') }}</button>
+              </div>
             </SettingRow>
           </div>
+
+          <template v-else>
+            <div class="org-members">
+              <OrgMemberRow
+                v-for="m in memberRows"
+                :key="m.id"
+                :member="m"
+                :is-me="m.id === auth.user?.id"
+                :roles="assignableRoles"
+                @update:role="(r) => changeRole(m, r)"
+                @remove="removeMember(m)"
+              />
+            </div>
+            <div class="card-body">
+              <SettingRow :label="t('settings_team_invite_label')" :sub="t('settings_team_invite_sub')">
+                <button v-if="canManage" class="btn-accent-sm" @click="openInvite">{{ t('settings_team_invite') }}</button>
+                <span v-else style="font-size:10px;color:var(--muted)">{{ t('settings_team_invite_admin_only') }}</span>
+              </SettingRow>
+              <SettingRow :label="t('settings_team_plan_label')" :sub="t('settings_team_plan_sub')">
+                <span class="mono-val">{{ pluralCount('settings_team_members', activeOrg.memberCount) }}</span>
+              </SettingRow>
+            </div>
+          </template>
         </div>
 
         <!-- Agent & réseau -->
@@ -675,6 +898,66 @@ async function deleteAccount() {
     </div>
   </div>
 
+  <!-- Create organisation -->
+  <div v-if="showCreateOrg" class="modal-overlay" @click.self="showCreateOrg = false">
+    <div class="modal" style="max-width:420px">
+      <div class="modal-header">
+        <div class="modal-title">{{ t('modal_create_org_title') }}</div>
+        <button class="close-btn" @click="showCreateOrg = false"><UIcon name="i-lucide-x" style="width:12px;height:12px" /></button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label class="form-label">{{ t('modal_create_org_name') }}</label>
+          <input v-model="newOrgName" class="form-input" type="text" :placeholder="t('modal_create_org_ph')" autofocus @keyup.enter="createOrg" />
+        </div>
+        <div class="modal-sub">{{ t('modal_create_org_hint') }}</div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-ghost" @click="showCreateOrg = false">{{ t('common_cancel') }}</button>
+        <button class="btn-accent-sm" :disabled="creatingOrg || !newOrgName.trim()" @click="createOrg">{{ t('common_create') }}</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Invite a member -->
+  <div v-if="showInvite" class="modal-overlay" @click.self="showInvite = false">
+    <div class="modal" style="max-width:460px">
+      <div class="modal-header">
+        <div class="modal-title">{{ t('modal_invite_title') }}</div>
+        <button class="close-btn" @click="showInvite = false"><UIcon name="i-lucide-x" style="width:12px;height:12px" /></button>
+      </div>
+
+      <!-- The token is shown once: there is no mail delivery yet -->
+      <div v-if="inviteToken" class="modal-body">
+        <div class="modal-sub">{{ t('modal_invite_token_hint', { email: inviteEmail }) }}</div>
+        <div class="cmd-block" style="margin-top:10px">
+          <button class="cmd-copy" @click="copyInvite">
+            <template v-if="inviteCopied"><UIcon name="i-lucide-check" style="width:10px;height:10px" /> {{ t('onb_cmd_copied') }}</template>
+            <template v-else>{{ t('onb_cmd_copy') }}</template>
+          </button>
+          <div class="cmd-scroll"><pre class="cmd-pre"><span class="cmd-accent">{{ inviteToken }}</span></pre></div>
+        </div>
+      </div>
+
+      <div v-else class="modal-body">
+        <div class="form-group">
+          <label class="form-label">{{ t('modal_invite_email') }}</label>
+          <input v-model="inviteEmail" class="form-input" type="email" placeholder="collegue@exemple.com" autofocus @keyup.enter="sendInvite" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">{{ t('modal_invite_role') }}</label>
+          <select v-model="inviteRole" class="form-input">
+            <option v-for="r in assignableRoles" :key="r.value" :value="r.value">{{ r.label }}</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button class="btn-ghost" @click="showInvite = false">{{ inviteToken ? t('common_close') : t('common_cancel') }}</button>
+        <button v-if="!inviteToken" class="btn-accent-sm" :disabled="inviting || !inviteEmail.trim()" @click="sendInvite">{{ t('modal_invite_send') }}</button>
+      </div>
+    </div>
+  </div>
 </template>
 
 <style scoped>
