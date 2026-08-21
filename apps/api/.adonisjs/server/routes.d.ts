@@ -36,6 +36,7 @@ export type ScannedRoutes = {
     'orgs.index': { paramsTuple?: []; params?: {} }
     'orgs.store': { paramsTuple?: []; params?: {} }
     'orgs.accept_invitation': { paramsTuple?: []; params?: {} }
+    'orgs.contacts': { paramsTuple?: []; params?: {} }
     'orgs.show': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'orgs.update': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'orgs.destroy': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
@@ -52,6 +53,13 @@ export type ScannedRoutes = {
     'admin.create_user': { paramsTuple?: []; params?: {} }
     'admin.update_user': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'admin.delete_user': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+    'admin.reset_password': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+    'admin.orgs': { paramsTuple?: []; params?: {} }
+    'admin.update_org': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+    'admin.add_org_member': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+    'admin.update_org_member': { paramsTuple: [ParamValue,ParamValue]; params: {'id': ParamValue,'userId': ParamValue} }
+    'admin.remove_org_member': { paramsTuple: [ParamValue,ParamValue]; params: {'id': ParamValue,'userId': ParamValue} }
+    'admin.delete_org': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'admin.settings': { paramsTuple?: []; params?: {} }
     'admin.update_settings': { paramsTuple?: []; params?: {} }
     'agent.register': { paramsTuple?: []; params?: {} }
@@ -71,11 +79,13 @@ export type ScannedRoutes = {
     'alerts.index': { paramsTuple?: []; params?: {} }
     'connections.index': { paramsTuple?: []; params?: {} }
     'orgs.index': { paramsTuple?: []; params?: {} }
+    'orgs.contacts': { paramsTuple?: []; params?: {} }
     'orgs.show': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'orgs.members': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'orgs.invitations': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'admin.overview': { paramsTuple?: []; params?: {} }
     'admin.users': { paramsTuple?: []; params?: {} }
+    'admin.orgs': { paramsTuple?: []; params?: {} }
     'admin.settings': { paramsTuple?: []; params?: {} }
     'agent.version': { paramsTuple?: []; params?: {} }
   }
@@ -92,11 +102,13 @@ export type ScannedRoutes = {
     'alerts.index': { paramsTuple?: []; params?: {} }
     'connections.index': { paramsTuple?: []; params?: {} }
     'orgs.index': { paramsTuple?: []; params?: {} }
+    'orgs.contacts': { paramsTuple?: []; params?: {} }
     'orgs.show': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'orgs.members': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'orgs.invitations': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'admin.overview': { paramsTuple?: []; params?: {} }
     'admin.users': { paramsTuple?: []; params?: {} }
+    'admin.orgs': { paramsTuple?: []; params?: {} }
     'admin.settings': { paramsTuple?: []; params?: {} }
     'agent.version': { paramsTuple?: []; params?: {} }
   }
@@ -115,6 +127,8 @@ export type ScannedRoutes = {
     'orgs.invite': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'connect.connect': { paramsTuple?: []; params?: {} }
     'admin.create_user': { paramsTuple?: []; params?: {} }
+    'admin.reset_password': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+    'admin.add_org_member': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'agent.register': { paramsTuple?: []; params?: {} }
     'agent.heartbeat': { paramsTuple?: []; params?: {} }
   }
@@ -126,6 +140,8 @@ export type ScannedRoutes = {
     'orgs.update': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'orgs.update_member': { paramsTuple: [ParamValue,ParamValue]; params: {'id': ParamValue,'userId': ParamValue} }
     'admin.update_user': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+    'admin.update_org': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+    'admin.update_org_member': { paramsTuple: [ParamValue,ParamValue]; params: {'id': ParamValue,'userId': ParamValue} }
     'admin.update_settings': { paramsTuple?: []; params?: {} }
   }
   DELETE: {
@@ -139,6 +155,8 @@ export type ScannedRoutes = {
     'orgs.revoke_invitation': { paramsTuple: [ParamValue,ParamValue]; params: {'id': ParamValue,'invitationId': ParamValue} }
     'connect.disconnect': { paramsTuple?: []; params?: {} }
     'admin.delete_user': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+    'admin.remove_org_member': { paramsTuple: [ParamValue,ParamValue]; params: {'id': ParamValue,'userId': ParamValue} }
+    'admin.delete_org': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
   }
 }
 declare module '@adonisjs/core/types/http' {

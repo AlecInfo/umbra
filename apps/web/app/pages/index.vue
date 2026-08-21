@@ -323,7 +323,8 @@ function onCut()               { store.disconnect() }
         @connect="onConnect"
         @cut="onCut"
       />
-      <div v-if="!store.nodes.length" class="t-empty">{{ t('dash_empty') }}</div>
+      <div v-if="store.loading && !store.nodes.length" class="t-empty">{{ t('common_loading') }}</div>
+      <div v-else-if="!store.nodes.length" class="t-empty">{{ t('dash_empty') }}</div>
     </div>
 
   </div>

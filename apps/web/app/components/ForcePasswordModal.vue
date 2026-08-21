@@ -19,6 +19,19 @@ const confirm = ref('')
 const saving  = ref(false)
 const error   = ref<string | null>(null)
 
+// Same scoring as the sign-up form: a password chosen here is a real one, and
+// nothing was telling the user how strong it was.
+const pwdStrength = computed(() => {
+  const p = next.value
+  let score = 0
+  if (p.length >= 8)          score++
+  if (/[A-Z]/.test(p))        score++
+  if (/[0-9]/.test(p))        score++
+  if (/[^A-Za-z0-9]/.test(p)) score++
+  return score
+})
+const strengthLabel = computed(() => t(`auth_strength_${pwdStrength.value}`))
+
 const tooShort = computed(() => next.value.length > 0 && next.value.length < 8)
 const mismatch = computed(() => confirm.value.length > 0 && next.value !== confirm.value)
 const canSubmit = computed(
@@ -64,6 +77,17 @@ async function submit() {
           <div class="form-group">
             <label class="form-label">{{ t('force_pwd_new') }}</label>
             <input v-model="next" class="form-input" type="password" placeholder="••••••••••" @keyup.enter="submit" />
+            <div v-if="next" class="pwd-strength">
+              <div class="strength-bars">
+                <div
+                  v-for="i in 4"
+                  :key="i"
+                  class="strength-bar"
+                  :class="{ active: pwdStrength >= i, [`s${pwdStrength}`]: true }"
+                />
+              </div>
+              <span class="strength-lbl">{{ strengthLabel }}</span>
+            </div>
             <div v-if="tooShort" class="form-error">{{ t('force_pwd_short') }}</div>
           </div>
           <div class="form-group">

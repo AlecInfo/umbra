@@ -99,7 +99,8 @@ const subtitleLabel = computed(() => {
         @connect="n => store.setConnected(n.id)"
         @cut="store.disconnect()"
       />
-      <div v-if="!filteredNodes.length" class="t-empty">{{ t('nodes_empty') }}</div>
+      <div v-if="store.loading && !store.nodes.length" class="t-empty">{{ t('common_loading') }}</div>
+      <div v-else-if="!filteredNodes.length" class="t-empty">{{ t('nodes_empty') }}</div>
     </div>
 
   </div>

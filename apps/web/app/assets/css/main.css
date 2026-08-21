@@ -1884,6 +1884,51 @@ body:has(.vpn-bar) .notif-stack { bottom: 84px; }
    until the temporary password is replaced, so nothing may cover it. */
 .force-pwd-overlay { z-index: 10000; }
 
+/* Instance section: accounts on the left, teams on the right. Two lists of
+   different lengths, so the divider runs full height rather than stopping at
+   the shorter one. */
+.inst-cols {
+  display: grid; grid-template-columns: 1fr 1fr;
+  border-top: 1px solid var(--border);
+}
+.inst-col:first-child { border-right: 1px solid var(--border); }
+.inst-col-head {
+  font-size: 10px; font-family: var(--font-mono); color: var(--muted);
+  text-transform: uppercase; letter-spacing: .06em;
+  padding: 10px 16px; border-bottom: 1px solid var(--border);
+}
+.inst-pager {
+  display: flex; align-items: center; justify-content: center; gap: 10px;
+  padding: 8px 16px; border-top: 1px solid var(--border);
+  font-size: 10px; font-family: var(--font-mono); color: var(--muted);
+}
+.pager-btn {
+  background: none; border: 1px solid var(--border2); border-radius: 3px;
+  color: var(--muted); cursor: pointer; padding: 2px 5px;
+  display: inline-flex; align-items: center; transition: all .15s;
+}
+.pager-btn:hover:not(:disabled) { color: var(--text); border-color: var(--accent); }
+.pager-btn:disabled             { opacity: .35; cursor: default; }
+
+/* A short last page must not make the whole card snap upwards: reserve the
+   height of a full page (5 rows of 53px) so the columns stay put. */
+.inst-col-list { min-height: 265px; }
+
+/* Inline "add a member" row: the email field was inheriting the full-width
+   form input and dwarfed the controls next to it. */
+.org-detail-row .form-input { font-size: 11px; padding: 4px 8px; height: 26px; }
+
+.inst-col-empty { font-size: 11px; color: var(--muted); padding: 14px 16px; }
+
+@media (max-width: 1100px) {
+  .inst-cols { grid-template-columns: 1fr; }
+  .inst-col:first-child { border-right: none; border-bottom: 1px solid var(--border); }
+}
+
+/* Members of an org, revealed under its row in the instance section. */
+.org-detail     { background: var(--bg); border-bottom: 1px solid var(--border); padding: 4px 16px 8px 54px; }
+.org-detail-row { display: flex; align-items: center; justify-content: space-between; padding: 4px 0; }
+
 .perm-chip {
   display: inline-flex; align-items: center; gap: 4px;
   font-size: 9px; font-family: var(--font-mono);

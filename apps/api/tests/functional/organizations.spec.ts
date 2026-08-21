@@ -284,6 +284,38 @@ test.group('Node ownership transfer', () => {
     refused.assertStatus(403)
   })
 
+  test('a node can be handed to someone you share a team with, but not a stranger', async ({
+    client,
+    assert,
+  }) => {
+    const { owner, orgId } = await orgWithOwner(client, 'giver@test.io')
+    const colleague = await joinOrg(client, orgId, owner.token, 'colleague2@test.io', 'member')
+    const stranger = await account(client, 'nobody@test.io')
+
+    const created = await client
+      .post('/api/v1/nodes')
+      .headers(auth(owner.token))
+      .json({ name: 'handed-over', category: 'sbc' })
+    const nodeId = created.body().node.id
+
+    const refused = await client
+      .post(`/api/v1/nodes/${nodeId}/transfer`)
+      .headers(auth(owner.token))
+      .json({ userId: stranger.id })
+    refused.assertStatus(403)
+
+    const given = await client
+      .post(`/api/v1/nodes/${nodeId}/transfer`)
+      .headers(auth(owner.token))
+      .json({ userId: colleague.user.id })
+    given.assertStatus(200)
+    assert.equal(given.body().node.ownerUserId, colleague.user.id)
+
+    // It really left: the giver keeps no personal claim on it.
+    const asColleague = await client.get(`/api/v1/nodes/${nodeId}`).headers(auth(colleague.user.token))
+    assert.equal(asColleague.body().node.permission, 'admin')
+  })
+
   test("someone else's node cannot be transferred", async ({ client }) => {
     const { owner } = await orgWithOwner(client, 'mine@test.io')
     const stranger = await account(client, 'thief@test.io')

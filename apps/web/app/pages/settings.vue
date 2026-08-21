@@ -220,12 +220,20 @@ const showDeleteAccount = ref(false)
 const deleteAccConfirm  = ref('')
 const deletingNodes     = ref(false)
 
+// Only nodes this account actually owns. The list also holds org nodes and
+// nodes shared with us: deleting those is not this button's business, and the
+// API refuses them anyway — allSettled swallowed the refusals, so the button
+// reported a count it had not deleted.
+const ownedNodes = computed(() =>
+  nodesStore.nodes.filter(n => !n.orgName && n.permission === 'admin')
+)
+
 async function deleteAllNodes() {
   if (deletingNodes.value) return
   deletingNodes.value = true
   try {
     const api = useApi()
-    const ids = nodesStore.nodes.map(n => n.id)
+    const ids = ownedNodes.value.map(n => n.id)
     await Promise.allSettled(ids.map(id => api(`/nodes/${id}`, { method: 'DELETE' })))
     await nodesStore.fetchNodes()
     showDeleteNodes.value = false
@@ -307,6 +315,16 @@ function inviteAsMember(i: PendingInvite): OrgMember {
 }
 // Pending invitations sit under the real members, visibly waiting.
 const memberRows = computed(() => [...members.value, ...pending.value.map(inviteAsMember)])
+
+// Same treatment as the instance columns: a team of thirty should not push the
+// rest of the settings page off screen.
+const TEAM_PAGE_SIZE = 5
+const teamPage = ref(1)
+const teamPageCount = computed(() => Math.max(1, Math.ceil(memberRows.value.length / TEAM_PAGE_SIZE)))
+const pagedMembers = computed(() =>
+  memberRows.value.slice((teamPage.value - 1) * TEAM_PAGE_SIZE, teamPage.value * TEAM_PAGE_SIZE)
+)
+watch(teamPageCount, (n) => { if (teamPage.value > n) teamPage.value = n })
 
 async function fetchOrgs() {
   orgLoading.value = true
@@ -431,6 +449,18 @@ async function changeRole(member: OrgMember, role: OrgRole) {
   }
 }
 
+function askRemoveMember(member: OrgMember) {
+  const isSelf = member.id === auth.user?.id
+  askConfirm(
+    isSelf ? t('confirm_leave_org_title') : t('confirm_remove_member_title'),
+    isSelf
+      ? t('confirm_leave_org', { name: activeOrg.value?.name ?? '' })
+      : t('confirm_remove_member', { name: member.name }),
+    isSelf ? t('confirm_leave_org_btn') : t('common_delete'),
+    () => removeMember(member)
+  )
+}
+
 async function removeMember(member: OrgMember) {
   try {
     const api = useApi()
@@ -450,6 +480,11 @@ interface InstanceOverview {
   nodes: number; nodesOnline: number
   settings: { registrationMode: 'open' | 'invite_only' | 'closed' }
 }
+interface AdminOrg {
+  id: string; name: string; slug: string; plan: string
+  nodeCount: number
+  members: { userId: string; email: string; name: string | null; role: OrgRole }[]
+}
 interface AdminUser {
   id: string; email: string; name: string | null
   isActive: boolean; instanceRole: 'user' | 'operator'
@@ -458,6 +493,8 @@ interface AdminUser {
 
 const overview     = ref<InstanceOverview | null>(null)
 const adminUsers   = ref<AdminUser[]>([])
+const adminOrgs    = ref<AdminOrg[]>([])
+const openOrgId    = ref<string | null>(null)
 const regMode      = ref<'open' | 'invite_only' | 'closed'>('open')
 
 const regModes = computed(() => [
@@ -470,13 +507,15 @@ async function fetchInstance() {
   if (!auth.isOperator) return
   try {
     const api = useApi()
-    const [ov, us] = await Promise.all([
+    const [ov, us, og] = await Promise.all([
       api<InstanceOverview>('/admin/overview'),
       api<{ data: AdminUser[] }>('/admin/users'),
+      api<{ data: AdminOrg[] }>('/admin/orgs'),
     ])
     overview.value = ov
     regMode.value  = ov.settings.registrationMode
     adminUsers.value = us.data
+    adminOrgs.value = og.data
   } catch { overview.value = null }
 }
 // Not onMounted: the layout kicks off fetchMe() without awaiting it, so the
@@ -503,6 +542,225 @@ async function toggleUserActive(u: AdminUser) {
     await fetchInstance()
   } catch (e: any) {
     notify({ title: t('notif_inst_failed'), description: e?.data?.message, type: 'error' })
+  }
+}
+
+// Both columns paginate past a handful of rows: an instance with fifty
+// accounts would otherwise turn the settings page into one endless scroll.
+const INST_PAGE_SIZE = 5
+const usersPage = ref(1)
+const orgsPage  = ref(1)
+
+function paginate<T>(rows: T[], page: number): T[] {
+  return rows.slice((page - 1) * INST_PAGE_SIZE, page * INST_PAGE_SIZE)
+}
+const usersPageCount = computed(() => Math.max(1, Math.ceil(adminUsers.value.length / INST_PAGE_SIZE)))
+const orgsPageCount  = computed(() => Math.max(1, Math.ceil(adminOrgs.value.length / INST_PAGE_SIZE)))
+const pagedUsers = computed(() => paginate(adminUsers.value, usersPage.value))
+const pagedOrgs  = computed(() => paginate(adminOrgs.value, orgsPage.value))
+
+// Deleting the last row of the final page must not strand us on an empty one.
+watch(usersPageCount, (n) => { if (usersPage.value > n) usersPage.value = n })
+watch(orgsPageCount,  (n) => { if (orgsPage.value  > n) orgsPage.value  = n })
+
+// Nothing destructive happens on a single click: every one of these asks first.
+const confirmAction = ref<null | { title: string; body: string; label: string; run: () => Promise<void> }>(null)
+const confirmBusy   = ref(false)
+
+function askConfirm(title: string, body: string, label: string, run: () => Promise<void>) {
+  confirmAction.value = { title, body, label, run }
+}
+async function runConfirm() {
+  if (!confirmAction.value || confirmBusy.value) return
+  confirmBusy.value = true
+  try {
+    await confirmAction.value.run()
+    confirmAction.value = null
+  } finally {
+    confirmBusy.value = false
+  }
+}
+
+function askDeleteOrg(org: AdminOrg) {
+  askConfirm(
+    t('inst_org_delete'),
+    t('confirm_dissolve_org', { name: org.name }),
+    t('common_delete'),
+    async () => {
+      try {
+        const api = useApi()
+        await api(`/admin/orgs/${org.id}`, { method: 'DELETE' })
+        await fetchInstance()
+        notify({ title: t('notif_org_deleted'), type: 'success' })
+      } catch (e: any) {
+        notify({ title: t('notif_inst_failed'), description: e?.data?.message, type: 'error' })
+      }
+    }
+  )
+}
+
+function askToggleUser(u: AdminUser) {
+  if (!u.isActive) return toggleUserActive(u)
+  askConfirm(
+    t('inst_suspend'),
+    t('confirm_suspend_user', { email: u.email }),
+    t('inst_suspend'),
+    () => toggleUserActive(u)
+  )
+}
+
+/* Réinitialiser un mot de passe — le nouveau n'est montré qu'une fois */
+const resetFor      = ref<AdminUser | null>(null)
+const resetPassword = ref<string | null>(null)
+const resetCopied   = ref(false)
+
+function askResetPassword(u: AdminUser) {
+  askConfirm(
+    t('inst_reset_pwd'),
+    t('confirm_reset_pwd', { email: u.email }),
+    t('inst_reset_pwd'),
+    async () => {
+      try {
+        const api = useApi()
+        const res = await api<{ tempPassword: string }>(`/admin/users/${u.id}/reset-password`, { method: 'POST' })
+        resetFor.value = u
+        resetPassword.value = res.tempPassword
+        await fetchInstance()
+      } catch (e: any) {
+        notify({ title: t('notif_inst_failed'), description: e?.data?.message, type: 'error' })
+      }
+    }
+  )
+}
+async function copyResetPassword() {
+  if (!resetPassword.value) return
+  await navigator.clipboard.writeText(resetPassword.value)
+  resetCopied.value = true
+  setTimeout(() => (resetCopied.value = false), 2000)
+}
+
+/* Rôle d'un membre d'équipe, vu depuis l'instance */
+const orgRoleChoices = computed(() => [
+  { value: 'owner'  as OrgRole, label: t('org_role_owner') },
+  { value: 'admin'  as OrgRole, label: t('org_role_admin') },
+  { value: 'member' as OrgRole, label: t('org_role_member') },
+])
+
+/* Ajouter un membre à une équipe, depuis l'instance */
+const addMemberOrgId = ref<string | null>(null)
+const addMemberEmail = ref('')
+const addMemberRole  = ref<OrgRole>('member')
+const addingMember   = ref(false)
+
+function openAddMember(org: AdminOrg) {
+  addMemberOrgId.value = org.id
+  addMemberEmail.value = ''
+  addMemberRole.value  = 'member'
+}
+async function addOrgMember() {
+  if (!addMemberOrgId.value || !addMemberEmail.value.trim() || addingMember.value) return
+  addingMember.value = true
+  try {
+    const api = useApi()
+    await api(`/admin/orgs/${addMemberOrgId.value}/members`, {
+      method: 'POST',
+      body: { email: addMemberEmail.value.trim(), role: addMemberRole.value },
+    })
+    addMemberOrgId.value = null
+    await fetchInstance()
+    notify({ title: t('notif_member_added'), type: 'success' })
+  } catch (e: any) {
+    notify({ title: t('notif_inst_failed'), description: e?.data?.message, type: 'error' })
+  } finally {
+    addingMember.value = false
+  }
+}
+
+function askRemoveOrgMember(org: AdminOrg, m: { userId: string; email: string; name: string | null }) {
+  askConfirm(
+    t('confirm_remove_member_title'),
+    t('confirm_remove_member', { name: m.name || m.email }),
+    t('common_delete'),
+    async () => {
+      try {
+        const api = useApi()
+        await api(`/admin/orgs/${org.id}/members/${m.userId}`, { method: 'DELETE' })
+        await fetchInstance()
+      } catch (e: any) {
+        notify({ title: t('notif_inst_failed'), description: e?.data?.message, type: 'error' })
+      }
+    }
+  )
+}
+
+async function changeOrgMemberRole(org: AdminOrg, userId: string, role: OrgRole) {
+  try {
+    const api = useApi()
+    await api(`/admin/orgs/${org.id}/members/${userId}`, { method: 'PATCH', body: { role } })
+    await fetchInstance()
+  } catch (e: any) {
+    notify({ title: t('notif_inst_failed'), description: e?.data?.message, type: 'error' })
+    await fetchInstance()
+  }
+}
+
+/* Édition par l'opérateur — un compte ou une équipe */
+const showEditUser = ref(false)
+const editUser     = ref<AdminUser | null>(null)
+const editName     = ref('')
+const editEmail    = ref('')
+const savingEdit   = ref(false)
+
+function openEditUser(u: AdminUser) {
+  editUser.value = u
+  editName.value  = u.name ?? ''
+  editEmail.value = u.email
+  showEditUser.value = true
+}
+async function saveEditUser() {
+  if (!editUser.value || savingEdit.value) return
+  savingEdit.value = true
+  try {
+    const api = useApi()
+    await api(`/admin/users/${editUser.value.id}`, {
+      method: 'PATCH',
+      body: { name: editName.value.trim() || null, email: editEmail.value.trim() },
+    })
+    showEditUser.value = false
+    await fetchInstance()
+    notify({ title: t('notif_inst_saved'), type: 'success' })
+  } catch (e: any) {
+    notify({ title: t('notif_inst_failed'), description: e?.data?.message, type: 'error' })
+  } finally {
+    savingEdit.value = false
+  }
+}
+
+const showEditOrg = ref(false)
+const editOrg     = ref<AdminOrg | null>(null)
+const editOrgName = ref('')
+
+function openEditOrg(o: AdminOrg) {
+  editOrg.value = o
+  editOrgName.value = o.name
+  showEditOrg.value = true
+}
+async function saveEditOrg() {
+  if (!editOrg.value || !editOrgName.value.trim() || savingEdit.value) return
+  savingEdit.value = true
+  try {
+    const api = useApi()
+    await api(`/admin/orgs/${editOrg.value.id}`, {
+      method: 'PATCH',
+      body: { name: editOrgName.value.trim() },
+    })
+    showEditOrg.value = false
+    await fetchInstance()
+    notify({ title: t('notif_inst_saved'), type: 'success' })
+  } catch (e: any) {
+    notify({ title: t('notif_inst_failed'), description: e?.data?.message, type: 'error' })
+  } finally {
+    savingEdit.value = false
   }
 }
 
@@ -657,8 +915,14 @@ async function copyTemp() {
             <span v-else-if="activeOrg" style="font-size:10px;color:var(--muted)">{{ activeOrg.name }}</span>
           </div>
 
+          <!-- Loading first: announcing "no team" before the data lands reads
+               as having lost one. -->
+          <div v-if="orgLoading && !activeOrg" class="card-body">
+            <SettingRow :label="t('common_loading')" sub="" />
+          </div>
+
           <!-- No org yet: create one, or redeem an invitation -->
-          <div v-if="!activeOrg" class="card-body">
+          <div v-else-if="!activeOrg" class="card-body">
             <SettingRow :label="t('settings_team_create_label')" :sub="t('settings_team_create_sub')">
               <button class="btn-accent-sm" @click="showCreateOrg = true">{{ t('settings_team_create') }}</button>
             </SettingRow>
@@ -671,18 +935,6 @@ async function copyTemp() {
           </div>
 
           <template v-else>
-            <div class="org-members">
-              <OrgMemberRow
-                v-for="m in memberRows"
-                :key="m.id"
-                :member="m"
-                :is-me="m.id === auth.user?.id"
-                :can-manage="canManage"
-                :roles="assignableRoles"
-                @update:role="(r) => changeRole(m, r)"
-                @remove="removeMember(m)"
-              />
-            </div>
             <div class="card-body">
               <SettingRow :label="t('settings_team_invite_label')" :sub="t('settings_team_invite_sub')">
                 <button v-if="canManage" class="btn-accent-sm" @click="openInvite">{{ t('settings_team_invite') }}</button>
@@ -691,6 +943,28 @@ async function copyTemp() {
               <SettingRow :label="t('settings_team_plan_label')" :sub="t('settings_team_plan_sub')">
                 <span class="mono-val">{{ pluralCount('settings_team_members', activeOrg.memberCount) }}</span>
               </SettingRow>
+            </div>
+            <div class="org-members">
+              <OrgMemberRow
+                v-for="m in pagedMembers"
+                :key="m.id"
+                :member="m"
+                :is-me="m.id === auth.user?.id"
+                :can-manage="canManage"
+                :roles="assignableRoles"
+                @update:role="(r) => changeRole(m, r)"
+                @remove="askRemoveMember(m)"
+              />
+
+              <div v-if="teamPageCount > 1" class="inst-pager">
+                <button class="pager-btn" :disabled="teamPage === 1" @click="teamPage--">
+                  <UIcon name="i-lucide-chevron-left" style="width:12px;height:12px" />
+                </button>
+                <span>{{ teamPage }} / {{ teamPageCount }}</span>
+                <button class="pager-btn" :disabled="teamPage === teamPageCount" @click="teamPage++">
+                  <UIcon name="i-lucide-chevron-right" style="width:12px;height:12px" />
+                </button>
+              </div>
             </div>
           </template>
         </div>
@@ -712,11 +986,16 @@ async function copyTemp() {
         </div>
 
         <!-- Instance — operator only -->
-        <div v-if="auth.isOperator && overview" id="instance" class="card">
+        <div v-if="auth.isOperator" id="instance" class="card">
           <div class="card-header">
             <div class="card-title">{{ t('inst_title') }}</div>
             <span style="font-size:10px;color:var(--muted)">{{ t('inst_operator') }}</span>
           </div>
+          <div v-if="!overview" class="card-body">
+            <SettingRow :label="t('common_loading')" sub="" />
+          </div>
+
+          <template v-else>
           <div class="card-body">
             <SettingRow :label="t('inst_stats_label')" :sub="t('inst_stats_sub')">
               <span class="mono-val">
@@ -733,44 +1012,159 @@ async function copyTemp() {
             <SettingRow :label="t('inst_create_label')" :sub="t('inst_create_sub')">
               <button class="btn-accent-sm" @click="openCreateUser">{{ t('inst_create') }}</button>
             </SettingRow>
+
           </div>
 
-          <div class="org-members">
-            <div v-for="u in adminUsers" :key="u.id" class="org-member-row">
-              <div class="member-avatar" :style="`background: ${avatarFor(u.id)}`">
-                {{ (u.name || u.email)[0].toUpperCase() }}
-              </div>
-              <div class="member-info">
-                <div class="member-name">
-                  {{ u.name || u.email }}
-                  <span v-if="u.instanceRole === 'operator'" class="owner-badge">{{ t('inst_operator') }}</span>
-                  <span v-if="u.mustChangePassword" class="pending-chip">{{ t('inst_pending_pwd') }}</span>
+          <!-- Suggestions for the add-member field: accounts the operator can
+               already see, so this leaks nothing they do not have. -->
+          <datalist id="inst-account-emails">
+            <option v-for="u in adminUsers" :key="u.id" :value="u.email">{{ u.name || u.email }}</option>
+          </datalist>
+
+          <div class="inst-cols">
+            <!-- Accounts -->
+            <div class="inst-col">
+              <div class="inst-col-head">{{ pluralCount('inst_users', adminUsers.length) }}</div>
+              <div class="inst-col-list">
+              <div v-for="u in pagedUsers" :key="u.id" class="org-member-row">
+                <div class="member-avatar" :style="`background: ${avatarFor(u.id)}`">
+                  {{ (u.name || u.email)[0].toUpperCase() }}
                 </div>
-                <div class="member-email">{{ u.email }} · {{ pluralCount('inst_nodes', u.nodeCount) }}</div>
+                <div class="member-info">
+                  <div class="member-name">
+                    {{ u.name || u.email }}
+                    <span v-if="u.instanceRole === 'operator'" class="owner-badge">{{ t('inst_operator') }}</span>
+                    <span v-if="u.mustChangePassword" class="pending-chip">{{ t('inst_pending_pwd') }}</span>
+                  </div>
+                  <div class="member-email">{{ u.email }} · {{ pluralCount('inst_nodes', u.nodeCount) }}</div>
+                </div>
+                <div class="member-role">
+                  <span :class="u.isActive ? 'role-static' : 'perm-chip'">
+                    {{ u.isActive ? t('inst_active') : t('inst_suspended') }}
+                  </span>
+                </div>
+                <button class="remove-btn" :title="t('inst_edit_user')" @click="openEditUser(u)">
+                  <UIcon name="i-lucide-pencil" style="width:11px;height:11px" />
+                </button>
+                <button class="remove-btn" :title="t('inst_reset_pwd')" @click="askResetPassword(u)">
+                  <UIcon name="i-lucide-key-round" style="width:11px;height:11px" />
+                </button>
+                <button
+                  v-if="u.id !== auth.user?.id"
+                  class="remove-btn"
+                  :title="u.isActive ? t('inst_suspend') : t('inst_restore')"
+                  @click="askToggleUser(u)"
+                >
+                  <UIcon :name="u.isActive ? 'i-lucide-ban' : 'i-lucide-rotate-ccw'" style="width:11px;height:11px" />
+                </button>
+                <div v-else class="remove-placeholder" />
               </div>
-              <div class="member-role">
-                <span :class="u.isActive ? 'role-static' : 'perm-chip'">
-                  {{ u.isActive ? t('inst_active') : t('inst_suspended') }}
-                </span>
               </div>
-              <button
-                v-if="u.id !== auth.user?.id"
-                class="remove-btn"
-                :title="u.isActive ? t('inst_suspend') : t('inst_restore')"
-                @click="toggleUserActive(u)"
-              >
-                <UIcon :name="u.isActive ? 'i-lucide-ban' : 'i-lucide-rotate-ccw'" style="width:11px;height:11px" />
-              </button>
-              <div v-else class="remove-placeholder" />
+
+              <div v-if="usersPageCount > 1" class="inst-pager">
+                <button class="pager-btn" :disabled="usersPage === 1" @click="usersPage--">
+                  <UIcon name="i-lucide-chevron-left" style="width:12px;height:12px" />
+                </button>
+                <span>{{ usersPage }} / {{ usersPageCount }}</span>
+                <button class="pager-btn" :disabled="usersPage === usersPageCount" @click="usersPage++">
+                  <UIcon name="i-lucide-chevron-right" style="width:12px;height:12px" />
+                </button>
+              </div>
+            </div>
+
+            <!-- Teams -->
+            <div class="inst-col">
+              <div class="inst-col-head">{{ pluralCount('inst_orgs', adminOrgs.length) }}</div>
+              <div class="inst-col-list">
+              <div v-if="!adminOrgs.length" class="inst-col-empty">{{ t('inst_orgs_empty') }}</div>
+              <template v-for="o in pagedOrgs" :key="o.id">
+                <div class="org-member-row" style="cursor:pointer" @click="openOrgId = openOrgId === o.id ? null : o.id">
+                  <div class="member-avatar" :style="`background: ${avatarFor(o.id)}`">
+                    {{ o.name[0].toUpperCase() }}
+                  </div>
+                  <div class="member-info">
+                    <div class="member-name">
+                      {{ o.name }}
+                      <span class="org-chip">{{ o.plan }}</span>
+                    </div>
+                    <div class="member-email">
+                      {{ pluralCount('settings_team_members', o.members.length) }} · {{ pluralCount('inst_nodes', o.nodeCount) }}
+                    </div>
+                  </div>
+                  <div class="member-role">
+                    <UIcon :name="openOrgId === o.id ? 'i-lucide-chevron-up' : 'i-lucide-chevron-down'" style="width:12px;height:12px;color:var(--muted)" />
+                  </div>
+                  <button class="remove-btn" :title="t('inst_edit_org')" @click.stop="openEditOrg(o)">
+                    <UIcon name="i-lucide-pencil" style="width:11px;height:11px" />
+                  </button>
+                  <button class="remove-btn" :title="t('inst_org_delete')" @click.stop="askDeleteOrg(o)">
+                    <UIcon name="i-lucide-trash-2" style="width:11px;height:11px" />
+                  </button>
+                </div>
+
+                <div v-if="openOrgId === o.id" class="org-detail">
+                  <div v-for="m in o.members" :key="m.userId" class="org-detail-row">
+                    <span class="member-email">{{ m.name || m.email }}</span>
+                    <span style="display:flex;align-items:center;gap:6px">
+                      <select
+                        class="role-select"
+                        :value="m.role"
+                        @click.stop
+                        @change="changeOrgMemberRole(o, m.userId, ($event.target as HTMLSelectElement).value as OrgRole)"
+                      >
+                        <option v-for="r in orgRoleChoices" :key="r.value" :value="r.value">{{ r.label }}</option>
+                      </select>
+                      <button class="remove-btn" :title="t('confirm_remove_member_title')" @click.stop="askRemoveOrgMember(o, m)">
+                        <UIcon name="i-lucide-x" style="width:10px;height:10px" />
+                      </button>
+                    </span>
+                  </div>
+
+                  <div class="org-detail-row" @click.stop>
+                    <button v-if="addMemberOrgId !== o.id" class="btn-ghost-sm" @click="openAddMember(o)">
+                      <UIcon name="i-lucide-user-plus" style="width:11px;height:11px" /> {{ t('inst_add_member') }}
+                    </button>
+                    <template v-else>
+                      <input
+                        v-model="addMemberEmail"
+                        class="form-input"
+                        style="flex:1;margin-right:6px"
+                        type="email"
+                        list="inst-account-emails"
+                        :placeholder="t('inst_add_member_ph')"
+                        @keyup.enter="addOrgMember"
+                      />
+                      <select v-model="addMemberRole" class="role-select" style="margin-right:6px">
+                        <option v-for="r in orgRoleChoices" :key="r.value" :value="r.value">{{ r.label }}</option>
+                      </select>
+                      <button class="btn-accent-sm" :disabled="addingMember || !addMemberEmail.trim()" @click="addOrgMember">
+                        {{ t('inst_add') }}
+                      </button>
+                    </template>
+                  </div>
+                </div>
+              </template>
+              </div>
+
+              <div v-if="orgsPageCount > 1" class="inst-pager">
+                <button class="pager-btn" :disabled="orgsPage === 1" @click="orgsPage--">
+                  <UIcon name="i-lucide-chevron-left" style="width:12px;height:12px" />
+                </button>
+                <span>{{ orgsPage }} / {{ orgsPageCount }}</span>
+                <button class="pager-btn" :disabled="orgsPage === orgsPageCount" @click="orgsPage++">
+                  <UIcon name="i-lucide-chevron-right" style="width:12px;height:12px" />
+                </button>
+              </div>
             </div>
           </div>
+          </template>
         </div>
 
         <!-- Zone de danger -->
         <div id="danger" class="card card-danger">
           <div class="card-header"><div class="card-title danger-title">{{ t('settings_danger_title') }}</div></div>
           <div class="card-body">
-            <SettingRow :label="t('settings_danger_nodes_label')" :sub="t('settings_danger_nodes_sub')">
+            <SettingRow :label="t('settings_danger_nodes_label')" :sub="t('settings_danger_nodes_sub_owned')">
               <button class="btn-danger-sm" @click="showDeleteNodes = true">{{ t('common_delete') }}</button>
             </SettingRow>
             <SettingRow :label="t('settings_danger_account_label')" :sub="t('settings_danger_account_sub')">
@@ -1023,8 +1417,8 @@ async function copyTemp() {
       </div>
       <div class="modal-footer">
         <button class="btn-ghost-sm" @click="showDeleteNodes = false">{{ t('common_cancel') }}</button>
-        <button class="btn-danger-sm" :disabled="deletingNodes || nodesStore.nodes.length === 0" @click="deleteAllNodes">
-          {{ deletingNodes ? t('modal_delete_nodes_progress') : pluralCount('modal_delete_nodes_btn', nodesStore.nodes.length) }}
+        <button class="btn-danger-sm" :disabled="deletingNodes || ownedNodes.length === 0" @click="deleteAllNodes">
+          {{ deletingNodes ? t('modal_delete_nodes_progress') : pluralCount('modal_delete_nodes_btn', ownedNodes.length) }}
         </button>
       </div>
     </div>
@@ -1151,6 +1545,94 @@ async function copyTemp() {
       <div class="modal-footer">
         <button class="btn-ghost" @click="showCreateUser = false">{{ tempPassword ? t('common_close') : t('common_cancel') }}</button>
         <button v-if="!tempPassword" class="btn-accent-sm" :disabled="creatingUser || !newUserEmail.trim()" @click="createUser">{{ t('common_create') }}</button>
+      </div>
+    </div>
+  </div>
+  <!-- Operator edits an account -->
+  <div v-if="showEditUser" class="modal-overlay" @click.self="showEditUser = false">
+    <div class="modal" style="max-width:420px">
+      <div class="modal-header">
+        <div class="modal-title">{{ t('inst_edit_user') }}</div>
+        <button class="close-btn" @click="showEditUser = false"><UIcon name="i-lucide-x" style="width:12px;height:12px" /></button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label class="form-label">{{ t('inst_create_name') }}</label>
+          <input v-model="editName" class="form-input" type="text" :placeholder="t('inst_create_name_ph')" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">{{ t('modal_invite_email') }}</label>
+          <input v-model="editEmail" class="form-input" type="email" @keyup.enter="saveEditUser" />
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-ghost" @click="showEditUser = false">{{ t('common_cancel') }}</button>
+        <button class="btn-accent-sm" :disabled="savingEdit || !editEmail.trim()" @click="saveEditUser">{{ t('common_save') }}</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Operator renames a team -->
+  <div v-if="showEditOrg" class="modal-overlay" @click.self="showEditOrg = false">
+    <div class="modal" style="max-width:420px">
+      <div class="modal-header">
+        <div class="modal-title">{{ t('inst_edit_org') }}</div>
+        <button class="close-btn" @click="showEditOrg = false"><UIcon name="i-lucide-x" style="width:12px;height:12px" /></button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label class="form-label">{{ t('modal_create_org_name') }}</label>
+          <input v-model="editOrgName" class="form-input" type="text" autofocus @keyup.enter="saveEditOrg" />
+        </div>
+        <div class="modal-sub">{{ t('inst_edit_org_hint') }}</div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-ghost" @click="showEditOrg = false">{{ t('common_cancel') }}</button>
+        <button class="btn-accent-sm" :disabled="savingEdit || !editOrgName.trim()" @click="saveEditOrg">{{ t('common_save') }}</button>
+      </div>
+    </div>
+  </div>
+  <!-- One confirmation for every destructive operator action -->
+  <div v-if="confirmAction" class="modal-overlay" @click.self="confirmAction = null">
+    <div class="modal" style="max-width:420px">
+      <div class="modal-header">
+        <div class="modal-title">{{ confirmAction.title }}</div>
+        <button class="close-btn" @click="confirmAction = null"><UIcon name="i-lucide-x" style="width:12px;height:12px" /></button>
+      </div>
+      <div class="modal-body">
+        <div class="confirm-warn-box">
+          <UIcon name="i-lucide-triangle-alert" style="width:14px;height:14px;flex-shrink:0" />
+          <span>{{ confirmAction.body }}</span>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-ghost" @click="confirmAction = null">{{ t('common_cancel') }}</button>
+        <button class="btn-danger-sm" :disabled="confirmBusy" @click="runConfirm">{{ confirmAction.label }}</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- The new temporary password, shown once -->
+  <div v-if="resetPassword" class="modal-overlay" @click.self="resetPassword = null">
+    <div class="modal" style="max-width:440px">
+      <div class="modal-header">
+        <div>
+          <div class="modal-title">{{ t('inst_reset_pwd') }}</div>
+          <div class="modal-sub">{{ t('inst_reset_hint', { email: resetFor?.email ?? '' }) }}</div>
+        </div>
+        <button class="close-btn" @click="resetPassword = null"><UIcon name="i-lucide-x" style="width:12px;height:12px" /></button>
+      </div>
+      <div class="modal-body">
+        <div class="cmd-block">
+          <button class="cmd-copy" @click="copyResetPassword">
+            <template v-if="resetCopied"><UIcon name="i-lucide-check" style="width:10px;height:10px" /> {{ t('onb_cmd_copied') }}</template>
+            <template v-else>{{ t('onb_cmd_copy') }}</template>
+          </button>
+          <div class="cmd-scroll"><pre class="cmd-pre"><span class="cmd-accent">{{ resetPassword }}</span></pre></div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-ghost" @click="resetPassword = null">{{ t('common_close') }}</button>
       </div>
     </div>
   </div>

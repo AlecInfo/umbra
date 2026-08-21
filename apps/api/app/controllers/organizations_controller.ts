@@ -79,6 +79,33 @@ export default class OrganizationsController {
     return new Map(rows.map((r: any) => [r.org_id, Number(r.total)]))
   }
 
+  // GET /orgs/contacts — people the caller already shares an organisation with
+  //
+  // The only directory we can safely offer: there is no account search on
+  // purpose, since it would leak the instance's user list. Sharing a node or
+  // adding a colleague can suggest from people you already work with.
+  async contacts({ auth }: HttpContext) {
+    const user = auth.getUserOrFail()
+    const orgIds = (await OrgMember.query().where('user_id', user.id).select('org_id')).map(
+      (m) => m.orgId
+    )
+    if (orgIds.length === 0) return { data: [] }
+
+    const rows = await OrgMember.query()
+      .whereIn('org_id', orgIds)
+      .whereNot('user_id', user.id)
+      .preload('user')
+
+    const seen = new Set<string>()
+    const data = []
+    for (const r of rows) {
+      if (!r.user || seen.has(r.userId)) continue
+      seen.add(r.userId)
+      data.push({ id: r.userId, email: r.user.email, name: r.user.name })
+    }
+    return { data }
+  }
+
   // POST /orgs — the creator becomes owner
   async store({ auth, request, response }: HttpContext) {
     const user = auth.getUserOrFail()

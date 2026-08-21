@@ -273,5 +273,28 @@ export const useNodesStore = defineStore('nodes', () => {
     return Math.round(active.reduce((sum, n) => sum + n.latency!, 0) / active.length)
   })
 
-  return { nodes, loading, error, fetchNodes, setConnected, restoreConnected, disconnect, deleteNode, startPolling, stopPolling, connectedNode, onlineCount, warningCount, avgLatency, lastUsedId, connectedAt, savedStatus, connectedId, connecting, uploadSpeed, downloadSpeed, connectCommands }
+  /**
+   * Wipe everything tied to the signed-in account.
+   *
+   * connectedId and lastUsedId live in localStorage, so without this they
+   * outlive a logout — and the next account to sign in on the same browser
+   * briefly saw the previous one's nodes and connection state.
+   */
+  function reset() {
+    stopPolling()
+    nodes.value = []
+    loading.value = false
+    error.value = null
+    savedStatus.value = {}
+    prevBytes.value = {}
+    uploadSpeed.value = '0 B/s'
+    downloadSpeed.value = '0 B/s'
+    connectedAt.value = null
+    connecting.value = false
+    connectCommands.value = null
+    connectedId.value = null
+    lastUsedId.value = null
+  }
+
+  return { reset, nodes, loading, error, fetchNodes, setConnected, restoreConnected, disconnect, deleteNode, startPolling, stopPolling, connectedNode, onlineCount, warningCount, avgLatency, lastUsedId, connectedAt, savedStatus, connectedId, connecting, uploadSpeed, downloadSpeed, connectCommands }
 })

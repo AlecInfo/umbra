@@ -12,6 +12,7 @@ import { headscaleClient, tenantForOwner } from '#services/headscale_client'
 import { userOrgIds, accessibleNodesQuery } from '#services/node_scope'
 import { resolveNodePermission, findNodeWithPermission } from '#services/permissions'
 import OrgMember from '#models/org_member'
+import User from '#models/user'
 import {
   createNodeValidator,
   updateNodeValidator, transferNodeValidator,
@@ -154,7 +155,11 @@ export default class NodesController {
     const node = await findNodeWithPermission(user.id, params.id, 'admin')
     if (!node) return response.notFound({ message: 'Node introuvable' })
 
-    const { orgId } = await request.validateUsing(transferNodeValidator)
+    const { orgId, userId } = await request.validateUsing(transferNodeValidator)
+
+    if (orgId && userId) {
+      return response.badRequest({ message: 'Indiquez une organisation ou une personne, pas les deux' })
+    }
 
     if (orgId) {
       // You cannot hand a node to an org you do not administer.
@@ -164,12 +169,33 @@ export default class NodesController {
       }
     }
 
-    if (node.ownerOrgId === orgId && (orgId || node.ownerUserId === user.id)) {
-      return { node: node.serialize(), moved: false }
+    let targetUserId = user.id
+    if (userId && userId !== user.id) {
+      // Handing a node to someone means giving it away: they become its owner
+      // and the caller keeps whatever access their org role or a share grants,
+      // which may be none. Restricted to people the caller already shares an
+      // organisation with, so a node cannot be pushed onto a stranger.
+      const target = await User.query().where('id', userId).whereNull('deleted_at').first()
+      if (!target) return response.notFound({ message: 'Compte introuvable' })
+
+      const mine = await OrgMember.query().where('user_id', user.id).select('org_id')
+      const theirs = await OrgMember.query().where('user_id', target.id).select('org_id')
+      const shared = mine.some((m) => theirs.some((o) => o.orgId === m.orgId))
+      if (!shared) {
+        return response.forbidden({
+          message: 'Vous ne partagez aucune organisation avec cette personne',
+        })
+      }
+      targetUserId = target.id
     }
 
-    node.ownerUserId = orgId ? null : user.id
-    node.ownerOrgId = orgId
+    const sameOwner =
+      (node.ownerOrgId ?? null) === (orgId ?? null) &&
+      (orgId ? true : node.ownerUserId === targetUserId)
+    if (sameOwner) return { node: node.serialize(), moved: false }
+
+    node.ownerUserId = orgId ? null : targetUserId
+    node.ownerOrgId = orgId ?? null
     await node.save()
 
     // Move it in Headscale straight away. The heartbeat self-heal would get

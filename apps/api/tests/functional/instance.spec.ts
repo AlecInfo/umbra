@@ -56,6 +56,209 @@ test.group('Instance layer', () => {
     assert.equal(rows.find((r: any) => r.email === 'lister@test.io').nodeCount, 0)
   })
 
+  test('an operator sees every organisation and its members', async ({ client, assert }) => {
+    const operator = await register(client, 'watcher@test.io')
+    const stranger = await register(client, 'founder@test.io')
+
+    const org = await client
+      .post('/api/v1/orgs')
+      .headers(auth(stranger.token!))
+      .json({ name: 'Someone Elses Team' })
+    const orgId = org.body().org.id
+
+    await client
+      .post('/api/v1/nodes')
+      .headers(auth(stranger.token!))
+      .json({ name: 'their-node', category: 'vps', orgId })
+
+    const res = await client.get('/api/v1/admin/orgs').headers(auth(operator.token!))
+    res.assertStatus(200)
+
+    const listed = res.body().data.find((o: any) => o.id === orgId)
+    assert.equal(listed.name, 'Someone Elses Team')
+    assert.equal(listed.nodeCount, 1)
+    assert.lengthOf(listed.members, 1)
+    assert.equal(listed.members[0].role, 'owner')
+    assert.equal(listed.members[0].email, 'founder@test.io')
+
+    // Seeing an org owns a node is not being able to reach it.
+    const list = await client.get('/api/v1/nodes').headers(auth(operator.token!))
+    assert.lengthOf(list.body().data, 0)
+
+    // A team still holding nodes is not dissolved by surprise.
+    const refused = await client.delete(`/api/v1/admin/orgs/${orgId}`).headers(auth(operator.token!))
+    refused.assertStatus(409)
+
+    const denied = await client.get('/api/v1/admin/orgs').headers(auth(stranger.token!))
+    denied.assertStatus(404)
+  })
+
+  test('an operator can correct an account and rename a team', async ({ client, assert }) => {
+    const operator = await register(client, 'fixer@test.io')
+    const target = await register(client, 'typo@test.io')
+
+    const org = await client
+      .post('/api/v1/orgs')
+      .headers(auth(target.token!))
+      .json({ name: 'Mispelled Team' })
+    const orgId = org.body().org.id
+
+    const edited = await client
+      .patch(`/api/v1/admin/users/${target.id}`)
+      .headers(auth(operator.token!))
+      .json({ name: 'Corrected Name', email: 'fixed@test.io' })
+    edited.assertStatus(200)
+    assert.equal(edited.body().user.email, 'fixed@test.io')
+    assert.equal(edited.body().user.name, 'Corrected Name')
+
+    // The address is a login: it may not collide with another account.
+    const collision = await client
+      .patch(`/api/v1/admin/users/${target.id}`)
+      .headers(auth(operator.token!))
+      .json({ email: 'fixer@test.io' })
+    collision.assertStatus(409)
+
+    const renamed = await client
+      .patch(`/api/v1/admin/orgs/${orgId}`)
+      .headers(auth(operator.token!))
+      .json({ name: 'Spelled Right' })
+    renamed.assertStatus(200)
+
+    const listed = await client.get('/api/v1/admin/orgs').headers(auth(operator.token!))
+    assert.equal(listed.body().data.find((o: any) => o.id === orgId).name, 'Spelled Right')
+  })
+
+  test('resetting a password locks the holder out until they set a new one', async ({
+    client,
+    assert,
+  }) => {
+    const operator = await register(client, 'resetter@test.io')
+    const target = await register(client, 'forgot@test.io')
+
+    // Their existing session works right up to the reset.
+    const before = await client.get('/api/v1/auth/me').headers(auth(target.token!))
+    before.assertStatus(200)
+
+    const reset = await client
+      .post(`/api/v1/admin/users/${target.id}/reset-password`)
+      .headers(auth(operator.token!))
+    reset.assertStatus(200)
+    const temp = reset.body().tempPassword
+    assert.isString(temp)
+
+    // A reset exists to lock someone out, so live tokens go with it.
+    const after = await client.get('/api/v1/auth/me').headers(auth(target.token!))
+    after.assertStatus(401)
+
+    const stale = await client
+      .post('/api/v1/auth/login')
+      .json({ email: 'forgot@test.io', password: 'supersecret' })
+    assert.equal(stale.status(), 400)
+
+    const login = await client
+      .post('/api/v1/auth/login')
+      .json({ email: 'forgot@test.io', password: temp })
+    login.assertStatus(200)
+    assert.isTrue(login.body().mustChangePassword)
+  })
+
+  test('an operator can change a role inside a team, but not orphan it', async ({
+    client,
+    assert,
+  }) => {
+    const operator = await register(client, 'roler@test.io')
+    const owner = await register(client, 'teamowner@test.io')
+
+    const org = await client
+      .post('/api/v1/orgs')
+      .headers(auth(owner.token!))
+      .json({ name: 'Roles Team' })
+    const orgId = org.body().org.id
+
+    const member = await register(client, 'plainmember@test.io')
+    const inv = await client
+      .post(`/api/v1/orgs/${orgId}/invitations`)
+      .headers(auth(owner.token!))
+      .json({ email: 'plainmember@test.io', role: 'member' })
+    await client
+      .post('/api/v1/orgs/invitations/accept')
+      .headers(auth(member.token!))
+      .json({ token: inv.body().token })
+
+    const promoted = await client
+      .patch(`/api/v1/admin/orgs/${orgId}/members/${member.id}`)
+      .headers(auth(operator.token!))
+      .json({ role: 'admin' })
+    promoted.assertStatus(200)
+
+    const listed = await client.get('/api/v1/admin/orgs').headers(auth(operator.token!))
+    const roles = listed.body().data.find((o: any) => o.id === orgId).members
+    assert.equal(roles.find((m: any) => m.userId === member.id).role, 'admin')
+
+    // Demoting the only owner would leave a team nobody can administer.
+    const orphan = await client
+      .patch(`/api/v1/admin/orgs/${orgId}/members/${owner.id}`)
+      .headers(auth(operator.token!))
+      .json({ role: 'member' })
+    orphan.assertStatus(409)
+  })
+
+  test('an operator puts an account into a team and takes it back out', async ({
+    client,
+    assert,
+  }) => {
+    const operator = await register(client, 'placer@test.io')
+    const founder = await register(client, 'chief@test.io')
+    const newcomer = await register(client, 'joiner@test.io')
+
+    const org = await client
+      .post('/api/v1/orgs')
+      .headers(auth(founder.token!))
+      .json({ name: 'Staffed Team' })
+    const orgId = org.body().org.id
+
+    // No invitation round trip: the operator acts, the person does not accept.
+    const added = await client
+      .post(`/api/v1/admin/orgs/${orgId}/members`)
+      .headers(auth(operator.token!))
+      .json({ email: 'joiner@test.io', role: 'member' })
+    added.assertStatus(201)
+
+    // And it is a real membership: the org's nodes become visible to them.
+    await client
+      .post('/api/v1/nodes')
+      .headers(auth(founder.token!))
+      .json({ name: 'team-node', category: 'vps', orgId })
+    const seen = await client.get('/api/v1/nodes').headers(auth(newcomer.token!))
+    assert.lengthOf(seen.body().data, 1)
+
+    const twice = await client
+      .post(`/api/v1/admin/orgs/${orgId}/members`)
+      .headers(auth(operator.token!))
+      .json({ email: 'joiner@test.io', role: 'admin' })
+    twice.assertStatus(409)
+
+    const unknown = await client
+      .post(`/api/v1/admin/orgs/${orgId}/members`)
+      .headers(auth(operator.token!))
+      .json({ email: 'ghost@test.io', role: 'member' })
+    unknown.assertStatus(404)
+
+    const removed = await client
+      .delete(`/api/v1/admin/orgs/${orgId}/members/${newcomer.id}`)
+      .headers(auth(operator.token!))
+    removed.assertStatus(200)
+
+    const gone = await client.get('/api/v1/nodes').headers(auth(newcomer.token!))
+    assert.lengthOf(gone.body().data, 0)
+
+    // The only owner cannot be removed either.
+    const orphan = await client
+      .delete(`/api/v1/admin/orgs/${orgId}/members/${founder.id}`)
+      .headers(auth(operator.token!))
+    orphan.assertStatus(409)
+  })
+
   test('closed registration still lets the very first account in', async ({ client, assert }) => {
     // A fresh install with registration closed must not lock out whoever just
     // deployed it.

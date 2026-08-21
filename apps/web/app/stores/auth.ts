@@ -1,4 +1,5 @@
 import { defineStore } from 'pinia'
+import { useNodesStore } from '~/stores/nodes'
 
 export interface ApiUser {
   id: string
@@ -39,6 +40,7 @@ export const useAuthStore = defineStore('auth', () => {
       method: 'POST',
       body: { email, password },
     })
+    clearAccountState()
     token.value = res.token.value
     user.value = res.user
     mustChangePassword.value = res.mustChangePassword ?? false
@@ -49,6 +51,7 @@ export const useAuthStore = defineStore('auth', () => {
       method: 'POST',
       body: { email, password, name },
     })
+    clearAccountState()
     token.value = res.token.value
     user.value = res.user
     mustChangePassword.value = false
@@ -66,6 +69,15 @@ export const useAuthStore = defineStore('auth', () => {
     token.value = null
     user.value = null
     mustChangePassword.value = false
+    clearAccountState()
+  }
+
+  // Node data is per-account and partly kept in localStorage, so it has to go
+  // when the account does. Signing in also clears first: a browser that never
+  // reloads between two accounts would otherwise start on the previous one's
+  // data and only correct itself once the fetch returns.
+  function clearAccountState() {
+    useNodesStore().reset()
   }
 
   async function fetchMe() {

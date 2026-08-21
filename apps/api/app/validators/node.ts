@@ -45,12 +45,14 @@ export const listNodesValidator = vine.compile(
   })
 )
 
-// Moving a node between owners. null means "back to me, personally".
+// Moving a node between owners: to an organisation, to another account, or
+// back to the caller. Exactly one target, or none for "back to me".
+const uuidLike = () =>
+  vine.string().regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)
+
 export const transferNodeValidator = vine.compile(
   vine.object({
-    orgId: vine
-      .string()
-      .regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)
-      .nullable(),
+    orgId: uuidLike().nullable().optional(),
+    userId: uuidLike().nullable().optional(),
   })
 )

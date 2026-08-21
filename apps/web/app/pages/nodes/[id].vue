@@ -333,6 +333,17 @@ function toGrant(g: any): ShareGrant {
   }
 }
 
+// People the account already shares an organisation with — the only directory
+// we can offer without exposing the instance's user list.
+const contacts = ref<{ id: string; email: string; name: string | null }[]>([])
+async function fetchContacts() {
+  try {
+    const api = useApi()
+    const res = await api<{ data: typeof contacts.value }>('/orgs/contacts')
+    contacts.value = res.data
+  } catch { contacts.value = [] }
+}
+
 async function fetchShares() {
   try {
     const api = useApi()
@@ -344,7 +355,7 @@ async function fetchShares() {
     canShareNode.value = false
   }
 }
-watch(showShare, (open) => { if (open) fetchShares() })
+watch(showShare, (open) => { if (open) { fetchShares(); fetchContacts() } })
 
 const isValidEmail = (s: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s)
 // There is no user directory endpoint on purpose — exposing one would leak the
@@ -594,16 +605,20 @@ const canManage  = computed(() => can('manage'))
 const canAdmin   = computed(() => can('admin'))
 
 /* ── Transfert de propriété ─────────────────────────────────────────────── */
-interface TransferTarget { id: string | null; name: string }
+// A target is either an org, a person, or back to me — encoded as a single
+// select value so the picker stays one control.
+interface TransferTarget { value: string; name: string }
 const showTransfer   = ref(false)
 const transferring   = ref(false)
-const transferTarget = ref<string | null>(null)
+const transferTarget = ref<string>('self')
 const myOrgs         = ref<{ id: string; name: string; role: string }[]>([])
 
-// Personal plus every org the caller administers — the only moves the API takes.
+// Me, every org I administer, and everyone I share an organisation with —
+// the three moves the API accepts.
 const transferTargets = computed<TransferTarget[]>(() => [
-  { id: null, name: t('addnode_owner_personal') },
-  ...myOrgs.value.map((o) => ({ id: o.id, name: o.name })),
+  { value: 'self', name: t('addnode_owner_personal') },
+  ...myOrgs.value.map((o) => ({ value: `org:${o.id}`, name: o.name })),
+  ...contacts.value.map((c) => ({ value: `user:${c.id}`, name: c.name || c.email })),
 ])
 
 onMounted(async () => {
@@ -615,7 +630,8 @@ onMounted(async () => {
 })
 
 function openTransfer() {
-  transferTarget.value = apiNode.value?.ownerOrgId ?? null
+  transferTarget.value = apiNode.value?.ownerOrgId ? `org:${apiNode.value.ownerOrgId}` : 'self'
+  fetchContacts()
   showTransfer.value = true
 }
 
@@ -624,12 +640,19 @@ async function doTransfer() {
   transferring.value = true
   try {
     const api = useApi()
+    const target = transferTarget.value
     await api(`/nodes/${node.value.id}/transfer`, {
       method: 'POST',
-      body: { orgId: transferTarget.value },
+      body: target.startsWith('org:')
+        ? { orgId: target.slice(4) }
+        : target.startsWith('user:')
+          ? { userId: target.slice(5) }
+          : { orgId: null },
     })
     showTransfer.value = false
-    await fetchNode()
+    // The store backs the header, the table and the map: refreshing only the
+    // detail left the node showing its former owner everywhere else.
+    await Promise.all([fetchNode(), store.fetchNodes()])
     notify({ title: t('notif_transfer_done'), type: 'success' })
   } catch (e: any) {
     notify({ title: t('notif_transfer_failed'), description: e?.data?.message, type: 'error' })
@@ -981,12 +1004,16 @@ async function doTransfer() {
           <!-- Search -->
           <div class="form-group">
             <label class="form-label">{{ t('nd_share_add_user') }}</label>
+            <datalist id="share-contact-emails">
+              <option v-for="c in contacts" :key="c.id" :value="c.email">{{ c.name || c.email }}</option>
+            </datalist>
             <div v-if="canShareNode" class="search-wrap">
               <div class="search-input-row">
                 <UIcon name="i-lucide-search" class="search-ico" style="width:13px;height:13px" />
                 <input
                   v-model="searchQuery"
                   class="search-input"
+                  list="share-contact-emails"
                   :placeholder="t('nd_share_search_ph')"
                   @focus="searchFocused = true"
                   @blur="blurSearch()"
@@ -1193,7 +1220,7 @@ async function doTransfer() {
         <div class="form-group">
           <label class="form-label">{{ t('addnode_owner') }}</label>
           <select v-model="transferTarget" class="form-input">
-            <option v-for="o in transferTargets" :key="o.id ?? 'personal'" :value="o.id">{{ o.name }}</option>
+            <option v-for="o in transferTargets" :key="o.value" :value="o.value">{{ o.name }}</option>
           </select>
         </div>
       </div>
