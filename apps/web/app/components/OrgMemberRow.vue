@@ -52,7 +52,7 @@ const canRemove = computed(
       <div v-if="member.status === 'pending'" class="pending-chip">
         <UIcon name="i-lucide-hourglass" style="width:10px;height:10px" /> {{ t('org_pending') }}
       </div>
-      <span v-else-if="member.role === 'owner'" class="owner-badge">owner</span>
+      <span v-else-if="member.role === 'owner'" class="owner-badge">{{ t('org_role_owner') }}</span>
       <select
         v-else-if="canEditRole"
         class="role-select"

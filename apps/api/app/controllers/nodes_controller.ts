@@ -10,7 +10,7 @@ import { hashAgentToken } from '#services/agent_auth'
 import { resolveOrgRole } from '#services/organizations'
 import { headscaleClient, tenantForOwner } from '#services/headscale_client'
 import { userOrgIds, accessibleNodesQuery } from '#services/node_scope'
-import { resolveNodePermission, findNodeWithPermission } from '#services/permissions'
+import { resolveNodePermission, findNodeWithPermission, canShareNode } from '#services/permissions'
 import OrgMember from '#models/org_member'
 import User from '#models/user'
 import {
@@ -154,6 +154,13 @@ export default class NodesController {
     const user = auth.getUserOrFail()
     const node = await findNodeWithPermission(user.id, params.id, 'admin')
     if (!node) return response.notFound({ message: 'Node introuvable' })
+
+    // Giving a node away is an act of ownership, not of administration — the
+    // same line drawn for sharing. Being granted admin on someone's machine
+    // lets you run it, not hand it to a third party behind their back.
+    if (!(await canShareNode(user.id, node))) {
+      return response.forbidden({ message: "Seul le propriétaire peut céder ce noeud" })
+    }
 
     const { orgId, userId } = await request.validateUsing(transferNodeValidator)
 

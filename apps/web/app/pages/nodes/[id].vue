@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import { categoryIcons } from '~/composables/useCategoryIcons'
+import { useAuthStore } from '~/stores/auth'
 
 definePageMeta({ layout: 'default' })
 
 const route = useRoute()
 const store = useNodesStore()
+const auth  = useAuthStore()
 const { t } = useT()
 
 // ── API state ────────────────────────────────────────────
@@ -307,7 +309,6 @@ const showShare     = ref(false)
 const searchQuery   = ref('')
 const sharePerm     = ref<Permission>('connect')
 const members       = ref<ShareGrant[]>([])
-const canShareNode  = ref(false)
 const shareBusy     = ref(false)
 
 const SHARE_COLORS = ['#4fffb0', '#7b6ef6', '#4fa8ff', '#ffb74f', '#ff4f6b']
@@ -354,10 +355,8 @@ async function fetchShares() {
     const api = useApi()
     const res = await api<{ data: any[]; canShare: boolean }>(`/nodes/${route.params.id}/members`)
     members.value = res.data.map(toGrant)
-    canShareNode.value = res.canShare
   } catch {
     members.value = []
-    canShareNode.value = false
   }
 }
 watch(showShare, (open) => { if (open) { fetchShares(); fetchContacts() } })
@@ -410,6 +409,10 @@ async function revokeMember(id: string) {
     notify({ title: t('notif_share_failed'), description: e?.data?.message, type: 'error' })
   }
 }
+
+// One label per permission, so a grant never shows its raw value.
+const permLabel = (p: Permission) =>
+  permOptions.value.find((o) => o.value === p)?.label ?? p
 
 const permOptions = computed(() => [
   { value: 'read'    as Permission, label: t('nd_share_perm_read'),  desc: t('nd_share_perm_read_d'),  icon: 'i-lucide-eye',         color: '#4fa8ff' },
@@ -596,6 +599,7 @@ async function deleteNode() {
   }
 }
 /* ── Ce que l'appelant a le droit de faire ──────────────────────────────── */
+
 // Mirrors #services/permissions server-side: read < connect < manage < admin.
 // The UI hides what the API would refuse rather than surfacing a 404 on click.
 type NodePermission = 'read' | 'connect' | 'manage' | 'admin'
@@ -615,6 +619,18 @@ const showTransfer   = ref(false)
 const transferring   = ref(false)
 const transferTarget = ref<string>('self')
 const myOrgs         = ref<{ id: string; name: string; role: string }[]>([])
+
+// Mirrors canShareNode() on the server: extending access or giving the node
+// away are acts of ownership, not of administration. Derived locally rather
+// than fetched, so the buttons are right on first paint — the API is still the
+// one that decides.
+const canShareNode = computed(() => {
+  const n = apiNode.value
+  if (!n) return false
+  if (n.ownerUserId && n.ownerUserId === auth.user?.id) return true
+  if (!n.ownerOrgId) return false
+  return myOrgs.value.some((o) => o.id === n.ownerOrgId)
+})
 
 // Me, every org I administer, and everyone I share an organisation with —
 // the three moves the API accepts.
@@ -693,7 +709,7 @@ async function doTransfer() {
         <span v-if="permission && !canAdmin" class="perm-chip">
           <UIcon name="i-lucide-shield" style="width:10px;height:10px" /> {{ t(`nd_perm_${permission}`) }}
         </span>
-        <button v-if="canAdmin" class="btn-ghost" @click="showShare = true">{{ t('nd_share') }}</button>
+        <button v-if="canShareNode || canAdmin" class="btn-ghost" @click="showShare = true">{{ t('nd_share') }}</button>
         <button
           v-if="canConnect"
           class="btn-primary"
@@ -977,7 +993,7 @@ async function doTransfer() {
               <UIcon name="i-lucide-arrow-right-left" style="width:13px;height:13px" />
               {{ t('nd_action_enroll') }}
             </button>
-            <button v-if="canAdmin && transferTargets.length > 1" class="action-btn" @click="openTransfer">
+            <button v-if="canShareNode && transferTargets.length > 1" class="action-btn" @click="openTransfer">
               <UIcon name="i-lucide-users" style="width:13px;height:13px" />
               {{ t('nd_action_transfer') }}
             </button>
@@ -1057,7 +1073,7 @@ async function doTransfer() {
                 >
                   <option v-for="p in permOptions" :key="p.value" :value="p.value">{{ p.label }}</option>
                 </select>
-                <span v-else class="role-static">{{ m.perm }}</span>
+                <span v-else class="role-static">{{ permLabel(m.perm) }}</span>
                 <button v-if="canShareNode" class="revoke-btn" @click="revokeMember(m.id)"><UIcon name="i-lucide-x" style="width:10px;height:10px" /></button>
               </div>
             </div>

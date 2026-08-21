@@ -87,6 +87,24 @@ test.group('Per-node sharing', () => {
     assert.isNull(await permissionOn(client, third.token, nodeId))
   })
 
+  test('an admin grant does not carry the right to give the node away', async ({ client }) => {
+    const owner = await account(client, 'keeper2@test.io')
+    const deputy = await account(client, 'deputy2@test.io')
+    const nodeId = await ownedNode(client, owner.token)
+
+    await client
+      .post(`/api/v1/nodes/${nodeId}/members`)
+      .headers(auth(owner.token))
+      .json({ email: 'deputy2@test.io', permission: 'admin' })
+
+    // They administer the machine; transferring it is the owner's call.
+    const refused = await client
+      .post(`/api/v1/nodes/${nodeId}/transfer`)
+      .headers(auth(deputy.token))
+      .json({ orgId: null })
+    refused.assertStatus(403)
+  })
+
   test('revoking a share removes the access', async ({ client, assert }) => {
     const owner = await account(client, 'revoker@test.io')
     const guest = await account(client, 'revoked@test.io')
