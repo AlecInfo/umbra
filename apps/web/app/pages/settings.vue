@@ -652,6 +652,15 @@ const addMemberEmail = ref('')
 const addMemberRole  = ref<OrgRole>('member')
 const addingMember   = ref(false)
 
+// Only accounts that are not already in this team: suggesting someone who is
+// already a member would only produce a 409.
+function suggestableAccounts(org: AdminOrg) {
+  const already = new Set(org.members.map((m) => m.userId))
+  return adminUsers.value
+    .filter((u) => !already.has(u.id))
+    .map((u) => ({ id: u.id, email: u.email, name: u.name }))
+}
+
 function openAddMember(org: AdminOrg) {
   addMemberOrgId.value = org.id
   addMemberEmail.value = ''
@@ -1015,12 +1024,6 @@ async function copyTemp() {
 
           </div>
 
-          <!-- Suggestions for the add-member field: accounts the operator can
-               already see, so this leaks nothing they do not have. -->
-          <datalist id="inst-account-emails">
-            <option v-for="u in adminUsers" :key="u.id" :value="u.email">{{ u.name || u.email }}</option>
-          </datalist>
-
           <div class="inst-cols">
             <!-- Accounts -->
             <div class="inst-col">
@@ -1125,14 +1128,12 @@ async function copyTemp() {
                       <UIcon name="i-lucide-user-plus" style="width:11px;height:11px" /> {{ t('inst_add_member') }}
                     </button>
                     <template v-else>
-                      <input
+                      <EmailSuggest
                         v-model="addMemberEmail"
-                        class="form-input"
-                        style="flex:1;margin-right:6px"
-                        type="email"
-                        list="inst-account-emails"
+                        :options="suggestableAccounts(o)"
                         :placeholder="t('inst_add_member_ph')"
-                        @keyup.enter="addOrgMember"
+                        style="margin-right:6px"
+                        @submit="addOrgMember"
                       />
                       <select v-model="addMemberRole" class="role-select" style="margin-right:6px">
                         <option v-for="r in orgRoleChoices" :key="r.value" :value="r.value">{{ r.label }}</option>

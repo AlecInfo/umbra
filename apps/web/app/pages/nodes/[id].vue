@@ -306,7 +306,6 @@ interface ShareGrant {
 const showShare     = ref(false)
 const searchQuery   = ref('')
 const sharePerm     = ref<Permission>('connect')
-const searchFocused = ref(false)
 const members       = ref<ShareGrant[]>([])
 const canShareNode  = ref(false)
 const shareBusy     = ref(false)
@@ -343,6 +342,12 @@ async function fetchContacts() {
     contacts.value = res.data
   } catch { contacts.value = [] }
 }
+
+// Contacts who do not already hold this node.
+const shareSuggestions = computed(() => {
+  const taken = new Set(members.value.filter((m) => !m.isOrg).map((m) => m.email))
+  return contacts.value.filter((c) => !taken.has(c.email))
+})
 
 async function fetchShares() {
   try {
@@ -405,8 +410,6 @@ async function revokeMember(id: string) {
     notify({ title: t('notif_share_failed'), description: e?.data?.message, type: 'error' })
   }
 }
-
-function blurSearch() { setTimeout(() => { searchFocused.value = false }, 150) }
 
 const permOptions = computed(() => [
   { value: 'read'    as Permission, label: t('nd_share_perm_read'),  desc: t('nd_share_perm_read_d'),  icon: 'i-lucide-eye',         color: '#4fa8ff' },
@@ -1004,32 +1007,19 @@ async function doTransfer() {
           <!-- Search -->
           <div class="form-group">
             <label class="form-label">{{ t('nd_share_add_user') }}</label>
-            <datalist id="share-contact-emails">
-              <option v-for="c in contacts" :key="c.id" :value="c.email">{{ c.name || c.email }}</option>
-            </datalist>
-            <div v-if="canShareNode" class="search-wrap">
-              <div class="search-input-row">
-                <UIcon name="i-lucide-search" class="search-ico" style="width:13px;height:13px" />
-                <input
-                  v-model="searchQuery"
-                  class="search-input"
-                  list="share-contact-emails"
-                  :placeholder="t('nd_share_search_ph')"
-                  @focus="searchFocused = true"
-                  @blur="blurSearch()"
-                  @keyup.enter="shareWithEmail"
-                />
-                <button class="btn-accent-sm" :disabled="!canSubmitShare" @click="shareWithEmail">
-                  {{ t('nd_share_add') }}
-                </button>
-              </div>
-              <div v-if="searchFocused && searchQuery.trim() && !canSubmitShare" class="search-dropdown">
-                <div class="search-result">
-                  <div class="result-info">
-                    <div class="result-email">{{ t('nd_share_email_hint') }}</div>
-                  </div>
-                </div>
-              </div>
+            <div v-if="canShareNode" class="share-add-row">
+              <EmailSuggest
+                v-model="searchQuery"
+                :options="shareSuggestions"
+                :placeholder="t('nd_share_search_ph')"
+                @submit="shareWithEmail"
+              />
+              <button class="btn-accent-sm" :disabled="!canSubmitShare" @click="shareWithEmail">
+                {{ t('nd_share_add') }}
+              </button>
+            </div>
+            <div v-if="canShareNode && searchQuery.trim() && !canSubmitShare" class="form-error">
+              {{ t('nd_share_email_hint') }}
             </div>
           </div>
 

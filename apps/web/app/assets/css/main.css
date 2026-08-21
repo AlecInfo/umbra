@@ -1914,6 +1914,33 @@ body:has(.vpn-bar) .notif-stack { bottom: 84px; }
    height of a full page (5 rows of 53px) so the columns stay put. */
 .inst-col-list { min-height: 265px; }
 
+/* Suggestion list for EmailSuggest. Drawn by us rather than by the browser,
+   so it follows the theme and sits where it should. */
+.suggest-wrap { position: relative; flex: 1; min-width: 0; }
+
+/* Email field plus its action button, on one line. */
+.share-add-row { display: flex; align-items: center; gap: 6px; }
+.suggest-list {
+  position: absolute; top: calc(100% + 4px); left: 0; right: 0; z-index: 60;
+  background: var(--surface); border: 1px solid var(--border2);
+  border-radius: var(--r); overflow: hidden;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, .35);
+  max-height: 190px; overflow-y: auto;
+}
+.light .suggest-list { box-shadow: 0 8px 24px rgba(0, 0, 0, .12); }
+
+.suggest-item {
+  display: flex; flex-direction: column; gap: 1px;
+  width: 100%; text-align: left; cursor: pointer;
+  background: none; border: none; border-bottom: 1px solid var(--border);
+  padding: 7px 10px; transition: background .1s;
+}
+.suggest-item:last-child       { border-bottom: none; }
+.suggest-item:hover,
+.suggest-item.active           { background: var(--surface2); }
+.suggest-name  { font-size: 11px; color: var(--text); }
+.suggest-email { font-size: 10px; color: var(--muted); }
+
 /* Inline "add a member" row: the email field was inheriting the full-width
    form input and dwarfed the controls next to it. */
 .org-detail-row .form-input { font-size: 11px; padding: 4px 8px; height: 26px; }
@@ -2264,88 +2291,6 @@ body:has(.vpn-bar) .notif-stack { bottom: 84px; }
 /* ─── Share modal ───────────────────────────────────────── */
 .share-modal { width: 480px; max-height: 90vh; overflow-y: auto; }
 .modal-sub   { font-size: 10px; color: var(--muted); margin-top: 2px; }
-
-.search-wrap { position: relative; }
-
-.search-input-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  background: var(--bg);
-  border: 1px solid var(--border2);
-  border-radius: var(--r);
-  padding: 8px 10px;
-  transition: border-color .15s;
-}
-.search-input-row:focus-within { border-color: var(--accent); }
-
-.search-ico   { color: var(--muted); flex-shrink: 0; }
-.search-input {
-  flex: 1;
-  background: none;
-  border: none;
-  outline: none;
-  font-family: var(--font-mono);
-  font-size: 12px;
-  color: var(--text);
-}
-.search-input::placeholder { color: var(--muted); }
-
-.search-dropdown {
-  position: absolute;
-  top: calc(100% + 4px);
-  left: 0;
-  right: 0;
-  background: var(--surface);
-  border: 1px solid var(--border2);
-  border-radius: var(--r);
-  overflow: hidden;
-  box-shadow: 0 8px 24px rgba(0,0,0,.4);
-  z-index: 10;
-}
-
-.search-result {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 9px 12px;
-  cursor: pointer;
-  transition: background .1s;
-}
-.search-result:hover    { background: var(--surface2); }
-.search-result.external { border-top: 1px solid var(--border); }
-
-.result-avatar {
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--bg);
-  flex-shrink: 0;
-}
-.ext-avatar { background: var(--surface2) !important; color: var(--muted); font-size: 13px; border: 1px solid var(--border2); }
-
-.result-info  { flex: 1; min-width: 0; }
-.result-name  { font-size: 12px; font-weight: 500; color: var(--text); }
-.result-email { font-size: 10px; color: var(--muted); }
-
-.result-badge {
-  font-size: 8px;
-  padding: 2px 6px;
-  border-radius: 3px;
-  background: rgba(79,255,176,.1);
-  color: var(--accent);
-  border: 1px solid rgba(79,255,176,.2);
-}
-.result-badge.ext {
-  background: rgba(79,168,255,.1);
-  color: var(--pending);
-  border-color: rgba(79,168,255,.2);
-}
 
 /* ─── Share modal — permission picker ──────────────────── */
 .share-perm-grid {
