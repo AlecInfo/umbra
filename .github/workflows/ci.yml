@@ -36,6 +36,11 @@ jobs:
       - name: Build web
         run: pnpm --filter=web build
 
+      # The landing is deployed from tags by deploy-landing.yml, which never
+      # checked that it builds first.
+      - name: Build landing
+        run: pnpm --filter=landing build
+
   test:
     name: API tests
     runs-on: ubuntu-latest

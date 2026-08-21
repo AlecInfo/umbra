@@ -25,14 +25,27 @@
 
 ## Description
 
-UMBRA is a self-hosted VPN manager built on **WireGuard** and **Headscale**. Deploy lightweight agents on machines you already own to form a private mesh network — your traffic never touches a server you don't control.
+UMBRA is a self-hosted VPN manager built on **Headscale** and **Tailscale**, which run
+on WireGuard. Enroll machines you already own as exit nodes, and route your traffic
+through your own hardware instead of somebody else's.
 
-- **Self-hosted** — Run the control plane on your own infrastructure. No third-party dependency.
-- **WireGuard-powered** — Fast, modern, audited tunneling protocol with kernel-level performance.
-- **Mesh topology** — Nodes connect directly to each other via Headscale. No single point of failure.
-- **Multi-platform agent** — Lightweight Go agent for Linux, macOS, and Windows.
-- **Web dashboard** — Real-time monitoring, node management, and team access control.
-- **Flexible deployment** — Full self-hosted, hybrid, or cloud-assisted. You choose.
+- **Self-hosted** — the control plane runs on your infrastructure. Headscale, Postgres and
+  the API are the whole server side; no third-party service is in the path.
+- **WireGuard under the hood** — via Tailscale, so NAT traversal, key rotation and
+  rekeying are handled rather than reimplemented.
+- **Works behind CGNAT** — when two machines cannot reach each other directly, traffic is
+  relayed through a DERP server. This is what makes a home connection usable as an exit
+  node; see [DEPLOYMENT.md](DEPLOYMENT.md), it constrains how you expose Headscale.
+- **One-command enrollment** — `curl … | bash` on a fresh machine installs the agent,
+  installs Tailscale, enables IP forwarding and joins the mesh.
+- **Three layers of access** — instance operator, team roles, and per-node permissions;
+  see [ARCHITECTURE.md](ARCHITECTURE.md).
+- **Web dashboard** — node metrics, connection history, teams and sharing.
+
+**Status:** the agent is **Linux only** (systemd, amd64/arm64/armv7). The desktop and
+mobile clients are not started: connecting a client today means running a `tailscale up`
+command the dashboard hands you, or using the official Tailscale app pointed at your
+own server.
 
 ## Architecture
 
@@ -55,9 +68,10 @@ umbra/
 | **Landing**   | Nuxt 4, cobe (3D globe)                |
 | **API**       | AdonisJS 6                             |
 | **Agent**     | Go                                     |
-| **VPN**       | WireGuard + Headscale                  |
-| **Desktop**   | Tauri 2                                |
-| **Mobile**    | Capacitor 6                            |
+| **VPN**       | Headscale + Tailscale (WireGuard)      |
+| **Relay**     | DERP (embedded, or a standalone derper)|
+| **Desktop**   | Tauri 2 *(not started)*                |
+| **Mobile**    | Capacitor 6 *(not started)*            |
 
 ## Getting Started
 
