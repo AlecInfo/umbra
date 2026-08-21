@@ -6,10 +6,14 @@ export interface ApiUser {
   name: string | null
   avatarUrl: string | null
   emailVerified: boolean
+  // Who runs this deployment. Grants no access to anyone's nodes — it only
+  // unlocks the instance administration section.
+  instanceRole: 'user' | 'operator'
 }
 
 interface AuthResponse {
   user: ApiUser
+  mustChangePassword?: boolean
   token: { type: string; value: string; expiresAt: string | null }
 }
 
@@ -19,8 +23,12 @@ export const useAuthStore = defineStore('auth', () => {
     sameSite: 'lax',
   })
   const user = ref<ApiUser | null>(null)
+  // Set on accounts provisioned with a temporary password: the dashboard
+  // blocks on a change-password modal until it clears.
+  const mustChangePassword = ref(false)
 
   const isAuthenticated = computed(() => !!token.value)
+  const isOperator = computed(() => user.value?.instanceRole === 'operator')
 
   function apiBase() {
     return useRuntimeConfig().public.apiBase
@@ -33,6 +41,7 @@ export const useAuthStore = defineStore('auth', () => {
     })
     token.value = res.token.value
     user.value = res.user
+    mustChangePassword.value = res.mustChangePassword ?? false
   }
 
   async function register(email: string, password: string, name?: string) {
@@ -42,6 +51,7 @@ export const useAuthStore = defineStore('auth', () => {
     })
     token.value = res.token.value
     user.value = res.user
+    mustChangePassword.value = false
   }
 
   async function logout() {
@@ -55,20 +65,23 @@ export const useAuthStore = defineStore('auth', () => {
     }
     token.value = null
     user.value = null
+    mustChangePassword.value = false
   }
 
   async function fetchMe() {
     if (!token.value) return
     try {
-      const res = await $fetch<{ user: ApiUser }>(`${apiBase()}/auth/me`, {
-        headers: { Authorization: `Bearer ${token.value}` },
-      })
+      const res = await $fetch<{ user: ApiUser; mustChangePassword?: boolean }>(
+        `${apiBase()}/auth/me`,
+        { headers: { Authorization: `Bearer ${token.value}` } }
+      )
       user.value = res.user
+      mustChangePassword.value = res.mustChangePassword ?? false
     } catch {
       token.value = null
       user.value = null
     }
   }
 
-  return { token, user, isAuthenticated, login, register, logout, fetchMe }
+  return { token, user, mustChangePassword, isAuthenticated, isOperator, login, register, logout, fetchMe }
 })

@@ -444,6 +444,105 @@ async function removeMember(member: OrgMember) {
     notify({ title: t('notif_remove_failed'), description: e?.data?.message, type: 'error' })
   }
 }
+/* ── Instance (opérateur uniquement) ────────────────────────────────────── */
+interface InstanceOverview {
+  users: number; operators: number; organizations: number
+  nodes: number; nodesOnline: number
+  settings: { registrationMode: 'open' | 'invite_only' | 'closed' }
+}
+interface AdminUser {
+  id: string; email: string; name: string | null
+  isActive: boolean; instanceRole: 'user' | 'operator'
+  mustChangePassword: boolean; nodeCount: number
+}
+
+const overview     = ref<InstanceOverview | null>(null)
+const adminUsers   = ref<AdminUser[]>([])
+const regMode      = ref<'open' | 'invite_only' | 'closed'>('open')
+
+const regModes = computed(() => [
+  { value: 'open',        label: t('inst_mode_open') },
+  { value: 'invite_only', label: t('inst_mode_invite') },
+  { value: 'closed',      label: t('inst_mode_closed') },
+])
+
+async function fetchInstance() {
+  if (!auth.isOperator) return
+  try {
+    const api = useApi()
+    const [ov, us] = await Promise.all([
+      api<InstanceOverview>('/admin/overview'),
+      api<{ data: AdminUser[] }>('/admin/users'),
+    ])
+    overview.value = ov
+    regMode.value  = ov.settings.registrationMode
+    adminUsers.value = us.data
+  } catch { overview.value = null }
+}
+// Not onMounted: the layout kicks off fetchMe() without awaiting it, so the
+// account — and therefore its instance role — lands after this page mounts.
+// Fetching once on mount would silently give up before knowing who we are.
+watch(() => auth.isOperator, (op) => { if (op) fetchInstance() }, { immediate: true })
+
+async function saveRegMode(mode: string) {
+  try {
+    const api = useApi()
+    await api('/admin/settings', { method: 'PATCH', body: { registrationMode: mode } })
+    regMode.value = mode as typeof regMode.value
+    notify({ title: t('notif_inst_saved'), type: 'success' })
+  } catch (e: any) {
+    notify({ title: t('notif_inst_failed'), description: e?.data?.message, type: 'error' })
+    await fetchInstance()
+  }
+}
+
+async function toggleUserActive(u: AdminUser) {
+  try {
+    const api = useApi()
+    await api(`/admin/users/${u.id}`, { method: 'PATCH', body: { isActive: !u.isActive } })
+    await fetchInstance()
+  } catch (e: any) {
+    notify({ title: t('notif_inst_failed'), description: e?.data?.message, type: 'error' })
+  }
+}
+
+/* Provisionner un compte — le mot de passe temporaire n'est montré qu'ici */
+const showCreateUser = ref(false)
+const newUserEmail   = ref('')
+const newUserName    = ref('')
+const creatingUser   = ref(false)
+const tempPassword   = ref<string | null>(null)
+const tempCopied     = ref(false)
+
+function openCreateUser() {
+  newUserEmail.value = ''
+  newUserName.value  = ''
+  tempPassword.value = null
+  showCreateUser.value = true
+}
+async function createUser() {
+  if (!newUserEmail.value.trim() || creatingUser.value) return
+  creatingUser.value = true
+  try {
+    const api = useApi()
+    const res = await api<{ tempPassword: string }>('/admin/users', {
+      method: 'POST',
+      body: { email: newUserEmail.value.trim(), name: newUserName.value.trim() || undefined },
+    })
+    tempPassword.value = res.tempPassword
+    await fetchInstance()
+  } catch (e: any) {
+    notify({ title: t('notif_inst_failed'), description: e?.data?.message, type: 'error' })
+  } finally {
+    creatingUser.value = false
+  }
+}
+async function copyTemp() {
+  if (!tempPassword.value) return
+  await navigator.clipboard.writeText(tempPassword.value)
+  tempCopied.value = true
+  setTimeout(() => (tempCopied.value = false), 2000)
+}
 </script>
 
 <template>
@@ -465,6 +564,7 @@ async function removeMember(member: OrgMember) {
         <a href="#securite">{{ t('settings_nav_security') }}</a>
         <a href="#equipe">{{ t('settings_nav_team') }}</a>
         <a href="#agent">{{ t('settings_nav_agent') }}</a>
+        <a v-if="auth.isOperator" href="#instance">{{ t('inst_nav') }}</a>
         <a href="#danger">{{ t('settings_nav_danger') }}</a>
       </nav>
 
@@ -608,6 +708,61 @@ async function removeMember(member: OrgMember) {
             <SettingRow :label="t('settings_subnet_label')" :sub="t('settings_subnet_sub')">
               <span class="mono-val">100.64.0.0/10</span>
             </SettingRow>
+          </div>
+        </div>
+
+        <!-- Instance — operator only -->
+        <div v-if="auth.isOperator && overview" id="instance" class="card">
+          <div class="card-header">
+            <div class="card-title">{{ t('inst_title') }}</div>
+            <span style="font-size:10px;color:var(--muted)">{{ t('inst_operator') }}</span>
+          </div>
+          <div class="card-body">
+            <SettingRow :label="t('inst_stats_label')" :sub="t('inst_stats_sub')">
+              <span class="mono-val">
+                {{ overview.users }} · {{ overview.organizations }} · {{ overview.nodesOnline }}/{{ overview.nodes }}
+              </span>
+            </SettingRow>
+
+            <SettingRow :label="t('inst_reg_label')" :sub="t('inst_reg_sub')">
+              <select class="role-select" :value="regMode" @change="saveRegMode(($event.target as HTMLSelectElement).value)">
+                <option v-for="m in regModes" :key="m.value" :value="m.value">{{ m.label }}</option>
+              </select>
+            </SettingRow>
+
+            <SettingRow :label="t('inst_create_label')" :sub="t('inst_create_sub')">
+              <button class="btn-accent-sm" @click="openCreateUser">{{ t('inst_create') }}</button>
+            </SettingRow>
+          </div>
+
+          <div class="org-members">
+            <div v-for="u in adminUsers" :key="u.id" class="org-member-row">
+              <div class="member-avatar" :style="`background: ${avatarFor(u.id)}`">
+                {{ (u.name || u.email)[0].toUpperCase() }}
+              </div>
+              <div class="member-info">
+                <div class="member-name">
+                  {{ u.name || u.email }}
+                  <span v-if="u.instanceRole === 'operator'" class="owner-badge">{{ t('inst_operator') }}</span>
+                  <span v-if="u.mustChangePassword" class="pending-chip">{{ t('inst_pending_pwd') }}</span>
+                </div>
+                <div class="member-email">{{ u.email }} · {{ pluralCount('inst_nodes', u.nodeCount) }}</div>
+              </div>
+              <div class="member-role">
+                <span :class="u.isActive ? 'role-static' : 'perm-chip'">
+                  {{ u.isActive ? t('inst_active') : t('inst_suspended') }}
+                </span>
+              </div>
+              <button
+                v-if="u.id !== auth.user?.id"
+                class="remove-btn"
+                :title="u.isActive ? t('inst_suspend') : t('inst_restore')"
+                @click="toggleUserActive(u)"
+              >
+                <UIcon :name="u.isActive ? 'i-lucide-ban' : 'i-lucide-rotate-ccw'" style="width:11px;height:11px" />
+              </button>
+              <div v-else class="remove-placeholder" />
+            </div>
           </div>
         </div>
 
@@ -956,6 +1111,46 @@ async function removeMember(member: OrgMember) {
       <div class="modal-footer">
         <button class="btn-ghost" @click="showInvite = false">{{ inviteToken ? t('common_close') : t('common_cancel') }}</button>
         <button v-if="!inviteToken" class="btn-accent-sm" :disabled="inviting || !inviteEmail.trim()" @click="sendInvite">{{ t('modal_invite_send') }}</button>
+      </div>
+    </div>
+  </div>
+  <!-- Provision an account -->
+  <div v-if="showCreateUser" class="modal-overlay" @click.self="showCreateUser = false">
+    <div class="modal" style="max-width:440px">
+      <div class="modal-header">
+        <div>
+          <div class="modal-title">{{ t('inst_create_title') }}</div>
+          <div class="modal-sub">{{ t('inst_create_hint') }}</div>
+        </div>
+        <button class="close-btn" @click="showCreateUser = false"><UIcon name="i-lucide-x" style="width:12px;height:12px" /></button>
+      </div>
+
+      <!-- Shown once. There is no way to read it back afterwards. -->
+      <div v-if="tempPassword" class="modal-body">
+        <div class="modal-sub">{{ t('inst_temp_hint', { email: newUserEmail }) }}</div>
+        <div class="cmd-block" style="margin-top:10px">
+          <button class="cmd-copy" @click="copyTemp">
+            <template v-if="tempCopied"><UIcon name="i-lucide-check" style="width:10px;height:10px" /> {{ t('onb_cmd_copied') }}</template>
+            <template v-else>{{ t('onb_cmd_copy') }}</template>
+          </button>
+          <div class="cmd-scroll"><pre class="cmd-pre"><span class="cmd-accent">{{ tempPassword }}</span></pre></div>
+        </div>
+      </div>
+
+      <div v-else class="modal-body">
+        <div class="form-group">
+          <label class="form-label">{{ t('modal_invite_email') }}</label>
+          <input v-model="newUserEmail" class="form-input" type="email" placeholder="collegue@exemple.com" autofocus @keyup.enter="createUser" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">{{ t('inst_create_name') }}</label>
+          <input v-model="newUserName" class="form-input" type="text" :placeholder="t('inst_create_name_ph')" @keyup.enter="createUser" />
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button class="btn-ghost" @click="showCreateUser = false">{{ tempPassword ? t('common_close') : t('common_cancel') }}</button>
+        <button v-if="!tempPassword" class="btn-accent-sm" :disabled="creatingUser || !newUserEmail.trim()" @click="createUser">{{ t('common_create') }}</button>
       </div>
     </div>
   </div>

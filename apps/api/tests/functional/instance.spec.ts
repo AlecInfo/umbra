@@ -35,6 +35,27 @@ test.group('Instance layer', () => {
     denied.assertStatus(404)
   })
 
+  test('the account list reports node counts', async ({ client, assert }) => {
+    const operator = await register(client, 'lister@test.io')
+    const other = await register(client, 'listed@test.io')
+
+    await client
+      .post('/api/v1/nodes')
+      .headers(auth(other.token!))
+      .json({ name: 'counted', category: 'sbc' })
+
+    const res = await client.get('/api/v1/admin/users').headers(auth(operator.token!))
+    res.assertStatus(200)
+
+    const rows = res.body().data
+    assert.lengthOf(rows, 2)
+    const listed = rows.find((r: any) => r.email === 'listed@test.io')
+    assert.equal(listed.nodeCount, 1)
+    assert.equal(listed.instanceRole, 'user')
+    assert.isTrue(listed.isActive)
+    assert.equal(rows.find((r: any) => r.email === 'lister@test.io').nodeCount, 0)
+  })
+
   test('closed registration still lets the very first account in', async ({ client, assert }) => {
     // A fresh install with registration closed must not lock out whoever just
     // deployed it.

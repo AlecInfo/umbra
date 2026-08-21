@@ -131,6 +131,7 @@ async function logout() {
       </main>
 
       <AppNotifications />
+      <ForcePasswordModal />
 
       <!-- VPN bar — fixed, ne déplace plus le contenu -->
       <VpnBar

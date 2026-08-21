@@ -65,7 +65,9 @@ export default class AdminController {
   async users({}: HttpContext) {
     const rows = await db
       .from('users')
-      .whereNull('deleted_at')
+      // Qualified: nodes has a deleted_at too, and the join makes a bare
+      // column reference ambiguous.
+      .whereNull('users.deleted_at')
       .leftJoin('nodes', (join) =>
         join.on('nodes.owner_user_id', '=', 'users.id').andOnNull('nodes.deleted_at')
       )

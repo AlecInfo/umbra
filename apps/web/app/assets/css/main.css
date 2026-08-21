@@ -1878,6 +1878,12 @@ body:has(.vpn-bar) .notif-stack { bottom: 84px; }
 /* Marks a node owned by an organisation rather than by the account itself. */
 /* Tells a non-admin visitor what they hold on this node, so that missing
    buttons read as a permission level rather than a broken page. */
+.form-error { font-size: 10px; color: var(--offline); }
+
+/* Sits above everything, including notifications: the account is unusable
+   until the temporary password is replaced, so nothing may cover it. */
+.force-pwd-overlay { z-index: 10000; }
+
 .perm-chip {
   display: inline-flex; align-items: center; gap: 4px;
   font-size: 9px; font-family: var(--font-mono);
