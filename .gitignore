@@ -12,3 +12,6 @@ cloudflared/config.yaml
 # longer configured this way — it lives in the committed docker-compose.tls.yml
 # (see DEPLOYMENT.md), so an override here now shadows it. Use with care.
 docker-compose.override.yml
+
+# Migration dumps — contain the whole database.
+umbra-backup/

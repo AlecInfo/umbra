@@ -76,6 +76,17 @@ services:
       API_PUBLIC_URL: ${API_PUBLIC_URL:-http://localhost:3333/api/v1}
       HEADSCALE_EXTERNAL_URL: ${HEADSCALE_EXTERNAL_URL:-http://localhost:8080}
       HEADSCALE_API_KEY: ${HEADSCALE_API_KEY:-}
+      # Optional. Unset SMTP_HOST means nothing is mailed and secrets come back
+      # to the caller instead — see services/mailer.ts. Without these lines the
+      # container could never be configured for mail at all.
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_SECURE: ${SMTP_SECURE:-false}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      MAIL_FROM: ${MAIL_FROM:-umbra@localhost}
+      MAIL_FROM_NAME: ${MAIL_FROM_NAME:-UMBRA}
+      WEB_PUBLIC_URL: ${WEB_PUBLIC_URL:-http://localhost:3000}
     depends_on:
       postgres:
         condition: service_healthy

@@ -99,17 +99,24 @@ without it every enrolled machine has to be re-enrolled — and `umbra-pgdata`
 holds the accounts, organisations and history.
 
 ```bash
-# on the old host, stack stopped
-docker compose down
+# on the old host, with postgres running
 ./scripts/migrate-volumes.sh export ./umbra-backup
 
 # copy the folder over, then on the new host, before the first deploy
 ./scripts/migrate-volumes.sh import ./umbra-backup
 ```
 
-The script refuses to run against a live stack — copying a Postgres data
-directory while it is being written yields a snapshot that may or may not
-replay — and refuses to overwrite a volume that already holds something.
+The database travels as an SQL dump, not as a volume. `postgresql.conf` lives
+inside the data directory, and the TimescaleDB image sizes it from the host's RAM
+the first time it starts — so a directory copied from a 32 GB machine asks a
+Raspberry Pi for 8 GB of shared memory and dies with `could not map anonymous
+shared memory`, which the stack reports as `container umbra-postgres is
+unhealthy`. Restoring a dump lets the destination write a configuration for
+itself. (Data directories are also officially not portable across architectures
+or major versions.)
+
+Headscale's volume is SQLite, whose format is portable by design, so that one is
+copied as-is.
 
 Then point the router's forwards at the new machine: 443/tcp and 3478/udp for
 Headscale, and whatever port `API_PUBLIC_URL` names for the API, since that is
