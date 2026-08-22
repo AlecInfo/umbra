@@ -1,0 +1,33 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "UMBRA",
+  "version": "0.1.0",
+  "identifier": "io.umbravpn.desktop",
+  "build": {
+    "beforeDevCommand": "pnpm dev",
+    "devUrl": "http://localhost:5273",
+    "beforeBuildCommand": "pnpm build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "UMBRA",
+        "width": 420,
+        "height": 620,
+        "resizable": true,
+        "minWidth": 380,
+        "minHeight": 520
+      }
+    ],
+    "security": { "csp": null }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": ["icons/icon.png"],
+    "category": "Utility",
+    "shortDescription": "Self-hosted VPN client",
+    "longDescription": "Connect to the exit nodes of your UMBRA instance."
+  }
+}

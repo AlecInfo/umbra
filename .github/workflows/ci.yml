@@ -41,6 +41,11 @@ jobs:
       - name: Build landing
         run: pnpm --filter=landing build
 
+      # Frontend only — the Rust side needs GTK/WebKit system libraries, so
+      # compiling the bundle belongs in a release workflow rather than here.
+      - name: Build desktop client (frontend)
+        run: pnpm --filter=desktop build
+
   test:
     name: API tests
     runs-on: ubuntu-latest

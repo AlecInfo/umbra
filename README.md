@@ -42,8 +42,11 @@ through your own hardware instead of somebody else's.
   see [ARCHITECTURE.md](ARCHITECTURE.md).
 - **Web dashboard** — node metrics, connection history, teams and sharing.
 
-**Status:** the agent is **Linux only** (systemd, amd64/arm64/armv7). The clients are
-not started — Tauri 2 covers desktop and mobile, so one codebase serves both: connecting a client today means running a `tailscale up`
+**Status:** the agent is **Linux only** (systemd, amd64/arm64/armv7). The desktop client
+is early but functional. There is no mobile client: carrying traffic through a tunnel on
+iOS or Android means reimplementing what the Tailscale apps already do, so point the
+official Tailscale app at your own server instead. Connecting without the desktop client
+still works too: connecting a client today means running a `tailscale up`
 command the dashboard hands you, or using the official Tailscale app pointed at your
 own server.
 
@@ -54,6 +57,7 @@ umbra/
 ├── apps/
 │   ├── web/             Nuxt 4 dashboard (main frontend)
 │   ├── landing/         Marketing site (umbravpn.io)
+│   ├── desktop/         Tauri 2 client — see apps/desktop/README.md
 │   └── api/             AdonisJS 6 API
 ├── packages/
 │   └── types/           Shared TypeScript types
@@ -70,7 +74,7 @@ umbra/
 | **Agent**     | Go                                     |
 | **VPN**       | Headscale + Tailscale (WireGuard)      |
 | **Relay**     | DERP (embedded, or a standalone derper)|
-| **Clients**   | Tauri 2 — desktop and mobile *(not started)* |
+| **Client**    | Tauri 2 desktop, driving the local Tailscale |
 
 ## Getting Started
 
