@@ -100,31 +100,49 @@ jobs:
   # Images are pushed for main only, and only once the code has been typechecked
   # and tested. Nothing pulls them automatically yet: deployment is still
   # ./deploy.sh on the target host (see DEPLOYMENT.md).
+  # ── Publishing ──────────────────────────────────────────────────────────────
+  # Images are pushed for main only, and only once the code has been typechecked
+  # and tested. Nothing pulls them automatically: deployment is ./deploy.sh on
+  # the target host (see DEPLOYMENT.md).
+  #
+  # Built for amd64 and arm64 so the server can live on whatever machine the
+  # user already owns — a Raspberry Pi is the archetypal self-hosting box, and
+  # every base image the stack depends on (TimescaleDB, Headscale, node, caddy)
+  # publishes arm64. Each architecture builds on a native runner and the two are
+  # merged into one manifest afterwards: emulating arm64 through QEMU works but
+  # turns a three-minute Node build into half an hour.
   publish-api:
-    name: Publish image — API
+    name: Publish image — API (${{ matrix.platform }})
     needs: [check, test]
     if: github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-latest
+            platform: linux/amd64
+          - runner: ubuntu-24.04-arm
+            platform: linux/arm64
     steps:
       - uses: actions/checkout@v4
 
-      # ghcr requires a lowercase repository name; the owner (AlecInfo) has
-      # uppercase letters, so lowercase it before tagging.
       - name: Lowercase image owner
         run: echo "IMAGE_OWNER=${GITHUB_REPOSITORY_OWNER,,}" >> "$GITHUB_ENV"
 
       # ── Agent binaries ──────────────────────────────────────────────────
       # The API serves GET /releases/<file> (what install.sh downloads) from
       # apps/api/resources/releases/, which is gitignored — those are build
-      # artifacts. They must therefore be produced HERE, before the image is
-      # built, or the published image ships an enrollment path that 404s.
+      # artifacts. They must be produced HERE, before the image is built, or the
+      # published image ships an enrollment path that 404s. Go cross-compiles,
+      # so the same three targets come out whichever runner we are on.
       - uses: actions/setup-go@v5
         with:
           go-version: '1.22'
           cache-dependency-path: agent/go.sum
 
-      # Without the real key the script would silently mint a throwaway one,
-      # and agents installed from this image could never accept a later update
+      # Without the real key the script would silently mint a throwaway one, and
+      # agents installed from this image could never accept a later update
       # (they verify against the key embedded at build time).
       - name: Require the signing key
         env:
@@ -149,22 +167,77 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - uses: docker/build-push-action@v6
+      # Pushed by digest only: the tags are attached by the merge job below,
+      # once both architectures exist.
+      - id: build
+        uses: docker/build-push-action@v6
         with:
           context: .
           file: apps/api/Dockerfile
-          push: true
-          tags: |
-            ghcr.io/${{ env.IMAGE_OWNER }}/umbra-api:latest
-            ghcr.io/${{ env.IMAGE_OWNER }}/umbra-api:${{ github.sha }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          platforms: ${{ matrix.platform }}
+          outputs: type=image,name=ghcr.io/${{ env.IMAGE_OWNER }}/umbra-api,push-by-digest=true,name-canonical=true,push=true
+          cache-from: type=gha,scope=api-${{ matrix.platform }}
+          cache-to: type=gha,mode=max,scope=api-${{ matrix.platform }}
 
-  publish-web:
-    name: Publish image — Web
-    needs: [check, test]
+      # The digest is stripped of its "sha256:" prefix in bash: GitHub
+      # expressions have no such operator.
+      - name: Export digest
+        run: |
+          mkdir -p /tmp/digests
+          digest="${{ steps.build.outputs.digest }}"
+          touch "/tmp/digests/${digest#sha256:}"
+        shell: bash
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: digests-api-${{ strategy.job-index }}
+          path: /tmp/digests/*
+          retention-days: 1
+
+  merge-api:
+    name: Publish image — API (manifest)
+    needs: publish-api
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
+    steps:
+      - name: Lowercase image owner
+        run: echo "IMAGE_OWNER=${GITHUB_REPOSITORY_OWNER,,}" >> "$GITHUB_ENV"
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: /tmp/digests
+          pattern: digests-api-*
+          merge-multiple: true
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create manifest list
+        working-directory: /tmp/digests
+        run: |
+          docker buildx imagetools create \
+            -t ghcr.io/${IMAGE_OWNER}/umbra-api:latest \
+            -t ghcr.io/${IMAGE_OWNER}/umbra-api:${GITHUB_SHA} \
+            $(printf 'ghcr.io/'"${IMAGE_OWNER}"'/umbra-api@sha256:%s ' *)
+
+  publish-web:
+    name: Publish image — Web (${{ matrix.platform }})
+    needs: [check, test]
+    if: github.ref == 'refs/heads/main'
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-latest
+            platform: linux/amd64
+          - runner: ubuntu-24.04-arm
+            platform: linux/arm64
     steps:
       - uses: actions/checkout@v4
 
@@ -179,13 +252,58 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - uses: docker/build-push-action@v6
+      - id: build
+        uses: docker/build-push-action@v6
         with:
           context: .
           file: apps/web/Dockerfile
-          push: true
-          tags: |
-            ghcr.io/${{ env.IMAGE_OWNER }}/umbra-web:latest
-            ghcr.io/${{ env.IMAGE_OWNER }}/umbra-web:${{ github.sha }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          platforms: ${{ matrix.platform }}
+          outputs: type=image,name=ghcr.io/${{ env.IMAGE_OWNER }}/umbra-web,push-by-digest=true,name-canonical=true,push=true
+          cache-from: type=gha,scope=web-${{ matrix.platform }}
+          cache-to: type=gha,mode=max,scope=web-${{ matrix.platform }}
+
+      # The digest is stripped of its "sha256:" prefix in bash: GitHub
+      # expressions have no such operator.
+      - name: Export digest
+        run: |
+          mkdir -p /tmp/digests
+          digest="${{ steps.build.outputs.digest }}"
+          touch "/tmp/digests/${digest#sha256:}"
+        shell: bash
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: digests-web-${{ strategy.job-index }}
+          path: /tmp/digests/*
+          retention-days: 1
+
+  merge-web:
+    name: Publish image — Web (manifest)
+    needs: publish-web
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Lowercase image owner
+        run: echo "IMAGE_OWNER=${GITHUB_REPOSITORY_OWNER,,}" >> "$GITHUB_ENV"
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: /tmp/digests
+          pattern: digests-web-*
+          merge-multiple: true
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create manifest list
+        working-directory: /tmp/digests
+        run: |
+          docker buildx imagetools create \
+            -t ghcr.io/${IMAGE_OWNER}/umbra-web:latest \
+            -t ghcr.io/${IMAGE_OWNER}/umbra-web:${GITHUB_SHA} \
+            $(printf 'ghcr.io/'"${IMAGE_OWNER}"'/umbra-web@sha256:%s ' *)

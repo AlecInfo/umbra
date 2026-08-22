@@ -81,6 +81,33 @@ pnpm --filter api dev             # API on :3333
 pnpm web                          # web on :3000
 ```
 
+## What the server runs on
+
+The published images are built for **amd64 and arm64**, so the control plane can
+live on whatever machine you already own — a Raspberry Pi 4/5, a mini PC, a VPS.
+Every base image the stack depends on (TimescaleDB, Headscale, node, caddy)
+publishes both architectures.
+
+Budget roughly 2 GB of RAM for the whole stack. On a Pi, put the database on the
+SD card only if you enjoy replacing SD cards; an external SSD is worth it.
+
+One caveat worth knowing before you move an existing install: the Headscale
+volume holds your nodes, their keys and the Let's Encrypt certificate. Moving the
+server without it means re-enrolling every node.
+
+```bash
+# on the old host
+docker run --rm -v headscale-data:/from -v "$PWD":/to alpine \
+  tar czf /to/headscale.tgz -C /from .
+
+# on the new one, before the first deploy.sh
+docker volume create headscale-data
+docker run --rm -v headscale-data:/to -v "$PWD":/from alpine \
+  tar xzf /from/headscale.tgz -C /to
+```
+
+And point the router's 443/tcp and 3478/udp forwards at the new machine.
+
 ## Agent binaries
 
 `install.sh` downloads the agent from your own server (`GET /releases/<file>`),

@@ -29,8 +29,10 @@ UMBRA is a self-hosted VPN manager built on **Headscale** and **Tailscale**, whi
 on WireGuard. Enroll machines you already own as exit nodes, and route your traffic
 through your own hardware instead of somebody else's.
 
-- **Self-hosted** — the control plane runs on your infrastructure. Headscale, Postgres and
-  the API are the whole server side; no third-party service is in the path.
+- **Self-hosted, on your hardware** — the control plane runs on your infrastructure.
+  Headscale, Postgres and the API are the whole server side; no third-party service is in
+  the path. Images are published for amd64 and arm64, so a Raspberry Pi is as valid a
+  host as a mini PC or a VPS.
 - **WireGuard under the hood** — via Tailscale, so NAT traversal, key rotation and
   rekeying are handled rather than reimplemented.
 - **Works behind CGNAT** — when two machines cannot reach each other directly, traffic is

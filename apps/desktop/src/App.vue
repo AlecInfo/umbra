@@ -56,11 +56,15 @@ async function refreshNodes() {
 
 onMounted(async () => {
   await refreshStatus()
-  const url = await getServerUrl()
-  if (!url) return (screen.value = 'server')
-  serverUrl.value = url
-  screen.value = (await getToken()) ? 'nodes' : 'login'
-  if (screen.value === 'nodes') await refreshNodes()
+  try {
+    const url = await getServerUrl()
+    if (!url) return (screen.value = 'server')
+    serverUrl.value = url
+    screen.value = (await getToken()) ? 'nodes' : 'login'
+    if (screen.value === 'nodes') await refreshNodes()
+  } catch (e: any) {
+    error.value = `Stockage local inaccessible : ${e?.message ?? e}`
+  }
 })
 
 // tailscale state changes outside this window — someone may run the CLI, or a
@@ -70,14 +74,22 @@ onMounted(() => { timer = setInterval(refreshStatus, 5000) })
 onUnmounted(() => clearInterval(timer))
 
 async function saveServer() {
-  if (!serverUrl.value.trim()) return
+  if (!serverUrl.value.trim() || busy.value) return
+  busy.value = true
   error.value = null
-  let url = serverUrl.value.trim()
-  if (!/^https?:\/\//.test(url)) url = `http://${url}`
-  if (!/\/api\/v1$/.test(url)) url = `${url.replace(/\/+$/, '')}/api/v1`
-  await setServerUrl(url)
-  serverUrl.value = url
-  screen.value = 'login'
+  try {
+    let url = serverUrl.value.trim()
+    if (!/^https?:\/\//.test(url)) url = `http://${url}`
+    if (!/\/api\/v1$/.test(url)) url = `${url.replace(/\/+$/, '')}/api/v1`
+    await setServerUrl(url)
+    serverUrl.value = url
+    screen.value = 'login'
+  } catch (e: any) {
+    // A rejected store call used to leave the button doing nothing at all.
+    error.value = `Impossible d'enregistrer : ${e?.message ?? e}`
+  } finally {
+    busy.value = false
+  }
 }
 
 async function doLogin() {
@@ -166,7 +178,7 @@ async function disconnect() {
       <h1>Votre serveur</h1>
       <p class="sub">L'adresse de l'instance UMBRA que vous hébergez.</p>
       <input v-model="serverUrl" placeholder="https://umbra.exemple.com" @keyup.enter="saveServer" />
-      <button class="primary" @click="saveServer">Continuer</button>
+      <button class="primary" :disabled="busy" @click="saveServer">Continuer</button>
     </section>
 
     <section v-else-if="screen === 'login'" class="panel">

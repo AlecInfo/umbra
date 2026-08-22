@@ -13,6 +13,13 @@ const dbConfig = defineConfig({
         password: env.get('DB_PASSWORD', 'umbra'),
         database: env.get('DB_DATABASE', 'umbra'),
       },
+      // min: 0 so idle connections are reaped instead of kept. Knex defaults
+      // to holding two open, and on a machine that suspends — a laptop hosting
+      // the dev instance — those come back as dead sockets the pool cannot tell
+      // from live ones, and every query then fails with "timeout acquiring a
+      // connection" until the process is restarted.
+      pool: { min: 0, max: 10 },
+
       migrations: {
         naturalSort: true,
         paths: ['database/migrations'],

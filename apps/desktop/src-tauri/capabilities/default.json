@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Permissions du client UMBRA. Le plugin store garde l'adresse du serveur et le jeton de session ; sans cette declaration, Tauri 2 refuse silencieusement les appels de plugin.",
+  "windows": ["main"],
+  "permissions": ["core:default", "store:default"]
+}
