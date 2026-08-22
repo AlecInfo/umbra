@@ -91,22 +91,29 @@ publishes both architectures.
 Budget roughly 2 GB of RAM for the whole stack. On a Pi, put the database on the
 SD card only if you enjoy replacing SD cards; an external SSD is worth it.
 
-One caveat worth knowing before you move an existing install: the Headscale
-volume holds your nodes, their keys and the Let's Encrypt certificate. Moving the
-server without it means re-enrolling every node.
+### Moving an existing install
+
+Two volumes carry the state, and losing either is not a small inconvenience:
+`headscale-data` holds your nodes, their keys and the Let's Encrypt certificate —
+without it every enrolled machine has to be re-enrolled — and `umbra-pgdata`
+holds the accounts, organisations and history.
 
 ```bash
-# on the old host
-docker run --rm -v headscale-data:/from -v "$PWD":/to alpine \
-  tar czf /to/headscale.tgz -C /from .
+# on the old host, stack stopped
+docker compose down
+./scripts/migrate-volumes.sh export ./umbra-backup
 
-# on the new one, before the first deploy.sh
-docker volume create headscale-data
-docker run --rm -v headscale-data:/to -v "$PWD":/from alpine \
-  tar xzf /from/headscale.tgz -C /to
+# copy the folder over, then on the new host, before the first deploy
+./scripts/migrate-volumes.sh import ./umbra-backup
 ```
 
-And point the router's 443/tcp and 3478/udp forwards at the new machine.
+The script refuses to run against a live stack — copying a Postgres data
+directory while it is being written yields a snapshot that may or may not
+replay — and refuses to overwrite a volume that already holds something.
+
+Then point the router's forwards at the new machine: 443/tcp and 3478/udp for
+Headscale, and whatever port `API_PUBLIC_URL` names for the API, since that is
+the address baked into every install command.
 
 ## Agent binaries
 
