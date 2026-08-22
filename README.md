@@ -42,8 +42,8 @@ through your own hardware instead of somebody else's.
   see [ARCHITECTURE.md](ARCHITECTURE.md).
 - **Web dashboard** — node metrics, connection history, teams and sharing.
 
-**Status:** the agent is **Linux only** (systemd, amd64/arm64/armv7). The desktop and
-mobile clients are not started: connecting a client today means running a `tailscale up`
+**Status:** the agent is **Linux only** (systemd, amd64/arm64/armv7). The clients are
+not started — Tauri 2 covers desktop and mobile, so one codebase serves both: connecting a client today means running a `tailscale up`
 command the dashboard hands you, or using the official Tailscale app pointed at your
 own server.
 
@@ -70,8 +70,7 @@ umbra/
 | **Agent**     | Go                                     |
 | **VPN**       | Headscale + Tailscale (WireGuard)      |
 | **Relay**     | DERP (embedded, or a standalone derper)|
-| **Desktop**   | Tauri 2 *(not started)*                |
-| **Mobile**    | Capacitor 6 *(not started)*            |
+| **Clients**   | Tauri 2 — desktop and mobile *(not started)* |
 
 ## Getting Started
 

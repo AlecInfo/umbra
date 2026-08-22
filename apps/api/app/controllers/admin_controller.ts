@@ -7,6 +7,7 @@ import User from '#models/user'
 import Node from '#models/node'
 import { headscaleClient, tenantForOwner } from '#services/headscale_client'
 import { getInstanceSettings, setRegistrationMode } from '#services/instance'
+import { sendProvisionedAccount, sendPasswordReset } from '#services/mailer'
 
 const settingsValidator = vine.compile(
   vine.object({
@@ -140,9 +141,12 @@ export default class AdminController {
       mustChangePassword: true,
     })
 
+    const emailed = await sendProvisionedAccount(user.email, tempPassword)
+
     return response.created({
       user: { id: user.id, email: user.email, name: user.name },
-      tempPassword,
+      emailed,
+      tempPassword: emailed ? null : tempPassword,
       createdBy: auth.getUserOrFail().email,
     })
   }
@@ -287,7 +291,9 @@ export default class AdminController {
     // account, so leaving their tokens alive would defeat it.
     await db.from('auth_access_tokens').where('tokenable_id', user.id).delete()
 
-    return { tempPassword, user: { id: user.id, email: user.email } }
+    const emailed = await sendPasswordReset(user.email, tempPassword)
+
+    return { emailed, tempPassword: emailed ? null : tempPassword, user: { id: user.id, email: user.email } }
   }
 
   // POST /admin/orgs/:id/members — put an existing account into a team

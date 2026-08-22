@@ -388,11 +388,13 @@ const inviteEmail  = ref('')
 const inviteRole   = ref<OrgRole>('member')
 const inviting     = ref(false)
 const inviteToken  = ref<string | null>(null)
+const inviteEmailed = ref(false)
 const inviteCopied = ref(false)
 function openInvite() {
   inviteEmail.value = ''
   inviteRole.value  = 'member'
   inviteToken.value = null
+  inviteEmailed.value = false
   showInvite.value  = true
 }
 async function sendInvite() {
@@ -400,10 +402,11 @@ async function sendInvite() {
   inviting.value = true
   try {
     const api = useApi()
-    const res = await api<{ token: string }>(`/orgs/${activeOrgId.value}/invitations`, {
-      method: 'POST',
-      body: { email: inviteEmail.value.trim(), role: inviteRole.value },
-    })
+    const res = await api<{ token: string | null; emailed: boolean }>(
+      `/orgs/${activeOrgId.value}/invitations`,
+      { method: 'POST', body: { email: inviteEmail.value.trim(), role: inviteRole.value } }
+    )
+    inviteEmailed.value = res.emailed
     inviteToken.value = res.token
     await fetchOrgDetail()
   } catch (e: any) {
@@ -622,9 +625,12 @@ function askResetPassword(u: AdminUser) {
     async () => {
       try {
         const api = useApi()
-        const res = await api<{ tempPassword: string }>(`/admin/users/${u.id}/reset-password`, { method: 'POST' })
+        const res = await api<{ tempPassword: string | null; emailed: boolean }>(
+          `/admin/users/${u.id}/reset-password`, { method: 'POST' }
+        )
         resetFor.value = u
         resetPassword.value = res.tempPassword
+        if (res.emailed) notify({ title: t('inst_reset_sent', { email: u.email }), type: 'success' })
         await fetchInstance()
       } catch (e: any) {
         notify({ title: t('notif_inst_failed'), description: e?.data?.message, type: 'error' })
@@ -779,12 +785,14 @@ const newUserEmail   = ref('')
 const newUserName    = ref('')
 const creatingUser   = ref(false)
 const tempPassword   = ref<string | null>(null)
+const tempEmailed    = ref(false)
 const tempCopied     = ref(false)
 
 function openCreateUser() {
   newUserEmail.value = ''
   newUserName.value  = ''
   tempPassword.value = null
+  tempEmailed.value = false
   showCreateUser.value = true
 }
 async function createUser() {
@@ -792,10 +800,11 @@ async function createUser() {
   creatingUser.value = true
   try {
     const api = useApi()
-    const res = await api<{ tempPassword: string }>('/admin/users', {
+    const res = await api<{ tempPassword: string | null; emailed: boolean }>('/admin/users', {
       method: 'POST',
       body: { email: newUserEmail.value.trim(), name: newUserName.value.trim() || undefined },
     })
+    tempEmailed.value = res.emailed
     tempPassword.value = res.tempPassword
     await fetchInstance()
   } catch (e: any) {
@@ -1479,7 +1488,14 @@ async function copyTemp() {
       </div>
 
       <!-- The token is shown once: there is no mail delivery yet -->
-      <div v-if="inviteToken" class="modal-body">
+      <div v-if="inviteEmailed" class="modal-body">
+        <div class="confirm-warn-box" style="background:transparent;border-color:var(--border2);color:var(--muted)">
+          <UIcon name="i-lucide-mail-check" style="width:14px;height:14px;flex-shrink:0;color:var(--accent)" />
+          <span>{{ t('modal_invite_sent', { email: inviteEmail }) }}</span>
+        </div>
+      </div>
+
+      <div v-else-if="inviteToken" class="modal-body">
         <div class="modal-sub">{{ t('modal_invite_token_hint', { email: inviteEmail }) }}</div>
         <div class="cmd-block" style="margin-top:10px">
           <button class="cmd-copy" @click="copyInvite">
@@ -1504,8 +1520,8 @@ async function copyTemp() {
       </div>
 
       <div class="modal-footer">
-        <button class="btn-ghost" @click="showInvite = false">{{ inviteToken ? t('common_close') : t('common_cancel') }}</button>
-        <button v-if="!inviteToken" class="btn-accent-sm" :disabled="inviting || !inviteEmail.trim()" @click="sendInvite">{{ t('modal_invite_send') }}</button>
+        <button class="btn-ghost" @click="showInvite = false">{{ inviteToken || inviteEmailed ? t('common_close') : t('common_cancel') }}</button>
+        <button v-if="!inviteToken && !inviteEmailed" class="btn-accent-sm" :disabled="inviting || !inviteEmail.trim()" @click="sendInvite">{{ t('modal_invite_send') }}</button>
       </div>
     </div>
   </div>
@@ -1521,7 +1537,14 @@ async function copyTemp() {
       </div>
 
       <!-- Shown once. There is no way to read it back afterwards. -->
-      <div v-if="tempPassword" class="modal-body">
+      <div v-if="tempEmailed" class="modal-body">
+        <div class="confirm-warn-box" style="background:transparent;border-color:var(--border2);color:var(--muted)">
+          <UIcon name="i-lucide-mail-check" style="width:14px;height:14px;flex-shrink:0;color:var(--accent)" />
+          <span>{{ t('inst_temp_sent', { email: newUserEmail }) }}</span>
+        </div>
+      </div>
+
+      <div v-else-if="tempPassword" class="modal-body">
         <div class="modal-sub">{{ t('inst_temp_hint', { email: newUserEmail }) }}</div>
         <div class="cmd-block" style="margin-top:10px">
           <button class="cmd-copy" @click="copyTemp">
@@ -1544,8 +1567,8 @@ async function copyTemp() {
       </div>
 
       <div class="modal-footer">
-        <button class="btn-ghost" @click="showCreateUser = false">{{ tempPassword ? t('common_close') : t('common_cancel') }}</button>
-        <button v-if="!tempPassword" class="btn-accent-sm" :disabled="creatingUser || !newUserEmail.trim()" @click="createUser">{{ t('common_create') }}</button>
+        <button class="btn-ghost" @click="showCreateUser = false">{{ tempPassword || tempEmailed ? t('common_close') : t('common_cancel') }}</button>
+        <button v-if="!tempPassword && !tempEmailed" class="btn-accent-sm" :disabled="creatingUser || !newUserEmail.trim()" @click="createUser">{{ t('common_create') }}</button>
       </div>
     </div>
   </div>

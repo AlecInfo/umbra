@@ -259,6 +259,53 @@ test.group('Instance layer', () => {
     orphan.assertStatus(409)
   })
 
+  test('without SMTP, secrets come back to the caller instead of vanishing', async ({
+    client,
+    assert,
+  }) => {
+    // A self-hosted instance may have no mail server at all. The product has to
+    // stay usable: nothing is sent, and whatever would have been mailed is
+    // returned so it can be handed over out of band.
+    const operator = await register(client, 'nosmtp@test.io')
+
+    const created = await client
+      .post('/api/v1/admin/users')
+      .headers(auth(operator.token!))
+      .json({ email: 'offline@test.io', name: 'Offline' })
+    assert.isFalse(created.body().emailed)
+    assert.isString(created.body().tempPassword)
+
+    const reset = await client
+      .post(`/api/v1/admin/users/${created.body().user.id}/reset-password`)
+      .headers(auth(operator.token!))
+    assert.isFalse(reset.body().emailed)
+    assert.isString(reset.body().tempPassword)
+
+    const org = await client
+      .post('/api/v1/orgs')
+      .headers(auth(operator.token!))
+      .json({ name: 'No Mail' })
+    const invited = await client
+      .post(`/api/v1/orgs/${org.body().org.id}/invitations`)
+      .headers(auth(operator.token!))
+      .json({ email: 'offline@test.io' })
+    assert.isFalse(invited.body().emailed)
+    assert.isString(invited.body().token)
+
+    // And the token that came back is the real one. Note the password used
+    // here is the reset one: the reset above replaced the original.
+    const login = await client
+      .post('/api/v1/auth/login')
+      .json({ email: 'offline@test.io', password: reset.body().tempPassword })
+    login.assertStatus(200)
+
+    const accepted = await client
+      .post('/api/v1/orgs/invitations/accept')
+      .headers(auth(login.body().token.value))
+      .json({ token: invited.body().token })
+    accepted.assertStatus(200)
+  })
+
   test('closed registration still lets the very first account in', async ({ client, assert }) => {
     // A fresh install with registration closed must not lock out whoever just
     // deployed it.

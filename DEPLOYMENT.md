@@ -109,6 +109,8 @@ strands every deployed agent.
 | `DERP_HOSTNAME` / `DERP_RUN_LOCAL` | Enables topology 2. |
 | `CLOUDFLARE_TUNNEL_TOKEN` | Tunnel for web + API. Never for Headscale. |
 | `DB_PASSWORD` | Set it **before** the first deploy — postgres bakes it in at volume init. |
+| `SMTP_HOST` and friends | Optional. Without them nothing is mailed and invitation tokens and temporary passwords are returned to the caller instead — a self-hosted instance with no mail server stays usable. |
+| `WEB_PUBLIC_URL` | Where the links in those emails point. |
 | `APP_KEY` | Required. `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"` |
 
 ## Verifying a deployment

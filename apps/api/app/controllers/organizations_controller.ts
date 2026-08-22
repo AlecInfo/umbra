@@ -9,6 +9,7 @@ import User from '#models/user'
 import Node from '#models/node'
 import { headscaleClient, tenantForOwner } from '#services/headscale_client'
 import { requireOrgRole, resolveOrgRole, isLastOwner } from '#services/organizations'
+import { sendOrgInvitation } from '#services/mailer'
 import {
   createOrgValidator,
   updateOrgValidator,
@@ -315,8 +316,16 @@ export default class OrganizationsController {
       expiresAt: DateTime.now().plus({ days: INVITE_TTL_DAYS }),
     })
 
-    // Mail is not wired up yet, so the token goes back to the caller to pass
-    // along. It is only ever returned here, at creation.
+    const org = await Organization.find(params.id)
+    const emailed = await sendOrgInvitation(
+      normalized,
+      org?.name ?? 'UMBRA',
+      user.name ?? user.email,
+      token
+    )
+
+    // The token comes back only when nothing was sent: with a delivery path,
+    // echoing the secret to the caller only widens where it can be read from.
     return response.created({
       invitation: {
         id: invitation.id,
@@ -324,7 +333,8 @@ export default class OrganizationsController {
         role: invitation.role,
         expiresAt: invitation.expiresAt.toISO(),
       },
-      token,
+      emailed,
+      token: emailed ? null : token,
     })
   }
 
