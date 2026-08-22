@@ -10,6 +10,12 @@ set -euo pipefail
 #                   SQLite, so the file copies across architectures as-is.
 #   the database    accounts, organisations, nodes, metrics, sessions.
 #
+# Both hosts must run the same TimescaleDB version, which is why the image is
+# pinned in docker-compose.yml rather than tracking latest-pg16. A dump carries
+# TimescaleDB's internal catalog, and restoring it into a different version
+# fails with "catalog version mismatch" — leaving the hypertable half-built and
+# metric inserts broken, which surfaces days later.
+#
 # The database is dumped as SQL rather than copied as a volume, for two reasons.
 #
 # postgresql.conf lives inside the data directory, and the TimescaleDB image
@@ -98,8 +104,17 @@ case "$ACTION" in
     docker exec umbra-postgres pg_isready -U umbra >/dev/null 2>&1 \
       || die "postgres ne répond pas"
 
+    # node_metrics is a TimescaleDB hypertable, and its chunks live in
+    # _timescaledb_internal. Restoring a dump that references them without
+    # bracketing it leaves the hypertable half-built: the rows land but the
+    # chunk catalog does not, and later inserts fail. This pair is TimescaleDB's
+    # documented restore procedure.
     echo "→ restauration de la base"
-    docker exec -i umbra-postgres psql -U umbra -d umbra -v ON_ERROR_STOP=0 < "$ABS/umbra.sql" > /dev/null
+    docker exec -i umbra-postgres psql -U umbra -d umbra -qtAc \
+      "SELECT timescaledb_pre_restore();" > /dev/null
+    docker exec -i umbra-postgres psql -U umbra -d umbra -q < "$ABS/umbra.sql" > /dev/null
+    docker exec -i umbra-postgres psql -U umbra -d umbra -qtAc \
+      "SELECT timescaledb_post_restore();" > /dev/null
 
     echo ""
     echo "✓ État restauré. Ensuite :"

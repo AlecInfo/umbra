@@ -30,7 +30,12 @@ services:
 
   # ── Database (always started) ────────────────────────────────────────────────
   postgres:
-    image: timescale/timescaledb:latest-pg16
+    # Pinned, not "latest-pg16". A floating tag means two machines pulling on
+    # different days run different TimescaleDB versions, and a dump then carries
+    # an internal catalog the destination rejects — "catalog version mismatch",
+    # with a half-built hypertable to show for it. Bump this deliberately, and
+    # run ALTER EXTENSION timescaledb UPDATE afterwards.
+    image: timescale/timescaledb:2.29.2-pg16
     container_name: umbra-postgres
     restart: unless-stopped
     ports:
