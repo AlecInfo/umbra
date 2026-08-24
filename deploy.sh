@@ -151,6 +151,21 @@ export WEB_HOST=$(python3 -c "from urllib.parse import urlparse; import os; u=os
 
 echo "Caddy hostnames: web=$WEB_HOST  api=$API_HOST  hs=$HS_HOST"
 
+# Bearer tokens in cleartext over the internet is the quiet way to lose an
+# account: a single captured request hands over a session valid for 30 days.
+for pair in "API_PUBLIC_URL:${API_PUBLIC_URL:-}" "WEB_PUBLIC_URL:${WEB_PUBLIC_URL:-}"; do
+  name="${pair%%:*}"; url="${pair#*:}"
+  case "$url" in
+    ""|http://localhost*|http://127.0.0.1*) ;;
+    http://*)
+      echo "WARNING: $name is plain HTTP on a non-local address ($url)."
+      echo "         Session tokens will travel in the clear. Put it behind TLS —"
+      echo "         a Cloudflare Tunnel works for the API and the dashboard"
+      echo "         (never for Headscale). See DEPLOYMENT.md."
+      ;;
+  esac
+done
+
 if [ -z "${DB_PASSWORD:-}" ]; then
   echo "WARNING: DB_PASSWORD is not set — postgres uses the default password."
   echo "         It only listens on 127.0.0.1, but set DB_PASSWORD in .env"

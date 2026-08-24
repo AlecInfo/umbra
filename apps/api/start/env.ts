@@ -23,6 +23,8 @@ export default await Env.create(new URL('../', import.meta.url), {
   MAIL_FROM: Env.schema.string.optional(),
   MAIL_FROM_NAME: Env.schema.string.optional(),
 
-  // Used to build the links inside those emails.
+  // Used to build the links inside those emails, and as the allowed CORS origin.
   WEB_PUBLIC_URL: Env.schema.string.optional(),
+  // Comma-separated, for a second dashboard hostname or a staging front.
+  EXTRA_CORS_ORIGINS: Env.schema.string.optional(),
 })

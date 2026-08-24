@@ -122,6 +122,40 @@ Then point the router's forwards at the new machine: 443/tcp and 3478/udp for
 Headscale, and whatever port `API_PUBLIC_URL` names for the API, since that is
 the address baked into every install command.
 
+## Putting the API and the dashboard behind TLS
+
+Headscale holds 443 and cannot give it up — it serves the control plane, the
+DERP relay and the ACME challenge on that one port, and none of them survives a
+proxy. So a second TLS terminator cannot take 443 on the same address, and
+forwarding 3333 and 3000 straight to the internet means **session tokens travel
+in cleartext**. They are valid for 30 days; one captured request is enough.
+
+A Cloudflare Tunnel solves it for these two without touching Headscale:
+
+1. Zero Trust → Networks → Tunnels → create one, copy the token.
+2. Add two public hostnames on that tunnel, both pointing at `http://caddy:80`:
+   `umbra.example.com` and `api.umbra.example.com`.
+3. In `.env`:
+
+   ```
+   CLOUDFLARE_TUNNEL_TOKEN=…
+   WEB_PUBLIC_URL=https://umbra.example.com
+   API_PUBLIC_URL=https://api.umbra.example.com/api/v1
+   ```
+
+4. `./deploy.sh` — it generates the cloudflared config and starts the tunnel
+   profile.
+5. **Remove the 3333 and 3000 forwards from the router.** The tunnel reaches the
+   containers from inside; those ports no longer need to be public, and leaving
+   them open defeats the point. 443/tcp and 3478/udp stay, for Headscale.
+
+`API_PUBLIC_URL` is baked into every install command and into the URL agents
+download their binary from, so changing it means new enrollments use the new
+address. Existing agents keep the address they were enrolled with until they are
+re-enrolled.
+
+deploy.sh warns when either URL is plain HTTP on a non-local address.
+
 ## Agent binaries
 
 `install.sh` downloads the agent from your own server (`GET /releases/<file>`),
