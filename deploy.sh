@@ -34,6 +34,16 @@ if [ -n "${HEADSCALE_TLS_HOSTNAME:-}" ]; then
   fi
 
   echo "Headscale: native TLS on 443 for ${HEADSCALE_TLS_HOSTNAME} (no proxy)."
+
+  # Without this, a bare `docker compose up` silently brings Headscale back on
+  # plain 8080 — a different topology from the one deploy.sh just built, and one
+  # where nothing answers on 443. Setting COMPOSE_FILE in .env makes every
+  # docker compose command in this directory include the overlay.
+  if [ -f .env ] && ! grep -q '^COMPOSE_FILE=' .env; then
+    echo 'COMPOSE_FILE=docker-compose.yml:docker-compose.tls.yml' >> .env
+    echo "  Note: COMPOSE_FILE ajouté à .env — les commandes docker compose"
+    echo "        directes incluront désormais l'overlay TLS."
+  fi
   echo "  Required: 443/tcp + 3478/udp forwarded to this host, and the DNS"
   echo "  record resolving DIRECTLY (Cloudflare: DNS-only, grey cloud)."
   if [ -n "${CLOUDFLARE_TUNNEL_TOKEN:-}" ]; then
