@@ -13,5 +13,12 @@ cloudflared/config.yaml
 # (see DEPLOYMENT.md), so an override here now shadows it. Use with care.
 docker-compose.override.yml
 
-# Migration dumps — contain the whole database.
+# Migration output: database dumps and the headscale volume, which holds the
+# control plane's private keys, the TLS certificate key and pre-auth keys in
+# clear. One of these reached a public repository because the export directory
+# had been created under a slightly different name than the one ignored here,
+# and `git add -A` swept it in. Match on content, not on a directory name.
+*.sql
+*.tgz
 umbra-backup/
+umbra-*/
