@@ -185,6 +185,26 @@ fi
 
 docker compose "${COMPOSE_FILES[@]}" "${PROFILES[@]}" up -d --build
 echo ""
+
+# A tunnel configured from the Cloudflare dashboard ignores the config.yaml we
+# just generated — silently, and with no sign of it anywhere in this repo. The
+# hostnames then come from a web UI nobody can diff, and a mismatch surfaces as
+# a bare 404 from the catch-all rule, which reads like a broken API and is not
+# one. Cloudflare pushes such a config with a version number; the local file
+# never has one.
+if [ -n "${CLOUDFLARE_TUNNEL_TOKEN:-}" ]; then
+  sleep 2
+  if docker logs umbra-cloudflared 2>&1 | grep -q 'Updated to new configuration.*version='; then
+    echo "WARNING: this tunnel is configured from the Cloudflare dashboard."
+    echo "         Its Public Hostnames override the config.yaml generated here,"
+    echo "         so the hostnames printed above are NOT the ones in effect."
+    echo "         Fix: Zero Trust > Networks > Tunnels > Configure > Public"
+    echo "         Hostnames, delete every entry, then re-check DNS > Records —"
+    echo "         removing a hostname also removes the DNS record it created."
+    echo ""
+  fi
+fi
+
 echo "Umbra deployed."
 if [ "$TLS_MODE" = "1" ]; then
   echo "Headscale certificate is issued lazily, on the first TLS handshake."
