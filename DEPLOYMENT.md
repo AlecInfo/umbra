@@ -133,8 +133,13 @@ in cleartext**. They are valid for 30 days; one captured request is enough.
 A Cloudflare Tunnel solves it for these two without touching Headscale:
 
 1. Zero Trust → Networks → Tunnels → create one, copy the token.
-2. Add two public hostnames on that tunnel, both pointing at `http://caddy:80`:
-   `umbra.example.com` and `api.umbra.example.com`.
+2. Add two public hostnames on that tunnel, both pointing at `http://caddy:80`.
+   **Keep them one level deep**: `umbra.example.com` and `umbra-api.example.com`,
+   not `api.umbra.example.com`. Cloudflare's free Universal SSL covers the apex
+   and `*.example.com` only — a second-level name like `api.umbra.example.com`
+   is not in the certificate, and every request fails with a TLS handshake
+   error that looks like a server problem and is not one. Covering it needs
+   Advanced Certificate Manager, which is paid.
 3. In `.env`:
 
    ```
