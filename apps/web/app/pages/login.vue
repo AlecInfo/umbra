@@ -41,7 +41,12 @@ async function login() {
     await auth.login(email.value, password.value)
     await navigateTo('/')
   } catch (e: any) {
-    error.value = e?.data?.message || e?.data?.errors?.[0]?.message || t('auth_err_invalid')
+    // No response at all means nothing answered, which is a different problem
+    // from a rejected password — and blaming the credentials for an unreachable
+    // server sends people looking in the wrong place entirely.
+    error.value = e?.data?.message
+      || e?.data?.errors?.[0]?.message
+      || (e?.response ? t('auth_err_invalid') : t('auth_err_unreachable'))
   } finally {
     loading.value = false
   }

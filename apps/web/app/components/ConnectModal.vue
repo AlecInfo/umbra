@@ -52,17 +52,19 @@ async function connectHere() {
       return
     }
 
-    // Already on the mesh: switching exit node needs no key, and re-running the
-    // join would pointlessly burn one.
-    if (status.running && status.ip && !props.authKey) {
+    if (status.running && status.ip) {
+      // Already on the mesh: switching exit node needs no key, and re-running
+      // the join would burn one for nothing.
       await desktop.setExitNode(props.exitNodeIp)
     } else if (props.authKey && props.headscaleUrl) {
       await desktop.join(props.headscaleUrl, props.authKey, props.exitNodeIp)
-    } else if (status.running) {
-      await desktop.setExitNode(props.exitNodeIp)
     } else {
-      appState.value = 'failed'
-      appError.value = t('conn_modal_no_headscale')
+      // Nothing to join with, and not on the mesh yet. The usual cause is a
+      // server older than this app: it returns the command string but not the
+      // key we would run ourselves. Hand back the command rather than stopping
+      // at an error — it still works, and it is what the web does anyway.
+      forceManual.value = true
+      appState.value = 'idle'
       return
     }
 

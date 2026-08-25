@@ -32,7 +32,10 @@ export const useAuthStore = defineStore('auth', () => {
   const isOperator = computed(() => user.value?.instanceRole === 'operator')
 
   function apiBase() {
-    return useRuntimeConfig().public.apiBase
+    // Not useApi(): this store is what useApi() reads its token from, so it
+    // talks to the API directly. It still has to honour the address the
+    // packaged apps were pointed at, which is not the one baked in at build.
+    return currentApiBase(useRuntimeConfig().public.apiBase)
   }
 
   async function login(email: string, password: string) {

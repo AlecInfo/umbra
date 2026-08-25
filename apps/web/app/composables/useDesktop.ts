@@ -23,14 +23,21 @@ export interface TailscaleStatus {
 
 type Invoke = <T>(cmd: string, args?: Record<string, unknown>) => Promise<T>
 
-interface TauriGlobal {
-  core?: { invoke: Invoke }
+interface TauriWindow {
+  /** Always present in Tauri 2, whatever `withGlobalTauri` is set to. */
+  __TAURI_INTERNALS__?: { invoke?: Invoke }
+  /** Only when `withGlobalTauri` is on. */
+  __TAURI__?: { core?: { invoke: Invoke } }
 }
 
-function bridge(): TauriGlobal | null {
+/*
+| Looked up on every call rather than cached: the webview evaluates the bundle
+| before it injects these, so a value read at module load would be null forever.
+*/
+function bridge(): Invoke | null {
   if (!import.meta.client) return null
-  const tauri = (window as unknown as { __TAURI__?: TauriGlobal }).__TAURI__
-  return tauri?.core ? tauri : null
+  const w = window as unknown as TauriWindow
+  return w.__TAURI_INTERNALS__?.invoke ?? w.__TAURI__?.core?.invoke ?? null
 }
 
 /** True inside a Tauri webview — desktop or mobile — false in a browser. */
@@ -40,9 +47,9 @@ export function isDesktopApp(): boolean {
 
 export function useDesktop() {
   function invoke<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
-    const b = bridge()
-    if (!b?.core) return Promise.reject(new Error('not running inside the app'))
-    return b.core.invoke<T>(cmd, args)
+    const call = bridge()
+    if (!call) return Promise.reject(new Error('not running inside the app'))
+    return call<T>(cmd, args)
   }
 
   return {
