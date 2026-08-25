@@ -192,9 +192,15 @@ echo ""
 # a bare 404 from the catch-all rule, which reads like a broken API and is not
 # one. Cloudflare pushes such a config with a version number; the local file
 # never has one.
+#
+# Matched in bash rather than through `| grep -q`: this script runs under
+# `set -o pipefail`, and grep -q exits on its first match, which hands the
+# upstream `docker logs` a SIGPIPE. The pipeline then reports failure exactly
+# when the pattern was found, so the warning could never fire.
 if [ -n "${CLOUDFLARE_TUNNEL_TOKEN:-}" ]; then
   sleep 2
-  if docker logs umbra-cloudflared 2>&1 | grep -q 'Updated to new configuration.*version='; then
+  TUNNEL_LOG="$(docker logs umbra-cloudflared 2>&1 || true)"
+  if [[ "$TUNNEL_LOG" == *"Updated to new configuration"* ]]; then
     echo "WARNING: this tunnel is configured from the Cloudflare dashboard."
     echo "         Its Public Hostnames override the config.yaml generated here,"
     echo "         so the hostnames printed above are NOT the ones in effect."
