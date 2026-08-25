@@ -184,6 +184,21 @@ if [ "${DERP_RUN_LOCAL:-0}" = "1" ]; then
 fi
 
 docker compose "${COMPOSE_FILES[@]}" "${PROFILES[@]}" up -d --build
+
+# The Caddyfile is a bind mount, so editing it changes nothing on its own:
+# compose sees no difference in the service definition and leaves the container
+# running with the configuration it started with. The edit appears to have been
+# applied — the file on disk is right, the deploy reports success — and the
+# tunnel goes on reporting 502 against a Caddy still listening where it used to.
+RUNNING="$(docker ps --format '{{.Names}}' || true)"
+if [[ "$RUNNING" == *"umbra-caddy"* ]]; then
+  if ! docker exec umbra-caddy caddy reload --config /etc/caddy/Caddyfile 2>/dev/null; then
+    echo "WARNING: Caddy refused to reload its configuration — check the Caddyfile."
+    echo "         The old one stays in effect until it does."
+    echo ""
+  fi
+fi
+
 echo ""
 
 # A tunnel configured from the Cloudflare dashboard ignores the config.yaml we
@@ -201,12 +216,19 @@ if [ -n "${CLOUDFLARE_TUNNEL_TOKEN:-}" ]; then
   sleep 2
   TUNNEL_LOG="$(docker logs umbra-cloudflared 2>&1 || true)"
   if [[ "$TUNNEL_LOG" == *"Updated to new configuration"* ]]; then
-    echo "WARNING: this tunnel is configured from the Cloudflare dashboard."
-    echo "         Its Public Hostnames override the config.yaml generated here,"
-    echo "         so the hostnames printed above are NOT the ones in effect."
-    echo "         Fix: Zero Trust > Networks > Tunnels > Configure > Public"
-    echo "         Hostnames, delete every entry, then re-check DNS > Records —"
-    echo "         removing a hostname also removes the DNS record it created."
+    echo "WARNING: this tunnel is managed from the Cloudflare dashboard, so the"
+    echo "         config.yaml generated above is never read. The hostnames in"
+    echo "         effect are the ones under Zero Trust > Networks > Tunnels >"
+    echo "         Published application routes, and they can disagree with the"
+    echo "         ones printed here without anything saying so — a mismatch"
+    echo "         comes back as a bare 404 from the catch-all rule."
+    echo ""
+    echo "         Point those routes at http://caddy:80 so the Caddyfile in this"
+    echo "         repo is what actually routes. Emptying the list does NOT hand"
+    echo "         control back: a dashboard-created tunnel stays that way, and"
+    echo "         with no routes left the catch-all 404s everything. Only a"
+    echo "         tunnel created with 'cloudflared tunnel create' reads"
+    echo "         config.yaml."
     echo ""
   fi
 fi
