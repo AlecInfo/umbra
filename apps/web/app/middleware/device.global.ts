@@ -3,7 +3,8 @@
 export default defineNuxtRouteMiddleware((to) => {
   if (!import.meta.client) return
 
-  const authRoutes = ['/login', '/register', '/onboarding', '/landing']
+  // /server is the packaged apps' first screen and is already responsive.
+  const authRoutes = ['/login', '/register', '/onboarding', '/landing', '/server']
   if (authRoutes.includes(to.path)) return
 
   const isMobile = window.innerWidth <= 768

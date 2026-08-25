@@ -44,13 +44,14 @@ through your own hardware instead of somebody else's.
   see [ARCHITECTURE.md](ARCHITECTURE.md).
 - **Web dashboard** — node metrics, connection history, teams and sharing.
 
-**Status:** the agent is **Linux only** (systemd, amd64/arm64/armv7). The desktop client
-is early but functional. There is no mobile client: carrying traffic through a tunnel on
-iOS or Android means reimplementing what the Tailscale apps already do, so point the
-official Tailscale app at your own server instead. Connecting without the desktop client
-still works too: connecting a client today means running a `tailscale up`
-command the dashboard hands you, or using the official Tailscale app pointed at your
-own server.
+**Status:** the agent is **Linux only** (systemd, amd64/arm64/armv7). The dashboard is
+also the desktop app — Tauri embeds the same responsive build rather than wrapping a
+second interface around it — and on desktop it connects the machine itself instead of
+handing out a command. A mobile build comes from the same source and manages nodes, but
+cannot yet carry traffic: a tunnel on iOS or Android means reimplementing what the
+Tailscale apps already do. There, and in any browser, connecting means running the
+`tailscale up` command the dashboard hands you, or pointing the official Tailscale app at
+your own server.
 
 ## Architecture
 
@@ -59,7 +60,7 @@ umbra/
 ├── apps/
 │   ├── web/             Nuxt 4 dashboard (main frontend)
 │   ├── landing/         Marketing site (umbravpn.io)
-│   ├── desktop/         Tauri 2 client — see apps/desktop/README.md
+│   ├── desktop/         Tauri 2 shell around apps/web — see apps/desktop/README.md
 │   └── api/             AdonisJS 6 API
 ├── packages/
 │   └── types/           Shared TypeScript types
@@ -76,7 +77,7 @@ umbra/
 | **Agent**     | Go                                     |
 | **VPN**       | Headscale + Tailscale (WireGuard)      |
 | **Relay**     | DERP (embedded, or a standalone derper)|
-| **Client**    | Tauri 2 desktop, driving the local Tailscale |
+| **Apps**      | Tauri 2 shell around the same Nuxt build|
 
 ## Getting Started
 

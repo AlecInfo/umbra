@@ -516,6 +516,18 @@ const TR: Record<Lang, Record<string, string>> = {
     vpn_download:   'Download',
     vpn_disconnect: 'Déconnecter',
 
+    // Server picker (packaged apps only)
+    server_tagline_1: 'Votre serveur,',
+    server_tagline_2: 'votre réseau.',
+    server_desc:      'UMBRA ne passe par aucun service tiers. Indiquez l\'adresse de votre instance pour commencer.',
+    server_title:     'Connexion à votre instance',
+    server_label:     'Adresse du serveur',
+    server_btn:       'Continuer →',
+    server_testing:   'Vérification…',
+    server_invalid:   'Adresse invalide.',
+    server_unreachable: 'Serveur injoignable à cette adresse. Vérifiez l\'adresse et votre connexion.',
+    server_hint:      'C\'est l\'adresse de votre API — la même que celle configurée dans API_PUBLIC_URL sur votre serveur.',
+
     // Connect modal
     conn_modal_title:       'Se connecter via',
     conn_modal_sub:         'Exécute l\'une de ces commandes sur la machine à connecter.',
@@ -528,6 +540,12 @@ const TR: Record<Lang, Record<string, string>> = {
     conn_modal_no_headscale:'Headscale non configuré sur ce serveur.',
     conn_modal_note:        'La connexion s\'active dès que la commande est exécutée. sudo peut être requis sur certains systèmes.',
     conn_modal_web_notice:  'Application web — exécutez la commande dans un terminal sur cette machine. L\'application desktop automatisera cette étape.',
+    conn_modal_app_notice:  'Cette machine sera connectée directement. Votre mot de passe administrateur peut être demandé.',
+    conn_modal_app_btn:     'Connecter cette machine',
+    conn_modal_app_running: 'Connexion en cours…',
+    conn_modal_app_done:    'Connecté. Votre trafic passe maintenant par ce noeud.',
+    conn_modal_app_missing: 'tailscale n\'est pas installé sur cette machine. Installez-le, puis réessayez.',
+    conn_modal_app_manual:  'Utiliser la commande manuellement',
     conn_disconnect_toast_title: 'VPN déconnecté — pour désactiver le tunnel :',
 
     // Node detail (extras)
@@ -1492,6 +1510,18 @@ const TR: Record<Lang, Record<string, string>> = {
     vpn_disconnect: 'Disconnect',
 
     // Connect modal
+    // Server picker (packaged apps only)
+    server_tagline_1: 'Your server,',
+    server_tagline_2: 'your network.',
+    server_desc:      'UMBRA goes through no third-party service. Enter the address of your instance to begin.',
+    server_title:     'Connect to your instance',
+    server_label:     'Server address',
+    server_btn:       'Continue →',
+    server_testing:   'Checking…',
+    server_invalid:   'Invalid address.',
+    server_unreachable: 'No server answered at that address. Check the address and your connection.',
+    server_hint:      'This is your API address — the same one set as API_PUBLIC_URL on your server.',
+
     conn_modal_title:       'Connect via',
     conn_modal_sub:         'Run one of these commands on the machine you want to connect.',
     conn_modal_new:         'First connection',
@@ -1503,6 +1533,12 @@ const TR: Record<Lang, Record<string, string>> = {
     conn_modal_no_headscale:'Headscale not configured on this server.',
     conn_modal_note:        'Connection activates as soon as the command is run. sudo may be required on some systems.',
     conn_modal_web_notice:  'Web app — run the command in a terminal on this machine. The desktop app will automate this step.',
+    conn_modal_app_notice:  'This machine will be connected directly. Your administrator password may be requested.',
+    conn_modal_app_btn:     'Connect this machine',
+    conn_modal_app_running: 'Connecting…',
+    conn_modal_app_done:    'Connected. Your traffic now goes through this node.',
+    conn_modal_app_missing: 'tailscale is not installed on this machine. Install it, then try again.',
+    conn_modal_app_manual:  'Use the command manually',
     conn_disconnect_toast_title: 'VPN disconnected — to deactivate the tunnel:',
 
     // Node detail (extras)

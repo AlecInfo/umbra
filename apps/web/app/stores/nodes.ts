@@ -158,6 +158,12 @@ export const useNodesStore = defineStore('nodes', () => {
     connectCommand: string | null
     switchCommand: string | null
     disconnectCommand: string
+    // The same instructions in parts rather than as a shell line: inside the
+    // packaged apps we run tailscale ourselves instead of asking anyone to
+    // paste anything.
+    headscaleUrl: string | null
+    authKey: string | null
+    exitNodeIp: string | null
   }
   const connectCommands = ref<ConnectCommands | null>(null)
 
@@ -189,6 +195,9 @@ export const useNodesStore = defineStore('nodes', () => {
           connectCommand:   res.connectCommand ?? null,
           switchCommand:    res.switchCommand ?? null,
           disconnectCommand: res.disconnectCommand ?? 'tailscale set --exit-node=',
+          headscaleUrl:     res.headscaleUrl ?? null,
+          authKey:          res.authKey ?? null,
+          exitNodeIp:       res.exitNodeIp ?? null,
         }
       }
     } catch {
@@ -220,6 +229,18 @@ export const useNodesStore = defineStore('nodes', () => {
       if (res?.disconnectCommand) disconnectCmd = res.disconnectCommand
     } catch {
       // API call failed but keep UI state in sync anyway
+    }
+    // Inside the packaged apps we stop the routing ourselves. The shell line is
+    // only worth showing to someone who has to paste it, so it is cleared once
+    // it has been run — the caller words its toast on that.
+    const desktop = useDesktop()
+    if (desktop.available) {
+      try {
+        await desktop.clearExitNode()
+        disconnectCmd = ''
+      } catch {
+        // Leave the command in place: the user can still run it by hand.
+      }
     }
     connectCommands.value = null
     connectedId.value = null
