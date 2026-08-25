@@ -4,20 +4,21 @@
   "version": "0.1.0",
   "identifier": "io.umbravpn.desktop",
   "build": {
-    "beforeDevCommand": "pnpm dev",
-    "devUrl": "http://localhost:5273",
-    "beforeBuildCommand": "pnpm build",
-    "frontendDist": "../dist"
+    "beforeDevCommand": "pnpm --filter web dev:app",
+    "devUrl": "http://localhost:3000",
+    "beforeBuildCommand": "pnpm --filter web build:app",
+    "frontendDist": "../../web/.output/public"
   },
   "app": {
+    "withGlobalTauri": true,
     "windows": [
       {
         "title": "UMBRA",
-        "width": 420,
-        "height": 620,
+        "width": 1200,
+        "height": 800,
         "resizable": true,
-        "minWidth": 380,
-        "minHeight": 520
+        "minWidth": 360,
+        "minHeight": 560
       }
     ],
     "security": { "csp": null }

@@ -12,10 +12,11 @@ const { t } = useT()
 const showConnectModal = computed(() => store.connectCommands !== null)
 
 async function handleDisconnect() {
+  // Empty when the app ran the command itself — nothing left for the user to do.
   const cmd = await store.disconnect()
   toast.add({
     title: t('conn_disconnect_toast_title'),
-    description: cmd,
+    description: cmd || undefined,
     color: 'neutral',
     duration: 8000,
     icon: 'i-lucide-unplug',
@@ -148,6 +149,9 @@ async function logout() {
         :node-name="store.connectCommands?.nodeName ?? ''"
         :connect-command="store.connectCommands?.connectCommand ?? null"
         :switch-command="store.connectCommands?.switchCommand ?? null"
+        :headscale-url="store.connectCommands?.headscaleUrl ?? null"
+        :auth-key="store.connectCommands?.authKey ?? null"
+        :exit-node-ip="store.connectCommands?.exitNodeIp ?? null"
         @close="store.connectCommands = null"
       />
 

@@ -4,7 +4,9 @@
   "private": true,
   "scripts": {
     "build": "nuxt build",
+    "build:app": "UMBRA_APP=1 nuxt build",
     "dev": "nuxt dev",
+    "dev:app": "UMBRA_APP=1 nuxt dev",
     "generate": "nuxt generate",
     "preview": "nuxt preview",
     "postinstall": "nuxt prepare"

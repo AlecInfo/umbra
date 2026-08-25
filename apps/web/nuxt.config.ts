@@ -1,6 +1,23 @@
+/*
+| UMBRA_APP=1 builds the same application for the Tauri shells — desktop,
+| tablet and phone — instead of for a server.
+|
+| Two things have to change and nothing else. Rendering becomes client-only:
+| there is no Node process inside the bundle to render a page, and the server
+| the app talks to is not known until someone types its address. And the output
+| becomes a plain directory of files, which is what Tauri embeds.
+|
+| Everything else is deliberately shared. The pages, the styles, the responsive
+| breakpoints and the middleware that sends narrow viewports to /mobile are the
+| product; the shell only decides where it runs.
+*/
+const isApp = process.env.UMBRA_APP === '1'
+
 export default defineNuxtConfig({
   compatibilityDate: '2026-02-27',
   devtools: { enabled: true },
+
+  ssr: !isApp,
 
   app: {
     head: {
@@ -34,6 +51,10 @@ export default defineNuxtConfig({
       colors: ['umbra'],
     },
   },
+  // A directory of static files for Tauri to embed. `nuxt generate` would set
+  // this too, but the flag has to drive it so one command covers every shell.
+  nitro: isApp ? { preset: 'static' } : {},
+
   runtimeConfig: {
     apiBaseSsr: process.env.NUXT_API_BASE_SSR || '',
     public: {

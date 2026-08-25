@@ -41,10 +41,13 @@ jobs:
       - name: Build landing
         run: pnpm --filter=landing build
 
-      # Frontend only — the Rust side needs GTK/WebKit system libraries, so
-      # compiling the bundle belongs in a release workflow rather than here.
-      - name: Build desktop client (frontend)
-        run: pnpm --filter=desktop build
+      # The packaged apps embed this same build, client-rendered and static.
+      # It is checked here because the two modes can diverge — anything that
+      # only works with a server rendering it first breaks the apps and nothing
+      # else. The Rust shell is not compiled: it needs GTK/WebKit system
+      # libraries, so that belongs in a release workflow.
+      - name: Build web for the packaged apps
+        run: pnpm --filter=web build:app
 
   test:
     name: API tests

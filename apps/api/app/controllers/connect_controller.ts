@@ -40,6 +40,11 @@ export default class ConnectController {
     const exitIp = node.wireguardIp?.split('/')[0] ?? null
     const headscaleURL = process.env.HEADSCALE_EXTERNAL_URL ?? 'http://localhost:8080'
     let connectCommand: string | null = null
+    // Returned alongside the command string for clients that run tailscale
+    // themselves — the desktop app invokes it directly rather than asking the
+    // user to paste a line, and parsing the key back out of the shell command
+    // would be a needless second source of truth.
+    let authKey: string | null = null
 
     if (exitIp && headscaleClient.isConfigured) {
       // The client machine joins the tenant of the node it connects to
@@ -72,7 +77,7 @@ export default class ConnectController {
         await headscaleClient.syncPolicy()
         // Reuses the tenant's outstanding key rather than minting one per
         // click, and expires the stale ones on the way through.
-        const authKey = await headscaleClient.getOrCreatePreAuthKey(tenant)
+        authKey = await headscaleClient.getOrCreatePreAuthKey(tenant)
         connectCommand = `sudo tailscale up --login-server=${headscaleURL} --authkey=${authKey} --exit-node=${exitIp} --accept-routes --accept-dns=false --reset`
 
         // Remember which key this session handed out: Headscale reports it back
@@ -94,6 +99,7 @@ export default class ConnectController {
       switchCommand: exitIp ? `sudo tailscale set --exit-node=${exitIp}` : null,   // already joined: just switch exit node
       disconnectCommand: 'sudo tailscale set --exit-node=',
       headscaleUrl: headscaleURL,
+      authKey,
     }
   }
 

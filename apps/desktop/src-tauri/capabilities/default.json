@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Permissions du client UMBRA. Le plugin store garde l'adresse du serveur et le jeton de session ; sans cette declaration, Tauri 2 refuse silencieusement les appels de plugin.",
+  "description": "Permissions du client UMBRA. Les commandes tailscale sont definies par l'application elle-meme et ne demandent aucune capacite ; seules les commandes de plugin en exigent une, et le webview garde son etat dans localStorage plutot que dans le plugin store.",
   "windows": ["main"],
-  "permissions": ["core:default", "store:default"]
+  "permissions": ["core:default"]
 }

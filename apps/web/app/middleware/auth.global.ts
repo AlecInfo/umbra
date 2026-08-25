@@ -1,6 +1,7 @@
 import { useAuthStore } from '~/stores/auth'
 
-const PUBLIC_ROUTES = new Set(['/login', '/register', '/onboarding'])
+// /server comes before there is any server to authenticate against.
+const PUBLIC_ROUTES = new Set(['/login', '/register', '/onboarding', '/server'])
 
 export default defineNuxtRouteMiddleware((to) => {
   const auth = useAuthStore()
