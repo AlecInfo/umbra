@@ -1,3 +1,11 @@
+# TLS is terminated at Cloudflare's edge and the tunnel delivers plain HTTP to
+# this container, so every site is bound to http:// explicitly.
+#
+# A bare hostname here would not do that: Caddy reads an address with no scheme
+# and no port as HTTPS and binds it to 443. `auto_https off` only stops the
+# certificate management and the HTTP-to-HTTPS redirect — it does not move the
+# listener. Caddy then sits on 443 while cloudflared knocks on 80, and the
+# tunnel reports the origin as refusing connections.
 {
     auto_https off
     servers {
@@ -5,7 +13,7 @@
     }
 }
 
-{$HS_HOST} {
+http://{$HS_HOST} {
     reverse_proxy headscale:8080 {
         header_up Connection Upgrade
         header_up Upgrade {http.request.header.Upgrade}
@@ -13,10 +21,10 @@
     }
 }
 
-{$API_HOST} {
+http://{$API_HOST} {
     reverse_proxy api:3333
 }
 
-{$WEB_HOST} {
+http://{$WEB_HOST} {
     reverse_proxy web:3000
 }
