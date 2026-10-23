@@ -390,8 +390,11 @@ export default class NodesController {
           actor,
           data: {
             durationSeconds: Math.max(0, Math.round(c.disconnectedAt.diff(c.connectedAt, 'seconds').seconds)),
-            bytesSent: Number(c.bytesSent ?? 0),
-            bytesReceived: Number(c.bytesReceived ?? 0),
+            // Traffic is only known once the session was matched to a device
+            // (see connection_traffic.ts). Before that the counters are 0
+            // because nobody measured, not because nothing flowed — null says so.
+            bytesSent: c.deviceId ? Number(c.bytesSent ?? 0) : null,
+            bytesReceived: c.deviceId ? Number(c.bytesReceived ?? 0) : null,
           },
         })
       }

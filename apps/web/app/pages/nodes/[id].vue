@@ -556,7 +556,10 @@ function activitySub(ev: ActivityEvent): string {
     case 'transferred':
       return by
     case 'disconnected':
-      return `${fmtDuration(d.durationSeconds ?? 0)} · ↑ ${fmtBytes(d.bytesSent ?? 0)} · ↓ ${fmtBytes(d.bytesReceived ?? 0)}`
+      // Null traffic means the session was never matched to a device — unknown, not zero.
+      return d.bytesSent == null
+        ? fmtDuration(d.durationSeconds ?? 0)
+        : `${fmtDuration(d.durationSeconds ?? 0)} · ↑ ${fmtBytes(d.bytesSent)} · ↓ ${fmtBytes(d.bytesReceived ?? 0)}`
     default:
       return ''
   }

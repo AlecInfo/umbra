@@ -3,6 +3,7 @@ import { DateTime } from 'luxon'
 import db from '@adonisjs/lucid/services/db'
 import Node from '#models/node'
 import ConnectionLog from '#models/connection_log'
+import Device from '#models/device'
 import { markStaleNodesOffline } from '#services/offline_watch'
 import { compareVersions } from '#services/agent_release'
 
@@ -100,11 +101,13 @@ test.group('Node activity', () => {
       .header('Authorization', `Bearer ${owner.token}`)
       .json({ email: 'conn-guest@test.io', permission: 'connect' })
 
+    const laptop = await Device.create({ userId: owner.id, name: 'laptop', type: 'desktop', isActive: true })
     const start = DateTime.now().minus({ hours: 2 })
     await ConnectionLog.createMany([
       {
         nodeId,
         userId: owner.id,
+        deviceId: laptop.id,
         connectedAt: start,
         disconnectedAt: start.plus({ minutes: 30 }),
         bytesSent: 1000,
@@ -122,6 +125,19 @@ test.group('Node activity', () => {
     const out = ownerView.find((e) => e.type === 'disconnected')!
     assert.equal(out.data.durationSeconds, 1800)
     assert.equal(out.data.bytesReceived, 5000)
+
+    // A session never matched to a device has unknown traffic, not zero.
+    await ConnectionLog.create({
+      nodeId,
+      userId: owner.id,
+      connectedAt: start.minus({ hours: 3 }),
+      disconnectedAt: start.minus({ hours: 2 }),
+      protocol: 'wireguard',
+    })
+    const unmatched = (await activity(client, owner.token, nodeId)).filter((e) => e.type === 'disconnected')
+    assert.lengthOf(unmatched, 2)
+    assert.isNull(unmatched[1].data.bytesSent)
+    assert.isNull(unmatched[1].data.bytesReceived)
 
     const guestView = await activity(client, guest.token, nodeId)
     const guestActors = guestView.filter((e) => e.type === 'connected').map((e) => e.actor)
