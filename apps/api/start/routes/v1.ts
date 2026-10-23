@@ -46,6 +46,7 @@ router
         router.delete('/nodes/:id', [NodesController, 'destroy'])
         router.get('/nodes/:id/metrics', [NodesController, 'metrics'])
         router.get('/nodes/:id/peers', [NodesController, 'peers'])
+        router.get('/nodes/:id/activity', [NodesController, 'activity'])
         router.post('/nodes/:id/enroll-token', [NodesController, 'enrollToken'])
         router.post('/nodes/:id/transfer', [NodesController, 'transfer'])
         router.get('/nodes/:id/members', [NodeMembersController, 'index'])

@@ -13,6 +13,16 @@ const { t } = useT()
 const apiNode    = ref<any>(null)
 const rawMetrics = ref<any[]>([])
 const rawPeers   = ref<any[]>([])
+const rawActivity = ref<ActivityEvent[]>([])
+
+interface ActivityEvent {
+  id:    string
+  type:  'created' | 'enrolled' | 'went_offline' | 'back_online' | 'agent_updated'
+       | 'renamed' | 'transferred' | 'connected' | 'disconnected'
+  at:    string
+  actor: string | null
+  data:  Record<string, any> | null
+}
 const loading    = ref(true)
 
 // Period must be declared before fetch functions (used in fetchMetrics)
@@ -59,6 +69,13 @@ async function fetchMetrics() {
   })
   rawMetrics.value = res.metrics
 }
+async function fetchActivity() {
+  const api = useApi()
+  const res = await api<{ events: ActivityEvent[] }>(`/nodes/${route.params.id}/activity`, {
+    params: { limit: 50 },
+  })
+  rawActivity.value = res.events
+}
 async function fetchPeers() {
   const api = useApi()
   const res = await api<{ peers: any[] }>(`/nodes/${route.params.id}/peers`)
@@ -66,7 +83,7 @@ async function fetchPeers() {
 }
 async function loadAll() {
   loading.value = true
-  try { await Promise.all([fetchNode(), fetchMetrics(), fetchPeers()]) } finally { loading.value = false }
+  try { await Promise.all([fetchNode(), fetchMetrics(), fetchPeers(), fetchActivity()]) } finally { loading.value = false }
 }
 
 let pollTimer: ReturnType<typeof setInterval> | null = null
@@ -74,7 +91,7 @@ let pollTimer: ReturnType<typeof setInterval> | null = null
 onMounted(() => {
   if (!store.nodes.length) store.fetchNodes()
   loadAll()
-  pollTimer = setInterval(() => { fetchNode(); fetchMetrics() }, 10_000)
+  pollTimer = setInterval(() => { fetchNode(); fetchMetrics(); fetchActivity() }, 10_000)
   liveTickHandle = setInterval(() => { liveNow.value = Date.now() }, 1000)
 })
 
@@ -87,6 +104,12 @@ onUnmounted(() => {
 watch(period, fetchMetrics)
 
 // ── Unified node object ──────────────────────────────────
+interface AgentInfo {
+  latestVersion:            string | null
+  updateAvailable:          boolean
+  tokenExpiresAt:           string | null
+  heartbeatIntervalSeconds: number | null
+}
 const storeNode     = computed(() => store.nodes.find(n => n.id === route.params.id) ?? null)
 const latestMetric  = computed(() => rawMetrics.value[0] ?? null)
 
@@ -123,6 +146,7 @@ const node = computed(() => {
     arch:            a?.arch               ?? null,
     osVersion:       a?.osVersion          ?? null,
     agentVersion:    a?.agentVersion       ?? null,
+    agent:           (a?.agent ?? null) as AgentInfo | null,
     activePeers:     m?.activePeers        ?? null,
   }
 })
@@ -425,20 +449,6 @@ const permOptions = computed(() => [
 // pending state here — unlike an org invitation.
 const activeMembers = computed(() => members.value)
 
-// Activity log (first 5 shown by default, all when expanded)
-const extendedActivity = computed(() => [
-  { id: 1, icon: 'i-lucide-circle-check',   iconColor: 'var(--accent)',  iconBg: 'rgba(79,255,176,.1)',  main: t('nd_act_e1_main'), sub: t('nd_act_e1_sub'), time: t('nd_act_e1_time') },
-  { id: 2, icon: 'i-lucide-circle-x',       iconColor: 'var(--offline)', iconBg: 'rgba(255,79,107,.1)',  main: t('nd_act_e2_main'), sub: t('nd_act_e2_sub'), time: t('nd_act_e2_time') },
-  { id: 3, icon: 'i-lucide-triangle-alert', iconColor: 'var(--warning)', iconBg: 'rgba(255,183,79,.1)',  main: t('nd_act_e3_main'), sub: t('nd_act_e3_sub'), time: t('nd_act_e3_time') },
-  { id: 4, icon: 'i-lucide-rotate-cw',      iconColor: 'var(--pending)', iconBg: 'rgba(79,168,255,.1)',  main: t('nd_act_e4_main'), sub: t('nd_act_e4_sub'), time: t('nd_act_e4_time') },
-  { id: 5, icon: 'i-lucide-square-check',   iconColor: 'var(--accent)',  iconBg: 'rgba(79,255,176,.1)',  main: t('nd_act_e5_main'), sub: t('nd_act_e5_sub'), time: t('nd_act_e5_time') },
-  { id: 6, icon: 'i-lucide-circle-check',   iconColor: 'var(--accent)',  iconBg: 'rgba(79,255,176,.1)',  main: t('nd_act_e6_main'), sub: t('nd_act_e6_sub'), time: t('nd_act_e6_time') },
-  { id: 7, icon: 'i-lucide-circle-x',       iconColor: 'var(--offline)', iconBg: 'rgba(255,79,107,.1)',  main: t('nd_act_e7_main'), sub: t('nd_act_e7_sub'), time: t('nd_act_e7_time') },
-  { id: 8, icon: 'i-lucide-triangle-alert', iconColor: 'var(--warning)', iconBg: 'rgba(255,183,79,.1)',  main: t('nd_act_e8_main'), sub: t('nd_act_e8_sub'), time: t('nd_act_e8_time') },
-])
-const showAllActivity = ref(false)
-const visibleActivity = computed(() => showAllActivity.value ? extendedActivity.value : extendedActivity.value.slice(0, 5))
-
 // Copy pubkey
 const copiedKey = ref(false)
 function copyPubkey() {
@@ -473,6 +483,106 @@ const lastSeenAgo = computed(() => {
   if (diff < 60) return `il y a ${diff}s`
   if (diff < 3600) return `il y a ${Math.floor(diff / 60)}m`
   return `il y a ${Math.floor(diff / 3600)}h`
+})
+
+// ── Activity ─────────────────────────────────────────────
+const ACTIVITY_STYLE: Record<ActivityEvent['type'], { icon: string; color: string }> = {
+  created:       { icon: 'i-lucide-plus',             color: 'var(--muted)' },
+  enrolled:      { icon: 'i-lucide-link',             color: 'var(--accent)' },
+  went_offline:  { icon: 'i-lucide-circle-x',         color: 'var(--offline)' },
+  back_online:   { icon: 'i-lucide-circle-check',     color: 'var(--accent)' },
+  agent_updated: { icon: 'i-lucide-circle-arrow-up',  color: 'var(--pending)' },
+  renamed:       { icon: 'i-lucide-pencil',           color: 'var(--muted)' },
+  transferred:   { icon: 'i-lucide-arrow-right-left', color: 'var(--warning)' },
+  connected:     { icon: 'i-lucide-plug',             color: 'var(--accent2)' },
+  disconnected:  { icon: 'i-lucide-unplug',           color: 'var(--muted)' },
+}
+
+function fmtDuration(totalSeconds: number): string {
+  const s = Math.max(0, Math.round(totalSeconds))
+  const d = Math.floor(s / 86400)
+  const h = Math.floor((s % 86400) / 3600)
+  const m = Math.floor((s % 3600) / 60)
+  const dayUnit = t('date_locale').startsWith('fr') ? 'j' : 'd'
+  if (d > 0) return `${d}${dayUnit} ${h}h`
+  if (h > 0) return `${h}h ${m}m`
+  if (m > 0) return `${m}m`
+  return `${s}s`
+}
+
+function fmtBytes(b: number): string {
+  if (b >= 1e9) return `${(b / 1e9).toFixed(1)} GB`
+  if (b >= 1e6) return `${(b / 1e6).toFixed(1)} MB`
+  if (b >= 1e3) return `${Math.round(b / 1e3)} KB`
+  return `${b} B`
+}
+
+function activityTime(iso: string): string {
+  const then = new Date(iso)
+  const diff = Math.max(0, (liveNow.value - then.getTime()) / 1000)
+  const rtf = new Intl.RelativeTimeFormat(t('date_locale'), { numeric: 'auto', style: 'short' })
+  if (diff < 60) return rtf.format(-Math.floor(diff), 'second')
+  if (diff < 3600) return rtf.format(-Math.floor(diff / 60), 'minute')
+  if (diff < 86400) return rtf.format(-Math.floor(diff / 3600), 'hour')
+  return then.toLocaleString(t('date_locale'), { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
+}
+
+function activityMain(ev: ActivityEvent): string {
+  const who = ev.actor ?? t('nd_act_someone')
+  switch (ev.type) {
+    case 'connected':    return t('nd_act_connected', { who })
+    case 'disconnected': return t('nd_act_disconnected', { who })
+    case 'transferred':  return t('nd_act_transferred', { to: ev.data?.to ?? t('common_dash') })
+    default:             return t(`nd_act_${ev.type}`)
+  }
+}
+
+function activitySub(ev: ActivityEvent): string {
+  const d = ev.data ?? {}
+  const by = ev.actor ? t('nd_act_by', { who: ev.actor }) : ''
+  switch (ev.type) {
+    case 'enrolled':
+      return [by, d.hostname, d.agentVersion && `v${d.agentVersion}`].filter(Boolean).join(' · ')
+    case 'went_offline':
+      return t('nd_act_went_offline_sub')
+    case 'back_online':
+      return d.offlineSince
+        ? t('nd_act_back_online_sub', { d: fmtDuration((Date.parse(ev.at) - Date.parse(d.offlineSince)) / 1000) })
+        : ''
+    case 'agent_updated':
+      return `v${d.from} → v${d.to}`
+    case 'renamed':
+      return [`${d.from} → ${d.to}`, by].filter(Boolean).join(' · ')
+    case 'transferred':
+      return by
+    case 'disconnected':
+      return `${fmtDuration(d.durationSeconds ?? 0)} · ↑ ${fmtBytes(d.bytesSent ?? 0)} · ↓ ${fmtBytes(d.bytesReceived ?? 0)}`
+    default:
+      return ''
+  }
+}
+
+const activity = computed(() => rawActivity.value.map(ev => {
+  const style = ACTIVITY_STYLE[ev.type] ?? ACTIVITY_STYLE.created
+  return {
+    id:    ev.id,
+    icon:  style.icon,
+    style: `background: color-mix(in srgb, ${style.color} 12%, transparent); color: ${style.color}`,
+    main:  activityMain(ev),
+    sub:   activitySub(ev),
+    time:  activityTime(ev.at),
+  }
+}))
+const ACTIVITY_PREVIEW = 6
+const showAllActivity = ref(false)
+const visibleActivity = computed(() => showAllActivity.value ? activity.value : activity.value.slice(0, ACTIVITY_PREVIEW))
+
+// ── Agent ────────────────────────────────────────────────
+const tokenExpiresIn = computed(() => {
+  const exp = node.value?.agent?.tokenExpiresAt
+  if (!exp) return null
+  const days = Math.round((Date.parse(exp) - liveNow.value) / 86_400_000)
+  return new Intl.RelativeTimeFormat(t('date_locale'), { numeric: 'auto' }).format(days, 'day')
 })
 
 watch(enrollNow, () => {
@@ -553,34 +663,6 @@ function copyEnrollCmd() {
   setTimeout(() => enrollCopiedCmd.value = false, 2000)
 }
 
-// Actions
-const restarting = ref(false)
-
-// Agent auto-update
-const autoUpdate      = ref(true)
-const updateAvailable = ref(false)   // mock: pas de mise à jour dispo par défaut
-const latestVersion   = '1.2.0'
-
-watch(autoUpdate, (val) => { updateAvailable.value = !val })
-
-function doUpdate() {
-  notify(t('nd_update_started', { v: latestVersion }), 'info')
-  updateAvailable.value = false
-}
-let restartTimer: ReturnType<typeof setTimeout> | null = null
-function restartAgent() {
-  restarting.value = true
-  restartTimer = setTimeout(() => {
-    restarting.value = false
-    if (node.value?.status === 'connected') {
-      notify(t('nd_restart_warn'), 'warning')
-    } else {
-      notify(t('nd_restart_ok'), 'success')
-    }
-  }, 2500)
-}
-onUnmounted(() => { if (restartTimer) clearTimeout(restartTimer) })
-const showLogsModal     = ref(false)
 const showDeleteConfirm = ref(false)
 const deleting = ref(false)
 async function deleteNode() {
@@ -882,16 +964,23 @@ async function doTransfer() {
         <div class="card">
           <div class="card-header">
             <div class="card-title">{{ t('nd_activity_title') }}</div>
-            <span class="section-link" style="margin-left:auto;cursor:pointer" @click="showAllActivity = !showAllActivity">{{ showAllActivity ? t('nd_activity_collapse') : t('nd_activity_view_all') }}</span>
+            <button
+              v-if="activity.length > ACTIVITY_PREVIEW"
+              class="section-link"
+              style="margin-left:auto;background:none;border:none;padding:0;cursor:pointer;font:inherit"
+              @click="showAllActivity = !showAllActivity"
+            >
+              {{ showAllActivity ? t('nd_activity_collapse') : t('nd_activity_view_all', { n: activity.length }) }}
+            </button>
           </div>
           <div class="activity-list">
             <div v-for="ev in visibleActivity" :key="ev.id" class="activity-item">
-              <div class="activity-icon" :style="`background:${ev.iconBg};color:${ev.iconColor}`">
+              <div class="activity-icon" :style="ev.style">
                 <UIcon :name="ev.icon" style="width:14px;height:14px" />
               </div>
               <div class="activity-body">
                 <div class="activity-main">{{ ev.main }}</div>
-                <div class="activity-sub">{{ ev.sub }}</div>
+                <div v-if="ev.sub" class="activity-sub">{{ ev.sub }}</div>
               </div>
               <span class="activity-time">{{ ev.time }}</span>
             </div>
@@ -912,7 +1001,6 @@ async function doTransfer() {
             <div class="info-row"><span class="info-lbl">{{ t('nd_machine_os') }}<InfoTip :text="t('nd_info_os_tip')" /></span><span class="info-val">{{ node.osVersion ?? t('common_dash') }}</span></div>
             <div class="info-row"><span class="info-lbl">{{ t('nd_info_pubip') }}<InfoTip :text="t('nd_info_pubip_tip')" /></span><span class="info-val">{{ node.ipAddress ?? t('common_dash') }}<span v-if="node.ipAddress" class="badge-blue">IPv4</span></span></div>
             <div class="info-row"><span class="info-lbl">{{ t('nd_info_loc') }}<InfoTip :text="t('nd_info_loc_tip')" /></span><span class="info-val">{{ node.location }}</span></div>
-            <div class="info-row"><span class="info-lbl">{{ t('nd_info_isp') }}<InfoTip :text="t('nd_info_isp_tip')" /></span><span class="info-val">{{ t('common_dash') }}</span></div>
           </div>
         </div>
 
@@ -947,28 +1035,21 @@ async function doTransfer() {
               <span class="info-lbl">{{ t('nd_version_label') }}</span>
               <span class="info-val">
                 {{ node.agentVersion ? `v${node.agentVersion}` : t('common_dash') }}
-                <span v-if="node.agentVersion && !updateAvailable" class="badge-green">{{ t('nd_version_uptodate') }}</span>
-                <span v-if="updateAvailable" class="badge-warning">{{ t('nd_version_avail', { v: latestVersion }) }}</span>
+                <span v-if="node.agent?.updateAvailable" class="badge-warning">{{ t('nd_version_avail', { v: node.agent.latestVersion ?? '' }) }}</span>
+                <span v-else-if="node.agentVersion && node.agent?.latestVersion" class="badge-green">{{ t('nd_version_uptodate') }}</span>
               </span>
             </div>
             <div class="info-row">
               <span class="info-lbl">{{ t('nd_agent_heartbeat_label') }}<InfoTip :text="t('nd_agent_info_hb')" /></span>
               <span class="info-val accent">{{ lastSeenAgo }}</span>
             </div>
-            <div class="info-row">
+            <div v-if="node.agent?.heartbeatIntervalSeconds" class="info-row">
               <span class="info-lbl">{{ t('nd_agent_interval_label') }}<InfoTip :text="t('nd_agent_info_int')" /></span>
-              <span class="info-val">10s</span>
+              <span class="info-val">{{ node.agent.heartbeatIntervalSeconds }}s</span>
             </div>
-            <div class="info-row">
-              <span class="info-lbl">{{ t('nd_agent_autoupdate_label') }}<InfoTip :text="t('nd_agent_info_au')" /></span>
-              <span class="info-val toggle-row" style="cursor:pointer" @click="autoUpdate = !autoUpdate">
-                <span :class="autoUpdate ? 'accent' : 'muted'">{{ autoUpdate ? t('nd_agent_active') : t('nd_agent_inactive') }}</span>
-                <span class="toggle" :class="{ on: autoUpdate }"><span class="toggle-thumb" /></span>
-              </span>
-            </div>
-            <div class="info-row">
+            <div v-if="tokenExpiresIn" class="info-row">
               <span class="info-lbl">{{ t('nd_agent_jwt_label') }}<InfoTip :text="t('nd_agent_info_jwt')" position="bottom" /></span>
-              <span class="info-val">{{ t('nd_agent_jwt_val') }}</span>
+              <span class="info-val">{{ tokenExpiresIn }}</span>
             </div>
           </div>
         </div>
@@ -977,18 +1058,6 @@ async function doTransfer() {
         <div class="card">
           <div class="card-header"><div class="card-title">{{ t('nd_actions_title') }}</div></div>
           <div class="actions-body">
-            <button v-if="updateAvailable" class="action-btn update" @click="doUpdate">
-              <UIcon name="i-lucide-arrow-up-circle" style="width:13px;height:13px" />
-              {{ t('nd_action_update_to', { v: latestVersion }) }}
-            </button>
-            <button v-if="canManage" class="action-btn" :disabled="restarting" @click="restartAgent">
-              <UIcon name="i-lucide-rotate-ccw" style="width:13px;height:13px" :class="{ 'icon-spin': restarting }" />
-              {{ restarting ? t('nd_action_restarting') : t('nd_action_restart') }}
-            </button>
-            <button class="action-btn" @click="showLogsModal = true">
-              <UIcon name="i-lucide-file-text" style="width:13px;height:13px" />
-              {{ t('nd_action_view_logs') }}
-            </button>
             <button v-if="canManage" class="action-btn" @click="generateEnrollToken">
               <UIcon name="i-lucide-arrow-right-left" style="width:13px;height:13px" />
               {{ t('nd_action_enroll') }}
@@ -1090,31 +1159,6 @@ async function doTransfer() {
 
 
     <!-- Logs modal -->
-    <div v-if="showLogsModal" class="modal-overlay" @click.self="showLogsModal = false">
-      <div class="modal">
-        <div class="modal-header">
-          <div><div class="modal-title">{{ t('nd_logs_modal_title', { name: node.name }) }}</div><div class="modal-sub">{{ t('nd_logs_modal_sub') }}</div></div>
-          <button class="close-btn" @click="showLogsModal = false"><UIcon name="i-lucide-x" style="width:12px;height:12px" /></button>
-        </div>
-        <div class="modal-body" style="max-height:360px;overflow-y:auto">
-          <div class="activity-list">
-            <div v-for="ev in extendedActivity" :key="ev.id" class="activity-item">
-              <div class="activity-icon" :style="`background:${ev.iconBg};color:${ev.iconColor}`">
-                <UIcon :name="ev.icon" style="width:14px;height:14px" />
-              </div>
-              <div class="activity-body">
-                <div class="activity-main">{{ ev.main }}</div>
-                <div class="activity-sub">{{ ev.sub }}</div>
-              </div>
-              <span class="activity-time">{{ ev.time }}</span>
-            </div>
-          </div>
-        </div>
-        <div class="modal-footer">
-          <button class="btn-ghost-sm" @click="showLogsModal = false">{{ t('common_close') }}</button>
-        </div>
-      </div>
-    </div>
 
     <!-- Migrate node modal -->
     <div v-if="showEnrollModal" class="modal-overlay" @click.self="closeEnrollModal">
@@ -1251,25 +1295,6 @@ async function doTransfer() {
 .peers-add-row { display: flex; gap: 8px; align-items: center; }
 
 .confirm-modal { max-width: 420px; }
-@keyframes spin { to { transform: rotate(-360deg); } }
-.icon-spin { animation: spin 1s linear infinite; display: inline-block; }
-
-.restart-msg {
-  display: flex; align-items: flex-start; gap: 8px;
-  padding: 8px 12px; border-radius: var(--r);
-  font-size: 11px; line-height: 1.4; margin-top: 2px;
-}
-.restart-msg-ok {
-  background: color-mix(in srgb, var(--accent) 8%, transparent);
-  border: 1px solid color-mix(in srgb, var(--accent) 20%, transparent);
-  color: var(--accent);
-}
-.restart-msg-warn {
-  background: color-mix(in srgb, var(--warning) 8%, transparent);
-  border: 1px solid color-mix(in srgb, var(--warning) 20%, transparent);
-  color: var(--warning);
-}
-
 .confirm-warn {
   display: flex; align-items: flex-start; gap: 10px;
   padding: 12px 14px; border-radius: var(--r);

@@ -4,6 +4,7 @@ import limiter from '@adonisjs/limiter/services/main'
 const TABLES_IN_ORDER = [
   'node_peer_stats',
   'node_metrics',
+  'node_events',
   'node_alerts',
   'node_members',
   'connection_logs',

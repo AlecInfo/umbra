@@ -2140,7 +2140,6 @@ body:has(.vpn-bar) .notif-stack { bottom: 84px; }
 .copy-btn { background: none; border: none; color: var(--muted); font-size: 10px; cursor: pointer; padding: 0; transition: color .15s; }
 .copy-btn:hover { color: var(--text); }
 
-.toggle-row { display: flex; align-items: center; gap: 7px; }
 
 /* ─── Responsive ───────────────────────────────────────── */
 
@@ -2185,8 +2184,6 @@ body:has(.vpn-bar) .notif-stack { bottom: 84px; }
 .action-btn:hover         { border-color: var(--text); color: var(--text); }
 .action-btn.danger        { border-color: rgba(255,79,107,.3); color: var(--offline); }
 .action-btn.danger:hover  { background: rgba(255,79,107,.08); }
-.action-btn.update        { border-color: rgba(255,183,79,.3); color: var(--warning); }
-.action-btn.update:hover  { background: rgba(255,183,79,.08); border-color: var(--warning); }
 
 /* ─── WireGuard peers table ─────────────────────────────── */
 .peers-table { overflow-x: auto; }

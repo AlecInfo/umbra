@@ -21,6 +21,7 @@ export type ScannedRoutes = {
     'nodes.destroy': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'nodes.metrics': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'nodes.peers': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+    'nodes.activity': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'nodes.enroll_token': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'nodes.transfer': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'node_members.index': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
@@ -74,6 +75,7 @@ export type ScannedRoutes = {
     'nodes.show': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'nodes.metrics': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'nodes.peers': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+    'nodes.activity': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'node_members.index': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'api_keys.index': { paramsTuple?: []; params?: {} }
     'alerts.index': { paramsTuple?: []; params?: {} }
@@ -97,6 +99,7 @@ export type ScannedRoutes = {
     'nodes.show': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'nodes.metrics': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'nodes.peers': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+    'nodes.activity': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'node_members.index': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'api_keys.index': { paramsTuple?: []; params?: {} }
     'alerts.index': { paramsTuple?: []; params?: {} }

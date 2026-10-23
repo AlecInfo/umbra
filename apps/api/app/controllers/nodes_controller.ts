@@ -10,9 +10,13 @@ import { hashAgentToken } from '#services/agent_auth'
 import { resolveOrgRole } from '#services/organizations'
 import { headscaleClient, tenantForOwner } from '#services/headscale_client'
 import { userOrgIds, accessibleNodesQuery } from '#services/node_scope'
-import { resolveNodePermission, findNodeWithPermission, canShareNode } from '#services/permissions'
+import { resolveNodePermission, findNodeWithPermission, canShareNode, hasPermission } from '#services/permissions'
 import OrgMember from '#models/org_member'
 import User from '#models/user'
+import NodeEvent from '#models/node_event'
+import ConnectionLog from '#models/connection_log'
+import { readReleaseManifest, compareVersions } from '#services/agent_release'
+import { recordNodeEvent } from '#services/node_events'
 import {
   createNodeValidator,
   updateNodeValidator, transferNodeValidator,
@@ -41,6 +45,50 @@ async function latestMetricForNodes(nodeIds: string[]): Promise<Record<string, a
     }
   }
   return map
+}
+
+// What the dashboard says about the agent itself. Every value is read from
+// somewhere real or left null — the page used to fill these in by hand.
+async function agentInfo(node: Node) {
+  const manifest = await readReleaseManifest()
+  const latestVersion = manifest?.version ?? null
+
+  // The live credential is the most recently consumed one: enroll tokens and
+  // agent tokens share the table, and a re-enrolled node has several.
+  const token = await AgentToken.query()
+    .where('node_id', node.id)
+    .whereNotNull('used_at')
+    .orderBy('used_at', 'desc')
+    .first()
+
+  // The agent does not report its interval, so measure it: the median gap
+  // between the last few heartbeats is what it actually does, whatever its
+  // config file says.
+  const recent = await db
+    .from('node_metrics')
+    .where('node_id', node.id)
+    .orderBy('recorded_at', 'desc')
+    .limit(7)
+    .select('recorded_at')
+  const gaps = recent
+    .slice(1)
+    .map((r, i) => (new Date(recent[i].recorded_at).getTime() - new Date(r.recorded_at).getTime()) / 1000)
+    .filter((g) => g > 0)
+    .sort((a, b) => a - b)
+  const heartbeatIntervalSeconds = gaps.length ? Math.round(gaps[Math.floor(gaps.length / 2)]) : null
+
+  return {
+    latestVersion,
+    updateAvailable:
+      latestVersion !== null && node.agentVersion !== null && compareVersions(node.agentVersion, latestVersion) < 0,
+    tokenExpiresAt: token?.expiresAt.toISO() ?? null,
+    heartbeatIntervalSeconds,
+  }
+}
+
+function displayName(user: User | null | undefined): string | null {
+  if (!user) return null
+  return user.name?.trim() || user.email.split('@')[0] || null
 }
 
 export default class NodesController {
@@ -131,6 +179,7 @@ export default class NodesController {
         org: node.ownerOrg ? { id: node.ownerOrg.id, name: node.ownerOrg.name } : null,
         permission: await resolveNodePermission(auth.getUserOrFail().id, node),
         latestMetric: metricMap[node.id] ?? null,
+        agent: await agentInfo(node),
       },
     }
   }
@@ -140,8 +189,15 @@ export default class NodesController {
     if (!node) return response.notFound({ message: 'Node introuvable' })
 
     const payload = await request.validateUsing(updateNodeValidator)
+    const previousName = node.name
     node.merge(payload)
     await node.save()
+    if (node.name !== previousName) {
+      await recordNodeEvent(node.id, 'renamed', {
+        actorUserId: auth.getUserOrFail().id,
+        data: { from: previousName, to: node.name },
+      })
+    }
     return { node: node.serialize() }
   }
 
@@ -204,6 +260,18 @@ export default class NodesController {
     node.ownerUserId = orgId ? null : targetUserId
     node.ownerOrgId = orgId ?? null
     await node.save()
+
+    let recipient: string | null
+    if (orgId) {
+      await node.load('ownerOrg', (q) => q.select('id', 'name'))
+      recipient = node.ownerOrg?.name ?? null
+    } else {
+      recipient = displayName(await User.find(targetUserId))
+    }
+    await recordNodeEvent(node.id, 'transferred', {
+      actorUserId: user.id,
+      data: { to: recipient, kind: orgId ? 'org' : 'user' },
+    })
 
     // Move it in Headscale straight away. The heartbeat self-heal would get
     // there eventually, but its throttle can be an hour out — and until then
@@ -269,6 +337,72 @@ export default class NodesController {
 
     const rows = await query.exec()
     return { metrics: rows.map((r) => r.serialize()) }
+  }
+
+  // GET /nodes/:id/activity — what happened to this node, newest first.
+  //
+  // Two sources merged: node_events (enrolment, outages, updates, ownership)
+  // and connection_logs (who routed through it). Connections are personal:
+  // someone who can merely read or use a node sees their own sessions, and
+  // only those who manage it see everyone's.
+  async activity({ auth, params, request, response }: HttpContext) {
+    const user = auth.getUserOrFail()
+    const node = await Node.query().where('id', params.id).whereNull('deleted_at').first()
+    const permission = node ? await resolveNodePermission(user.id, node) : null
+    if (!node || !hasPermission(permission, 'read')) {
+      return response.notFound({ message: 'Node introuvable' })
+    }
+
+    const limit = Math.min(Math.max(Number(request.input('limit', 20)) || 20, 1), 100)
+    const seesEveryone = hasPermission(permission, 'manage')
+
+    const events = await NodeEvent.query()
+      .where('node_id', node.id)
+      .preload('actor', (q) => q.select('id', 'name', 'email'))
+      .orderBy('created_at', 'desc')
+      .limit(limit)
+
+    const connQuery = ConnectionLog.query()
+      .where('node_id', node.id)
+      .preload('user', (q) => q.select('id', 'name', 'email'))
+      .orderBy('connected_at', 'desc')
+      .limit(limit)
+    if (!seesEveryone) connQuery.where('user_id', user.id)
+    const connections = await connQuery
+
+    type Item = { id: string; type: string; at: string; actor: string | null; data: Record<string, unknown> | null }
+    const items: Item[] = events.map((e) => ({
+      id: e.id,
+      type: e.type,
+      at: e.createdAt.toISO()!,
+      actor: displayName(e.actor),
+      data: e.data,
+    }))
+
+    for (const c of connections) {
+      const actor = displayName(c.user)
+      items.push({ id: `${c.id}:in`, type: 'connected', at: c.connectedAt.toISO()!, actor, data: null })
+      if (c.disconnectedAt) {
+        items.push({
+          id: `${c.id}:out`,
+          type: 'disconnected',
+          at: c.disconnectedAt.toISO()!,
+          actor,
+          data: {
+            durationSeconds: Math.max(0, Math.round(c.disconnectedAt.diff(c.connectedAt, 'seconds').seconds)),
+            bytesSent: Number(c.bytesSent ?? 0),
+            bytesReceived: Number(c.bytesReceived ?? 0),
+          },
+        })
+      }
+    }
+
+    // The node row predates this history on existing installs; its creation
+    // is the one event that is always known.
+    items.push({ id: `${node.id}:created`, type: 'created', at: node.createdAt.toISO()!, actor: null, data: null })
+
+    items.sort((a, b) => Date.parse(b.at) - Date.parse(a.at))
+    return { events: items.slice(0, limit) }
   }
 
   async enrollToken({ auth, params, response }: HttpContext) {

@@ -12,12 +12,18 @@ export async function markStaleNodesOffline(): Promise<string[]> {
      WHERE status IN ('online', 'warning')
        AND deleted_at IS NULL
        AND (last_seen_at IS NULL OR last_seen_at < now() - make_interval(secs => ?))
-     RETURNING id`,
+     RETURNING id, last_seen_at`,
     [OFFLINE_AFTER_SECONDS]
   )
-  const ids: string[] = (result.rows ?? []).map((r: { id: string }) => r.id)
+  const rows: { id: string; last_seen_at: Date | null }[] = result.rows ?? []
+  const ids = rows.map((r) => r.id)
 
   if (ids.length > 0) {
+    // Dated at the last heartbeat, not at detection: the sweep only notices a
+    // silence after the fact, and the timeline should say when it started.
+    await db.table('node_events').multiInsert(
+      rows.map((r) => ({ node_id: r.id, type: 'went_offline', created_at: r.last_seen_at ?? new Date() }))
+    )
     await db
       .from('node_alerts')
       .whereIn('node_id', ids)

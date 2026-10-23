@@ -1,6 +1,5 @@
 import type { HttpContext } from '@adonisjs/core/http'
 import { randomBytes } from 'node:crypto'
-import { readFile } from 'node:fs/promises'
 import { DateTime } from 'luxon'
 import db from '@adonisjs/lucid/services/db'
 import AgentToken from '#models/agent_token'
@@ -11,6 +10,8 @@ import { heartbeatValidator, registerValidator } from '#validators/agent'
 import { hashAgentToken } from '#services/agent_auth'
 import { headscaleClient, tenantForOwner } from '#services/headscale_client'
 import { resolveOfflineAlerts } from '#services/offline_watch'
+import { readReleaseManifest } from '#services/agent_release'
+import { recordNodeEvent } from '#services/node_events'
 
 // Next allowed attempt (epoch ms) of the per-node exit-route self-heal.
 // In-memory on purpose: resets on API restart, and the operation is idempotent.
@@ -75,6 +76,11 @@ export default class AgentController {
     agentToken.expiresAt = DateTime.now().plus({ days: 90 })
     await agentToken.save()
 
+    await recordNodeEvent(node.id, 'enrolled', {
+      actorUserId: agentToken.createdBy,
+      data: { hostname: node.hostname, agentVersion: node.agentVersion },
+    })
+
     // Create a Headscale pre-auth key for this node (if Headscale is configured).
     // The node joins its owner's tenant user; the regenerated policy keeps
     // tenants isolated from each other at the network level.
@@ -110,13 +116,8 @@ export default class AgentController {
       return response.badRequest({ message: 'Unknown arch' })
     }
 
-    let manifest: { version: string; binaries: Record<string, { sha256: string; signature: string }> }
-    try {
-      const raw = await readFile(new URL('../../resources/releases/manifest.json', import.meta.url), 'utf-8')
-      manifest = JSON.parse(raw)
-    } catch {
-      return response.notFound({ message: 'No release manifest' })
-    }
+    const manifest = await readReleaseManifest()
+    if (!manifest) return response.notFound({ message: 'No release manifest' })
 
     const bin = manifest.binaries?.[arch]
     if (!bin) return response.notFound({ message: 'No release for this arch' })
@@ -136,6 +137,8 @@ export default class AgentController {
     const payload = await ctx.request.validateUsing(heartbeatValidator)
 
     const wasOffline = node.status === 'offline'
+    const offlineSince = node.lastSeenAt
+    const previousVersion = node.agentVersion
     node.merge({
       agentVersion: payload.agent_version ?? node.agentVersion,
       lastSeenAt: DateTime.now(),
@@ -145,6 +148,16 @@ export default class AgentController {
 
     if (wasOffline) {
       await resolveOfflineAlerts(node.id)
+      await recordNodeEvent(node.id, 'back_online', {
+        data: { offlineSince: offlineSince?.toISO() ?? null },
+      })
+    }
+    // The agent replaces its own binary, so a new version in the heartbeat is
+    // the only sign an update happened.
+    if (previousVersion && node.agentVersion && previousVersion !== node.agentVersion) {
+      await recordNodeEvent(node.id, 'agent_updated', {
+        data: { from: previousVersion, to: node.agentVersion },
+      })
     }
 
     // Insert metrics snapshot if provided
