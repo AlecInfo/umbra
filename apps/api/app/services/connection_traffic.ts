@@ -263,10 +263,19 @@ export async function sessionState(
   if (!device?.wireguardIp) return { state: 'pending', device }
 
   const peer = await freshestPeer(log.nodeId, device.wireguardIp)
+  if (!peer) return { state: 'pending', device }
 
-  const seen =
-    peer?.lastHandshakeAt != null &&
+  const handshake =
+    peer.lastHandshakeAt != null &&
     peer.lastHandshakeAt.toMillis() >= log.connectedAt.toMillis() - CLOCK_SLACK_MS
 
-  return { state: seen ? 'active' : 'pending', device }
+  // Traffic since the session began proves it as well, and arrives with the
+  // next heartbeat. A handshake alone could take minutes: a machine already on
+  // the mesh keeps reusing its WireGuard session keys for up to two, so
+  // switching exit node triggers none. The first look only sets the baseline.
+  accumulate(log, peer)
+  if (log.$isDirty) await log.save()
+  const moved = Number(log.bytesSent) + Number(log.bytesReceived) > 0
+
+  return { state: handshake || moved ? 'active' : 'pending', device }
 }

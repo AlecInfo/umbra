@@ -348,3 +348,38 @@ test.group('Recognising the client machine — existing device rows', (group) =>
     assert.equal((await status(client, token))!.state, 'pending')
   })
 })
+
+test.group('Confirming without a new handshake', () => {
+  test('traffic through the exit node confirms a session as soon as the next heartbeat reports it', async ({
+    client,
+    assert,
+  }) => {
+    const { token, userId, nodeId } = await setup(client)
+    await client.post('/api/v1/connect').headers(auth(token)).json({ nodeId })
+
+    // Known machine, last handshake well before this session: WireGuard is
+    // still using keys negotiated earlier.
+    await clientSeen(userId, nodeId, DateTime.now().minus({ minutes: 10 }))
+    const peer = await NodePeerStat.query().where('node_id', nodeId).firstOrFail()
+    peer.bytesSent = 1_000
+    peer.bytesReceived = 4_000
+    await peer.save()
+
+    // First look: counters are only a baseline — they could predate the session.
+    assert.equal((await status(client, token))!.state, 'pending')
+
+    // Next heartbeat: bytes moved since then.
+    peer.bytesSent = 1_800
+    peer.bytesReceived = 90_000
+    await peer.save()
+    assert.equal((await status(client, token))!.state, 'active')
+  })
+
+  test('counters that do not move leave it pending', async ({ client, assert }) => {
+    const { token, userId, nodeId } = await setup(client)
+    await client.post('/api/v1/connect').headers(auth(token)).json({ nodeId })
+    await clientSeen(userId, nodeId, DateTime.now().minus({ minutes: 10 }))
+    assert.equal((await status(client, token))!.state, 'pending')
+    assert.equal((await status(client, token))!.state, 'pending')
+  })
+})
