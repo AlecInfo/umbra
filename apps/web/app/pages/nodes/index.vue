@@ -95,6 +95,7 @@ const subtitleLabel = computed(() => {
         v-for="node in filteredNodes"
         :key="node.id"
         :node="node"
+        :pending="store.pendingId === node.id"
         @click="navigateTo(`/nodes/${node.id}`)"
         @connect="n => store.setConnected(n.id)"
         @cut="store.disconnect()"

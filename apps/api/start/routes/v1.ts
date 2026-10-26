@@ -77,6 +77,7 @@ router
         router.post('/orgs/:id/invitations', [OrgsController, 'invite'])
         router.delete('/orgs/:id/invitations/:invitationId', [OrgsController, 'revokeInvitation'])
 
+        router.get('/connect', [ConnectController, 'status'])
         router.post('/connect', [ConnectController, 'connect'])
         router.delete('/connect', [ConnectController, 'disconnect'])
       })

@@ -168,25 +168,20 @@ function onClusterEnter(cluster: ClusterData, e: MouseEvent) {
   }
 }
 
-// Click on a single node (marker click or single-node tooltip footer)
+// A marker opens its node; a cluster, the node list. Routing the machine's
+// whole traffic used to hang off this click — on a decorative map, with no
+// confirmation, a misclick away from changing the user's exit node.
 function onClusterClick(cluster: ClusterData) {
-  if (cluster.nodes.length === 1) {
-    const node = cluster.nodes[0]!
-    if (node.status === 'connected') store.disconnect()
-    else if (node.status === 'online' || node.status === 'warning') store.setConnected(node.id)
-    cancelClose()
-    hoveredCluster.value = null
-  } else {
-    navigateTo('/nodes')
-  }
-}
-
-// Click on a row inside a multi-node cluster tooltip
-function onClusterNodeClick(node: Node) {
-  if (node.status === 'connected') store.disconnect()
-  else if (node.status === 'online' || node.status === 'warning') store.setConnected(node.id)
   cancelClose()
   hoveredCluster.value = null
+  if (cluster.nodes.length === 1) navigateTo(`/nodes/${cluster.nodes[0]!.id}`)
+  else navigateTo('/nodes')
+}
+
+function onClusterNodeClick(node: Node) {
+  cancelClose()
+  hoveredCluster.value = null
+  navigateTo(`/nodes/${node.id}`)
 }
 
 async function goToNodes() {
@@ -319,6 +314,7 @@ function onCut()               { store.disconnect() }
         v-for="node in store.nodes.slice(0, 5)"
         :key="node.id"
         :node="node"
+        :pending="store.pendingId === node.id"
         @click="navigateTo(`/nodes/${node.id}`)"
         @connect="onConnect"
         @cut="onCut"
@@ -365,15 +361,8 @@ function onCut()               { store.disconnect() }
               <span class="mtt-val">{{ hoveredCluster.nodes[0]!.cpu !== null ? `${hoveredCluster.nodes[0]!.cpu}%` : t('common_dash') }}</span>
             </div>
           </div>
-          <div
-            class="mtt-foot"
-            :class="{ 'mtt-foot-action': hoveredCluster.nodes[0]!.status !== 'offline' && hoveredCluster.nodes[0]!.status !== 'pending' }"
-            @click="onClusterClick(hoveredCluster!)"
-          >
-            <span v-if="hoveredCluster.nodes[0]!.status === 'connected'" style="color:var(--accent)">{{ t('mtt_disconnect') }}</span>
-            <span v-else-if="hoveredCluster.nodes[0]!.status === 'offline'">{{ t('mtt_offline') }}</span>
-            <span v-else-if="hoveredCluster.nodes[0]!.status === 'pending'">{{ t('mtt_pending') }}</span>
-            <span v-else>{{ t('mtt_connect') }}</span>
+          <div class="mtt-foot mtt-foot-action" @click="onClusterClick(hoveredCluster!)">
+            {{ t('mtt_open') }}
           </div>
         </template>
 
@@ -386,8 +375,7 @@ function onCut()               { store.disconnect() }
             <div
               v-for="n in hoveredCluster.nodes"
               :key="n.id"
-              class="mtt-cluster-row"
-              :class="{ 'mtt-cluster-row-action': n.status !== 'offline' && n.status !== 'pending' }"
+              class="mtt-cluster-row mtt-cluster-row-action"
               @click.stop="onClusterNodeClick(n)"
             >
               <div class="nicon" :class="`cat-${n.category}`" style="width:18px;height:18px;flex-shrink:0">

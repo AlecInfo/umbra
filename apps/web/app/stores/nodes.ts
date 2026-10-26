@@ -90,14 +90,38 @@ function formatSpeed(bps: number): string {
   return `${Math.round(bps)} B/s`
 }
 
+/** The account's open VPN session, as the server sees it (GET /connect). */
+export interface VpnSession {
+  id:          string
+  nodeId:      string
+  nodeName:    string
+  // pending: the command was handed out, the exit node has not seen this
+  // machine yet. active: it has — traffic can flow.
+  state:       'pending' | 'active'
+  connectedAt: string
+  deviceName:  string | null
+}
+
 export const useNodesStore = defineStore('nodes', () => {
-  const connectedId = useLocalStorage<string | null>('umbra-connected-id', null)
-  const lastUsedId  = useLocalStorage<string | null>('umbra-last-used-id', null)
+  const lastUsedId = useLocalStorage<string | null>('umbra-last-used-id', null)
+  const toast = useToast()
+  const { notify } = useNotifications()
+  const { t } = useT()
 
   const nodes = ref<Node[]>([])
   const loading = ref(false)
   const error = ref<string | null>(null)
   const savedStatus = ref<Record<string, NodeStatus>>({})
+
+  /*
+  | The connection lives on the server. This used to be a node id in
+  | localStorage, set the moment the connect dialog opened — so the dashboard
+  | said "connected" before anyone ran the command, after the request failed,
+  | and on any browser that had once clicked the button.
+  */
+  const session = ref<VpnSession | null>(null)
+  const connectedId = computed(() => (session.value?.state === 'active' ? session.value.nodeId : null))
+  const pendingId   = computed(() => (session.value?.state === 'pending' ? session.value.nodeId : null))
 
   // Track cumulative bytes per node to compute upload/download rates
   const prevBytes = ref<Record<string, { sent: number; received: number; ts: number }>>({})
@@ -107,29 +131,34 @@ export const useNodesStore = defineStore('nodes', () => {
   let pollHandle: ReturnType<typeof setInterval> | null = null
   let pollSubscribers = 0
 
+  // Show the active session's node as 'connected', and give every other node
+  // back the status it had before.
+  function applySession(list: Node[]): Node[] {
+    const id = connectedId.value
+    return list.map((n) => {
+      const base = n.status === 'connected' ? (savedStatus.value[n.id] ?? 'online') : n.status
+      if (n.id !== id) return base === n.status ? n : { ...n, status: base }
+      savedStatus.value[n.id] = base
+      return { ...n, status: 'connected' }
+    })
+  }
+
   async function fetchNodes() {
     loading.value = true
     error.value = null
     try {
       const api = useApi()
       const res = await api<{ data: ApiNode[] }>('/nodes', { query: { perPage: 100 } })
-      const mapped = res.data.map(mapApiNode)
-      if (connectedId.value) {
-        const idx = mapped.findIndex((n) => n.id === connectedId.value)
-        if (idx >= 0) {
-          savedStatus.value[connectedId.value] = mapped[idx]!.status
-          mapped[idx] = { ...mapped[idx]!, status: 'connected' }
-        }
-      }
-      nodes.value = mapped
+      nodes.value = applySession(res.data.map(mapApiNode))
 
       // Compute upload/download rate for the connected node
-      if (connectedId.value) {
-        const raw = res.data.find(n => n.id === connectedId.value)
+      const cid = connectedId.value
+      if (cid) {
+        const raw = res.data.find(n => n.id === cid)
         const m = raw?.latestMetric
         if (m?.bytesSent != null && m?.bytesReceived != null) {
           const now = Date.now()
-          const prev = prevBytes.value[connectedId.value]
+          const prev = prevBytes.value[cid]
           if (prev) {
             const dt = (now - prev.ts) / 1000
             if (dt > 0) {
@@ -139,18 +168,38 @@ export const useNodesStore = defineStore('nodes', () => {
               downloadSpeed.value = formatSpeed(downBps)
             }
           }
-          prevBytes.value[connectedId.value] = { sent: m.bytesSent, received: m.bytesReceived, ts: now }
+          prevBytes.value[cid] = { sent: m.bytesSent, received: m.bytesReceived, ts: now }
         }
       }
     } catch (e: any) {
+      // Keep what was last known: a failed poll is a network hiccup, not
+      // proof that the account has no nodes.
       error.value = e?.data?.message || 'Impossible de charger les noeuds.'
-      nodes.value = []
     } finally {
       loading.value = false
     }
   }
 
-  const connectedAt = ref<number | null>(null)
+  async function fetchSession() {
+    try {
+      const api = useApi()
+      const res = await api<{ session: VpnSession | null }>('/connect')
+      session.value = res.session
+      nodes.value = applySession(nodes.value)
+    } catch {
+      // Same as above: keep the last known state through a failed poll.
+    }
+  }
+
+  // While a session is pending, ask often: the user is watching the dialog
+  // for the moment their machine shows up.
+  let pendingPoll: ReturnType<typeof setInterval> | null = null
+  watch(pendingId, (id) => {
+    if (id && !pendingPoll) pendingPoll = setInterval(fetchSession, 3000)
+    if (!id && pendingPoll) { clearInterval(pendingPoll); pendingPoll = null }
+  })
+
+  const connectedAt = computed(() => (session.value ? Date.parse(session.value.connectedAt) : null))
   const connecting = ref(false)
 
   interface ConnectCommands {
@@ -167,72 +216,63 @@ export const useNodesStore = defineStore('nodes', () => {
   }
   const connectCommands = ref<ConnectCommands | null>(null)
 
-  // Restore local state only (no API call) — used after page reload
-  function restoreConnected(id: string) {
-    connectedId.value = id
-    connectedAt.value = Date.now()
-    nodes.value = nodes.value.map(n => {
-      if (n.id === id) {
-        savedStatus.value[id] = n.status
-        return { ...n, status: 'connected' }
-      }
-      if (n.status === 'connected') {
-        const orig = savedStatus.value[n.id] ?? 'online'
-        return { ...n, status: orig }
-      }
-      return n
-    })
-  }
-
-  async function setConnected(id: string) {
+  /**
+   * Ask the server for a session on this node. The session starts pending:
+   * nothing is shown as connected until the exit node reports the machine.
+   * Returns false, changing nothing, when the server refuses.
+   */
+  async function setConnected(id: string): Promise<boolean> {
+    if (connecting.value) return false
     connecting.value = true
     try {
       const api = useApi()
       const res = await api<any>('/connect', { method: 'POST', body: { nodeId: id } })
-      if (res.exitNodeIp || res.connectCommand) {
-        connectCommands.value = {
-          nodeName:         res.nodeName ?? '',
-          connectCommand:   res.connectCommand ?? null,
-          switchCommand:    res.switchCommand ?? null,
-          disconnectCommand: res.disconnectCommand ?? 'tailscale set --exit-node=',
-          headscaleUrl:     res.headscaleUrl ?? null,
-          authKey:          res.authKey ?? null,
-          exitNodeIp:       res.exitNodeIp ?? null,
-        }
+      connectCommands.value = {
+        nodeName:          res.nodeName ?? '',
+        connectCommand:    res.connectCommand ?? null,
+        switchCommand:     res.switchCommand ?? null,
+        disconnectCommand: res.disconnectCommand ?? 'sudo tailscale set --exit-node=',
+        headscaleUrl:      res.headscaleUrl ?? null,
+        authKey:           res.authKey ?? null,
+        exitNodeIp:        res.exitNodeIp ?? null,
       }
-    } catch {
-      // API call failed but keep UI state in sync anyway
+      session.value = {
+        id:          '',
+        nodeId:      id,
+        nodeName:    res.nodeName ?? '',
+        state:       'pending',
+        connectedAt: new Date().toISOString(),
+        deviceName:  null,
+      }
+      lastUsedId.value = id
+      nodes.value = applySession(nodes.value)
+      return true
+    } catch (e: any) {
+      notify({ title: t('conn_failed_toast_title'), description: e?.data?.message || undefined, type: 'error' })
+      return false
     } finally {
       connecting.value = false
     }
-    connectedId.value = id
-    lastUsedId.value  = id
-    connectedAt.value = Date.now()
-    nodes.value = nodes.value.map(n => {
-      if (n.id === id) {
-        savedStatus.value[id] = n.status
-        return { ...n, status: 'connected' }
-      }
-      if (n.status === 'connected') {
-        const orig = savedStatus.value[n.id] ?? 'online'
-        return { ...n, status: orig }
-      }
-      return n
-    })
   }
 
-  async function disconnect(): Promise<string> {
-    let disconnectCmd = 'tailscale set --exit-node='
+  /**
+   * End the session — on the server, and on this machine when the app can.
+   * Every caller goes through here, so the user is always told what is left
+   * to do: in a browser that is running the disconnect command themselves.
+   */
+  async function disconnect(): Promise<void> {
+    let disconnectCmd = 'sudo tailscale set --exit-node='
     try {
       const api = useApi()
       const res = await api<any>('/connect', { method: 'DELETE' })
       if (res?.disconnectCommand) disconnectCmd = res.disconnectCommand
-    } catch {
-      // API call failed but keep UI state in sync anyway
+    } catch (e: any) {
+      notify({ title: t('conn_disconnect_failed_title'), description: e?.data?.message || undefined, type: 'error' })
+      return
     }
-    // Inside the packaged apps we stop the routing ourselves. The shell line is
-    // only worth showing to someone who has to paste it, so it is cleared once
-    // it has been run — the caller words its toast on that.
+
+    // Inside the packaged apps we stop the routing ourselves, and there is
+    // nothing left for the user to run.
     const desktop = useDesktop()
     if (desktop.available) {
       try {
@@ -242,19 +282,23 @@ export const useNodesStore = defineStore('nodes', () => {
         // Leave the command in place: the user can still run it by hand.
       }
     }
+
     connectCommands.value = null
-    connectedId.value = null
-    connectedAt.value = null
-    nodes.value = nodes.value.map(n => {
-      if (n.status !== 'connected') return n
-      const orig = savedStatus.value[n.id] ?? 'online'
-      return { ...n, status: orig }
+    session.value = null
+    nodes.value = applySession(nodes.value)
+
+    toast.add({
+      // In a browser the tunnel stays up until the user runs the command.
+      title:       disconnectCmd ? t('conn_disconnect_toast_title') : t('conn_disconnect_done_title'),
+      description: disconnectCmd || undefined,
+      color:       'neutral',
+      duration:    disconnectCmd ? 12000 : 4000,
+      icon:        'i-lucide-unplug',
     })
-    return disconnectCmd
   }
 
   function deleteNode(id: string) {
-    if (connectedId.value === id) disconnect()
+    if (session.value?.nodeId === id) session.value = null
     nodes.value = nodes.value.filter(n => n.id !== id)
   }
 
@@ -264,6 +308,7 @@ export const useNodesStore = defineStore('nodes', () => {
     pollHandle = setInterval(() => {
       if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return
       fetchNodes()
+      fetchSession()
     }, intervalMs)
   }
 
@@ -278,6 +323,10 @@ export const useNodesStore = defineStore('nodes', () => {
 
   const connectedNode = computed(() =>
     nodes.value.find(n => n.status === 'connected') ?? null
+  )
+
+  const pendingNode = computed(() =>
+    pendingId.value ? nodes.value.find(n => n.id === pendingId.value) ?? null : null
   )
 
   const onlineCount = computed(() =>
@@ -297,9 +346,8 @@ export const useNodesStore = defineStore('nodes', () => {
   /**
    * Wipe everything tied to the signed-in account.
    *
-   * connectedId and lastUsedId live in localStorage, so without this they
-   * outlive a logout — and the next account to sign in on the same browser
-   * briefly saw the previous one's nodes and connection state.
+   * lastUsedId lives in localStorage, so without this it outlives a logout —
+   * and the next account to sign in on the same browser would inherit it.
    */
   function reset() {
     stopPolling()
@@ -310,12 +358,11 @@ export const useNodesStore = defineStore('nodes', () => {
     prevBytes.value = {}
     uploadSpeed.value = '0 B/s'
     downloadSpeed.value = '0 B/s'
-    connectedAt.value = null
+    session.value = null
     connecting.value = false
     connectCommands.value = null
-    connectedId.value = null
     lastUsedId.value = null
   }
 
-  return { reset, nodes, loading, error, fetchNodes, setConnected, restoreConnected, disconnect, deleteNode, startPolling, stopPolling, connectedNode, onlineCount, warningCount, avgLatency, lastUsedId, connectedAt, savedStatus, connectedId, connecting, uploadSpeed, downloadSpeed, connectCommands }
+  return { reset, nodes, loading, error, fetchNodes, fetchSession, session, setConnected, disconnect, deleteNode, startPolling, stopPolling, connectedNode, pendingNode, pendingId, onlineCount, warningCount, avgLatency, lastUsedId, connectedAt, savedStatus, connectedId, connecting, uploadSpeed, downloadSpeed, connectCommands }
 })

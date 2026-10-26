@@ -6,32 +6,20 @@ const store = useNodesStore()
 const auth  = useAuthStore()
 const route  = useRoute()
 const colorMode = useColorMode()
-const toast = useToast()
 const { t } = useT()
 
 const showConnectModal = computed(() => store.connectCommands !== null)
-
-async function handleDisconnect() {
-  // Empty when the app ran the command itself — nothing left for the user to do.
-  const cmd = await store.disconnect()
-  toast.add({
-    title: t('conn_disconnect_toast_title'),
-    description: cmd || undefined,
-    color: 'neutral',
-    duration: 8000,
-    icon: 'i-lucide-unplug',
-  })
-}
 
 const displayName = computed(() => auth.user?.name?.trim() || auth.user?.email?.split('@')[0] || t('side_account_label'))
 const avatarInitial = computed(() => displayName.value.charAt(0).toUpperCase())
 
 function onVisibility() {
-  if (document.visibilityState === 'visible') store.fetchNodes()
+  if (document.visibilityState === 'visible') { store.fetchNodes(); store.fetchSession() }
 }
 
 onMounted(() => {
   if (auth.isAuthenticated && !auth.user) auth.fetchMe()
+  store.fetchSession()
   store.startPolling(8000)
   document.addEventListener('visibilitychange', onVisibility)
 })
@@ -140,7 +128,13 @@ async function logout() {
         :node="store.connectedNode"
         :upload="store.uploadSpeed"
         :download="store.downloadSpeed"
-        @cut="handleDisconnect()"
+        @cut="store.disconnect()"
+      />
+      <VpnBar
+        v-else-if="store.pendingNode"
+        :node="store.pendingNode"
+        pending
+        @cut="store.disconnect()"
       />
 
       <!-- Connect modal — shown after clicking Connect on any node -->
@@ -152,6 +146,7 @@ async function logout() {
         :headscale-url="store.connectCommands?.headscaleUrl ?? null"
         :auth-key="store.connectCommands?.authKey ?? null"
         :exit-node-ip="store.connectCommands?.exitNodeIp ?? null"
+        :session-state="store.session?.state ?? null"
         @close="store.connectCommands = null"
       />
 

@@ -162,9 +162,11 @@ const node = computed(() => {
 const categoryIcon = computed(() => categoryIcons[node.value?.category ?? 'other'])
 
 // Connect
+const isPending = computed(() => !!node.value && store.pendingId === node.value.id)
+
 function onConnect() {
   if (!node.value) return
-  if (node.value.status === 'connected') store.disconnect()
+  if (node.value.status === 'connected' || isPending.value) store.disconnect()
   else store.setConnected(node.value.id)
 }
 
@@ -846,11 +848,11 @@ async function doTransfer() {
         <button
           v-if="canConnect"
           class="btn-primary"
-          :class="{ 'btn-danger': node.status === 'connected' }"
-          :disabled="node.status === 'offline'"
+          :class="{ 'btn-danger': node.status === 'connected' || isPending }"
+          :disabled="(node.status === 'offline' && !isPending) || store.connecting"
           @click="onConnect"
         >
-          {{ node.status === 'connected' ? t('nd_disconnect') : t('nd_connect') }}
+          {{ isPending ? t('nd_connect_cancel') : node.status === 'connected' ? t('nd_disconnect') : store.connecting ? t('nd_connecting') : t('nd_connect') }}
         </button>
       </div>
     </div>

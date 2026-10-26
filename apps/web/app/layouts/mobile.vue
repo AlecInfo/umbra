@@ -23,6 +23,7 @@ const store = useNodesStore()
       :headscale-url="store.connectCommands?.headscaleUrl ?? null"
       :auth-key="store.connectCommands?.authKey ?? null"
       :exit-node-ip="store.connectCommands?.exitNodeIp ?? null"
+      :session-state="store.session?.state ?? null"
       @close="store.connectCommands = null"
     />
   </UApp>

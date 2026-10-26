@@ -7,6 +7,8 @@ const props = defineProps<{
   headscaleUrl: string | null
   authKey: string | null
   exitNodeIp: string | null
+  // What the server says about the session this dialog opened.
+  sessionState?: 'pending' | 'active' | null
 }>()
 
 const emit = defineEmits<{ close: [] }>()
@@ -123,6 +125,16 @@ function copySwitch() {
 
           <div class="modal-body">
 
+            <!-- The network's word, not ours: confirmed once the exit node sees this machine. -->
+            <div v-if="sessionState === 'active'" class="connect-state connect-state--active">
+              <UIcon name="i-lucide-circle-check" style="width:14px;height:14px;flex-shrink:0" />
+              {{ t('conn_modal_confirmed') }}
+            </div>
+            <div v-else-if="sessionState === 'pending'" class="connect-state">
+              <UIcon name="i-lucide-loader-circle" class="spin" style="width:14px;height:14px;flex-shrink:0" />
+              {{ t('conn_modal_waiting') }}
+            </div>
+
             <template v-if="canRunHere">
               <div class="info-box">
                 <UIcon name="i-lucide-monitor" style="width:14px;height:14px;flex-shrink:0;margin-top:1px" />
@@ -234,6 +246,19 @@ function copySwitch() {
   color: var(--muted);
 }
 
+.connect-state {
+  display: flex; align-items: center; gap: 8px;
+  padding: 9px 12px; border-radius: var(--r);
+  font-size: 11px; line-height: 1.4;
+  color: var(--pending);
+  background: color-mix(in srgb, var(--pending) 8%, transparent);
+  border: 1px solid color-mix(in srgb, var(--pending) 25%, transparent);
+}
+.connect-state--active {
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 35%, transparent);
+}
 .connect-app-done {
   display: flex;
   align-items: center;

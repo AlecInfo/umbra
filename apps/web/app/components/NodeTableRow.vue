@@ -2,7 +2,8 @@
 import type { Node } from '~/stores/nodes'
 import { categoryIcons } from '~/composables/useCategoryIcons'
 
-const props = defineProps<{ node: Node }>()
+// pending: a session on this node is waiting for the client machine to show up.
+const props = defineProps<{ node: Node; pending?: boolean }>()
 const emit  = defineEmits<{
   click:   [node: Node]
   connect: [node: Node]
@@ -33,7 +34,7 @@ const iconStyle = computed(() => {
 })
 
 function onAction() {
-  if (props.node.status === 'connected') emit('cut', props.node)
+  if (props.node.status === 'connected' || props.pending) emit('cut', props.node)
   else emit('connect', props.node)
 }
 </script>
@@ -76,13 +77,14 @@ function onAction() {
       <button
         v-if="node.permission !== 'read'"
         class="conn-btn"
-        :class="{ cut: node.status === 'connected' }"
-        :disabled="node.status === 'offline' || node.status === 'pending'"
+        :class="{ cut: node.status === 'connected' || pending }"
+        :disabled="!pending && (node.status === 'offline' || node.status === 'pending')"
         @click.stop="onAction"
       >
-        <UIcon v-if="node.status === 'connected'" name="i-lucide-square" style="width:8px;height:8px" />
+        <UIcon v-if="pending" name="i-lucide-loader-circle" class="spin" style="width:8px;height:8px" />
+        <UIcon v-else-if="node.status === 'connected'" name="i-lucide-square" style="width:8px;height:8px" />
         <UIcon v-else name="i-lucide-play" style="width:8px;height:8px" />
-        {{ node.status === 'connected' ? t('row_cut') : t('row_connect') }}
+        {{ pending ? t('row_cancel') : node.status === 'connected' ? t('row_cut') : t('row_connect') }}
       </button>
     </div>
 

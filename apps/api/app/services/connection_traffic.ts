@@ -66,16 +66,12 @@ function accumulate(log: ConnectionLog, peer: NodePeerStat): boolean {
   return changed
 }
 
-/**
- * Resolve devices and traffic for every session still open.
- * Returns how many sessions were updated — used by the tests and the logs.
- */
-export async function syncConnectionTraffic(): Promise<{ updated: number }> {
-  if (!headscaleClient.isConfigured) return { updated: 0 }
+interface SweepContext {
+  umbraNodeIps: Set<string>
+  nodesForTenant: (tenant: string) => Promise<HeadscaleNode[]>
+}
 
-  const openLogs = await ConnectionLog.query().whereNull('disconnectedAt').preload('node')
-  if (openLogs.length === 0) return { updated: 0 }
-
+async function sweepContext(): Promise<SweepContext> {
   // Every registered node's VPN IP, to tell exit nodes from client machines.
   const umbraNodes = await Node.query().whereNotNull('wireguardIp').select('wireguard_ip')
   const umbraNodeIps = new Set(
@@ -91,58 +87,130 @@ export async function syncConnectionTraffic(): Promise<{ updated: number }> {
     return tenantNodes.get(tenant)!
   }
 
+  return { umbraNodeIps, nodesForTenant }
+}
+
+/** Resolve one open session's device and traffic. Returns whether it changed. */
+async function syncSession(log: ConnectionLog, ctx: SweepContext): Promise<boolean> {
+  if (!log.node) await log.load('node')
+
+  // The client joins the tenant of the node it connects to (see /connect).
+  const tenant = tenantForOwner(log.node.ownerUserId, log.node.ownerOrgId)
+  const hsNodes = await ctx.nodesForTenant(tenant)
+  const clientNodes = hsNodes.filter((n) => !isRegisteredNode(n, ctx.umbraNodeIps))
+
+  let device = log.deviceId ? await Device.find(log.deviceId) : null
+
+  if (!device) {
+    // Exact match: the machine that redeemed the key we handed out.
+    let hsNode = log.headscalePreauthKey
+      ? clientNodes.find((n) => n.preAuthKey?.key === log.headscalePreauthKey)
+      : undefined
+
+    // A client that reused an existing enrollment never redeemed a key. Fall
+    // back to a known device of this user that the exit node currently sees
+    // as a peer — but only when it is unambiguous.
+    if (!hsNode) {
+      const known = await Device.query().where('user_id', log.userId).whereNull('deleted_at')
+      const candidates = clientNodes.filter((n) =>
+        known.some((d) => d.headscaleId === n.id)
+      )
+      if (candidates.length === 1) hsNode = candidates[0]
+    }
+
+    if (hsNode) {
+      device = await upsertDevice(log.userId, hsNode)
+      log.deviceId = device.id
+    }
+  }
+
+  if (device?.wireguardIp) {
+    // The exit node reports this device as one of its peers.
+    const peer = await NodePeerStat.query()
+      .where('node_id', log.nodeId)
+      .whereRaw('? = ANY(allowed_ips)', [device.wireguardIp])
+      .first()
+
+    if (peer) accumulate(log, peer)
+  }
+
+  if (!log.$isDirty) return false
+  await log.save()
+  return true
+}
+
+/**
+ * Resolve devices and traffic for every session still open.
+ * Returns how many sessions were updated — used by the tests and the logs.
+ */
+export async function syncConnectionTraffic(): Promise<{ updated: number }> {
+  if (!headscaleClient.isConfigured) return { updated: 0 }
+
+  const openLogs = await ConnectionLog.query().whereNull('disconnectedAt').preload('node')
+  if (openLogs.length === 0) return { updated: 0 }
+
+  const ctx = await sweepContext()
   let updated = 0
 
   for (const log of openLogs) {
     try {
-      // The client joins the tenant of the node it connects to (see /connect).
-      const tenant = tenantForOwner(log.node.ownerUserId, log.node.ownerOrgId)
-      const hsNodes = await nodesForTenant(tenant)
-      const clientNodes = hsNodes.filter((n) => !isRegisteredNode(n, umbraNodeIps))
-
-      let device = log.deviceId ? await Device.find(log.deviceId) : null
-
-      if (!device) {
-        // Exact match: the machine that redeemed the key we handed out.
-        let hsNode = log.headscalePreauthKey
-          ? clientNodes.find((n) => n.preAuthKey?.key === log.headscalePreauthKey)
-          : undefined
-
-        // A client that reused an existing enrollment never redeemed a key. Fall
-        // back to a known device of this user that the exit node currently sees
-        // as a peer — but only when it is unambiguous.
-        if (!hsNode) {
-          const known = await Device.query().where('user_id', log.userId).whereNull('deleted_at')
-          const candidates = clientNodes.filter((n) =>
-            known.some((d) => d.headscaleId === n.id)
-          )
-          if (candidates.length === 1) hsNode = candidates[0]
-        }
-
-        if (hsNode) {
-          device = await upsertDevice(log.userId, hsNode)
-          log.deviceId = device.id
-        }
-      }
-
-      if (!device?.wireguardIp) continue
-
-      // The exit node reports this device as one of its peers.
-      const peer = await NodePeerStat.query()
-        .where('node_id', log.nodeId)
-        .whereRaw('? = ANY(allowed_ips)', [device.wireguardIp])
-        .first()
-
-      if (peer) accumulate(log, peer)
-
-      if (log.$isDirty) {
-        await log.save()
-        updated++
-      }
+      if (await syncSession(log, ctx)) updated++
     } catch (err) {
       console.error(`Connection traffic sync failed for session ${log.id}:`, err)
     }
   }
 
   return { updated }
+}
+
+// Handshake timestamps come from the exit node's clock, connectedAt from the
+// API's: allow for a little drift between the two machines.
+const CLOCK_SLACK_MS = 30_000
+// On-demand resolution costs a Headscale round-trip; the dashboard polls.
+const RESOLVE_EVERY_MS = 5_000
+const lastResolveAt = new Map<string, number>()
+
+export type SessionState = 'pending' | 'active'
+
+/**
+ * Whether a session is real yet.
+ *
+ * Active means the exit node reports the client machine as a peer it has
+ * exchanged a handshake with since the session began — the network's own word
+ * that traffic can flow. Until then the session is pending: the command was
+ * handed out, nothing says it ran.
+ *
+ * A session not yet matched to a device is resolved on the spot instead of
+ * waiting up to 30 s for the sweep, at most every few seconds.
+ */
+export async function sessionState(
+  log: ConnectionLog
+): Promise<{ state: SessionState; device: Device | null }> {
+  let device = log.deviceId ? await Device.find(log.deviceId) : null
+
+  if (!device && headscaleClient.isConfigured) {
+    const now = Date.now()
+    if (now - (lastResolveAt.get(log.id) ?? 0) >= RESOLVE_EVERY_MS) {
+      lastResolveAt.set(log.id, now)
+      try {
+        await syncSession(log, await sweepContext())
+        device = log.deviceId ? await Device.find(log.deviceId) : null
+      } catch (err) {
+        console.error(`Resolving session ${log.id} failed:`, err)
+      }
+    }
+  }
+
+  if (!device?.wireguardIp) return { state: 'pending', device }
+
+  const peer = await NodePeerStat.query()
+    .where('node_id', log.nodeId)
+    .whereRaw('? = ANY(allowed_ips)', [device.wireguardIp])
+    .first()
+
+  const seen =
+    peer?.lastHandshakeAt != null &&
+    peer.lastHandshakeAt.toMillis() >= log.connectedAt.toMillis() - CLOCK_SLACK_MS
+
+  return { state: seen ? 'active' : 'pending', device }
 }

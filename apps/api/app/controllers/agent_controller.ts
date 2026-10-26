@@ -12,6 +12,7 @@ import { headscaleClient, tenantForOwner } from '#services/headscale_client'
 import { resolveOfflineAlerts } from '#services/offline_watch'
 import { readReleaseManifest } from '#services/agent_release'
 import { recordNodeEvent } from '#services/node_events'
+import { markExitRoutesVerified } from '#services/exit_routes'
 
 // Next allowed attempt (epoch ms) of the per-node exit-route self-heal.
 // In-memory on purpose: resets on API restart, and the operation is idempotent.
@@ -253,8 +254,9 @@ export default class AgentController {
           const res = await headscaleClient.enableExitRoutes(node.wireguardIp, tenant)
           // Routes confirmed: recheck hourly. Node not joined yet, or nothing
           // advertised (local client, or tailscale up still settling): retry in 1 min.
-          const delay = res.found && res.advertised > 0 ? 60 * 60_000 : 60_000
-          nextRouteEnsureAt.set(node.id, now + delay)
+          const healthy = res.found && res.advertised > 0
+          if (healthy) markExitRoutesVerified(node.id)
+          nextRouteEnsureAt.set(node.id, now + (healthy ? 60 * 60_000 : 60_000))
         } catch (err) {
           console.error(`enableExitRoutes failed for node ${node.id}:`, err)
           nextRouteEnsureAt.set(node.id, now + 60_000)

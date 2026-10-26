@@ -3,6 +3,8 @@ import { DateTime } from 'luxon'
 import ConnectionLog from '#models/connection_log'
 import { findNodeWithPermission } from '#services/permissions'
 import { headscaleClient, tenantForOwner } from '#services/headscale_client'
+import { exitRoutesVerifiedRecently, markExitRoutesVerified } from '#services/exit_routes'
+import { sessionState } from '#services/connection_traffic'
 
 export default class ConnectController {
   async connect({ auth, request, response }: HttpContext) {
@@ -52,46 +54,61 @@ export default class ConnectController {
       // the generated policy isolates tenants from each other.
       const tenant = tenantForOwner(node.ownerUserId, node.ownerOrgId)
 
-      // Make sure the exit node's advertised routes are enabled BEFORE handing
-      // out the connect command — otherwise `--exit-node` fails client-side.
-      // (v0.23 autoApprovers do nothing: this call is the real activation.)
-      try {
-        // Same safeguard as the heartbeat: a node sitting in the wrong tenant
-        // is invisible to this account's clients, and its routes cannot even
-        // be looked up. Cheap to check, and it fails the connection loudly
-        // rather than handing out a command that silently routes nothing.
-        await headscaleClient.ensureNodeTenant(exitIp, tenant)
+      // When the node's heartbeat confirmed its Headscale state within the
+      // hour, the tenant, the policy and the routes are known good and the
+      // only work left is the key. Otherwise do the full check — both halves
+      // in parallel, since neither depends on the other.
+      const verified = exitRoutesVerifiedRecently(node.id)
 
-        const res = await headscaleClient.enableExitRoutes(exitIp, tenant)
-        if (!res.found) {
-          console.error(`Exit node ${node.id} (${exitIp}) not found in Headscale — routes not enabled`)
-        } else if (res.advertised === 0) {
-          console.error(`Exit node ${node.id} (${exitIp}) advertises no exit routes — did the agent run tailscale up with --advertise-exit-node?`)
+      const ensureRoutes = async () => {
+        if (verified) return
+        // Make sure the exit node's advertised routes are enabled BEFORE handing
+        // out the connect command — otherwise `--exit-node` fails client-side.
+        // (v0.23 autoApprovers do nothing: this call is the real activation.)
+        try {
+          // A node sitting in the wrong tenant is invisible to this account's
+          // clients, and its routes cannot even be looked up.
+          await headscaleClient.ensureNodeTenant(exitIp, tenant)
+
+          const res = await headscaleClient.enableExitRoutes(exitIp, tenant)
+          if (!res.found) {
+            console.error(`Exit node ${node.id} (${exitIp}) not found in Headscale — routes not enabled`)
+          } else if (res.advertised === 0) {
+            console.error(`Exit node ${node.id} (${exitIp}) advertises no exit routes — did the agent run tailscale up with --advertise-exit-node?`)
+          } else {
+            markExitRoutesVerified(node.id)
+          }
+        } catch (err) {
+          console.error(`enableExitRoutes failed for node ${node.id}:`, err)
         }
-      } catch (err) {
-        console.error(`enableExitRoutes failed for node ${node.id}:`, err)
       }
 
-      try {
-        await headscaleClient.ensureUser(tenant)
-        await headscaleClient.syncPolicy()
-        // Reuses the tenant's outstanding key rather than minting one per
-        // click, and expires the stale ones on the way through.
-        authKey = await headscaleClient.getOrCreatePreAuthKey(tenant)
-        // --exit-node-allow-lan-access: without it tailscale also pulls the
-        // client's own LAN into the tunnel. The printer and the router UI
-        // vanish, and with --accept-dns=false the resolver is that router —
-        // so name resolution either dies or, when both LANs share a range,
-        // silently detours through the exit node.
-        connectCommand = `sudo tailscale up --login-server=${headscaleURL} --authkey=${authKey} --exit-node=${exitIp} --exit-node-allow-lan-access --accept-routes --accept-dns=false --reset`
+      const issueKey = async () => {
+        try {
+          if (!verified) {
+            await headscaleClient.ensureUser(tenant)
+            await headscaleClient.syncPolicy()
+          }
+          // Reuses the tenant's outstanding key rather than minting one per
+          // click, and expires the stale ones on the way through.
+          authKey = await headscaleClient.getOrCreatePreAuthKey(tenant)
+          // --exit-node-allow-lan-access: without it tailscale also pulls the
+          // client's own LAN into the tunnel. The printer and the router UI
+          // vanish, and with --accept-dns=false the resolver is that router —
+          // so name resolution either dies or, when both LANs share a range,
+          // silently detours through the exit node.
+          connectCommand = `sudo tailscale up --login-server=${headscaleURL} --authkey=${authKey} --exit-node=${exitIp} --exit-node-allow-lan-access --accept-routes --accept-dns=false --reset`
 
-        // Remember which key this session handed out: Headscale reports it back
-        // on whichever machine redeems it, which identifies the device exactly.
-        log.headscalePreauthKey = authKey
-        await log.save()
-      } catch (err) {
-        console.error('Failed to create pre-auth key for connect:', err)
+          // Remember which key this session handed out: Headscale reports it back
+          // on whichever machine redeems it, which identifies the device exactly.
+          log.headscalePreauthKey = authKey
+          await log.save()
+        } catch (err) {
+          console.error('Failed to create pre-auth key for connect:', err)
+        }
       }
+
+      await Promise.all([ensureRoutes(), issueKey()])
     }
 
     return {
@@ -105,6 +122,35 @@ export default class ConnectController {
       disconnectCommand: 'sudo tailscale set --exit-node=',
       headscaleUrl: headscaleURL,
       authKey,
+    }
+  }
+
+  // GET /connect — the account's open session, as the network sees it.
+  //
+  // 'pending' until the exit node reports the client machine as a peer that
+  // has exchanged traffic since the session began, 'active' from then on.
+  // The dashboard used to declare a connection the moment it handed out the
+  // command — before anyone had run it, and even when the request failed.
+  async status({ auth }: HttpContext) {
+    const user = auth.getUserOrFail()
+    const log = await ConnectionLog.query()
+      .where('user_id', user.id)
+      .whereNull('disconnected_at')
+      .preload('node')
+      .orderBy('connected_at', 'desc')
+      .first()
+    if (!log || log.node.deletedAt) return { session: null }
+
+    const { state, device } = await sessionState(log)
+    return {
+      session: {
+        id: log.id,
+        nodeId: log.nodeId,
+        nodeName: log.node.name,
+        state,
+        connectedAt: log.connectedAt.toISO(),
+        deviceName: device?.name ?? null,
+      },
     }
   }
 
