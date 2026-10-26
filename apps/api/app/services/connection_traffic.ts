@@ -17,6 +17,24 @@ import { headscaleClient, tenantForOwner, type HeadscaleNode } from '#services/h
 | This sweep closes that gap for every open session.
 */
 
+// Handshake timestamps come from the exit node's clock, connectedAt from the
+// API's: allow for a little drift between the two machines.
+const CLOCK_SLACK_MS = 30_000
+
+/**
+ * The exit node's peer row for this VPN IP, freshest first. Headscale reuses
+ * the IPs of deleted machines and old rows are never pruned, so the same IP
+ * can sit on a long-gone peer and on the live one — .first() alone picked
+ * either.
+ */
+function freshestPeer(nodeId: string, ip: string) {
+  return NodePeerStat.query()
+    .where('node_id', nodeId)
+    .whereRaw('? = ANY(allowed_ips)', [ip])
+    .orderByRaw('last_handshake_at DESC NULLS LAST')
+    .first()
+}
+
 // A client machine is any node in the tenant that is not a registered UMBRA
 // node — those are the exit nodes themselves, identified by their VPN IP.
 function isRegisteredNode(hsNode: HeadscaleNode, umbraNodeIps: Set<string>): boolean {
@@ -118,6 +136,28 @@ async function syncSession(log: ConnectionLog, ctx: SweepContext): Promise<boole
       if (candidates.length === 1) hsNode = candidates[0]
     }
 
+    // A machine enrolled before devices were tracked is known to nobody, and
+    // switching exit node redeems no key — so neither rule above can ever name
+    // it, and its sessions stayed unattributed forever. The exit node itself
+    // can vouch: the one client of this tenant it has exchanged a handshake
+    // with since the session began. Never a machine already registered to
+    // someone else (org tenants are shared), and only when it is unambiguous.
+    if (!hsNode) {
+      const since = log.connectedAt.minus({ milliseconds: CLOCK_SLACK_MS })
+      const fresh = await NodePeerStat.query()
+        .where('node_id', log.nodeId)
+        .where('last_handshake_at', '>=', since.toSQL()!)
+      const freshIps = new Set(fresh.flatMap((p) => p.allowedIps ?? []))
+      const seen = clientNodes.filter((n) => n.ipAddresses.some((ip) => freshIps.has(ip)))
+      if (seen.length > 0) {
+        const others = await Device.query()
+          .whereIn('headscale_id', seen.map((n) => n.id))
+          .whereNot('user_id', log.userId)
+        const unclaimed = seen.filter((n) => !others.some((d) => d.headscaleId === n.id))
+        if (unclaimed.length === 1) hsNode = unclaimed[0]
+      }
+    }
+
     if (hsNode) {
       device = await upsertDevice(log.userId, hsNode)
       log.deviceId = device.id
@@ -126,10 +166,7 @@ async function syncSession(log: ConnectionLog, ctx: SweepContext): Promise<boole
 
   if (device?.wireguardIp) {
     // The exit node reports this device as one of its peers.
-    const peer = await NodePeerStat.query()
-      .where('node_id', log.nodeId)
-      .whereRaw('? = ANY(allowed_ips)', [device.wireguardIp])
-      .first()
+    const peer = await freshestPeer(log.nodeId, device.wireguardIp)
 
     if (peer) accumulate(log, peer)
   }
@@ -163,9 +200,6 @@ export async function syncConnectionTraffic(): Promise<{ updated: number }> {
   return { updated }
 }
 
-// Handshake timestamps come from the exit node's clock, connectedAt from the
-// API's: allow for a little drift between the two machines.
-const CLOCK_SLACK_MS = 30_000
 // On-demand resolution costs a Headscale round-trip; the dashboard polls.
 const RESOLVE_EVERY_MS = 5_000
 const lastResolveAt = new Map<string, number>()
@@ -203,10 +237,7 @@ export async function sessionState(
 
   if (!device?.wireguardIp) return { state: 'pending', device }
 
-  const peer = await NodePeerStat.query()
-    .where('node_id', log.nodeId)
-    .whereRaw('? = ANY(allowed_ips)', [device.wireguardIp])
-    .first()
+  const peer = await freshestPeer(log.nodeId, device.wireguardIp)
 
   const seen =
     peer?.lastHandshakeAt != null &&

@@ -159,3 +159,107 @@ test.group('Connect speed', (group) => {
     assert.equal(res.body().authKey, 'key-123')
   })
 })
+
+test.group('Recognising the client machine', (group) => {
+  let restore: () => void = () => {}
+  group.each.teardown(() => restore())
+
+  // Headscale knows the exit node and one client machine, enrolled long before
+  // this session with a key nobody remembers.
+  function stubTenant() {
+    const proto = Object.getPrototypeOf(headscaleClient)
+    const descriptor = Object.getOwnPropertyDescriptor(proto, 'isConfigured')
+    // Every method /connect and the resolution can reach is stubbed: with
+    // isConfigured forced on, anything left would go to the real HEADSCALE_URL.
+    const originals = {
+      getNodesByUser: headscaleClient.getNodesByUser,
+      getOrCreatePreAuthKey: headscaleClient.getOrCreatePreAuthKey,
+      ensureNodeTenant: headscaleClient.ensureNodeTenant,
+      enableExitRoutes: headscaleClient.enableExitRoutes,
+      ensureUser: headscaleClient.ensureUser,
+      syncPolicy: headscaleClient.syncPolicy,
+    }
+    Object.defineProperty(headscaleClient, 'isConfigured', { get: () => true, configurable: true })
+    headscaleClient.ensureNodeTenant = async () => 'ok'
+    headscaleClient.enableExitRoutes = async () => ({ found: true, advertised: 2, enabled: 2 })
+    headscaleClient.ensureUser = async () => {}
+    headscaleClient.syncPolicy = async () => {}
+    headscaleClient.getNodesByUser = async () => [
+      { id: '1', name: 'exit', ipAddresses: [EXIT_IP], user: { name: 't' } },
+      {
+        id: '2',
+        name: 'alec-zenbook',
+        givenName: 'alec-zenbook',
+        ipAddresses: [CLIENT_IP],
+        user: { name: 't' },
+        online: true,
+        preAuthKey: { key: 'a-key-from-august', id: '1' },
+      },
+    ]
+    headscaleClient.getOrCreatePreAuthKey = async () => 'a-fresh-key-nobody-will-redeem'
+    restore = () => {
+      Object.assign(headscaleClient, originals)
+      delete (headscaleClient as any).isConfigured
+      if (descriptor) Object.defineProperty(proto, 'isConfigured', descriptor)
+    }
+  }
+
+  test('a machine that switched exit node is recognised by the exit node seeing it', async ({
+    client,
+    assert,
+  }) => {
+    stubTenant()
+    const { token, nodeId } = await setup(client)
+    await client.post('/api/v1/connect').headers(auth(token)).json({ nodeId })
+
+    // A long-gone phone left a row on the same IP — Headscale reused it.
+    await NodePeerStat.create({
+      nodeId,
+      peerPubkey: 'nodekey:old-phone',
+      peerName: 'S26',
+      allowedIps: [CLIENT_IP],
+      lastHandshakeAt: DateTime.now().minus({ days: 60 }),
+      isActive: false,
+    })
+    assert.equal((await status(client, token))!.state, 'pending')
+
+    // The user runs `tailscale set --exit-node=…`: the exit node reports a handshake.
+    await NodePeerStat.create({
+      nodeId,
+      peerPubkey: 'nodekey:zenbook',
+      peerName: 'alec-zenbook',
+      allowedIps: [CLIENT_IP],
+      lastHandshakeAt: DateTime.now(),
+      isActive: true,
+    })
+    await new Promise((r) => setTimeout(r, 5_100)) // on-demand resolution is throttled to every 5 s
+
+    const session = await status(client, token)
+    assert.equal(session!.state, 'active')
+    assert.equal(session!.deviceName, 'alec-zenbook')
+  }).timeout(15_000)
+
+  test('a machine already registered to someone else is never taken', async ({ client, assert }) => {
+    stubTenant()
+    const { token, nodeId } = await setup(client)
+    const other = await client.post('/api/v1/auth/register').json({ email: 'colleague@test.io', password: 'supersecret' })
+    await Device.create({
+      userId: other.body().user.id,
+      name: 'their-laptop',
+      type: 'desktop',
+      headscaleId: '2',
+      wireguardIp: CLIENT_IP,
+      isActive: true,
+    })
+
+    await client.post('/api/v1/connect').headers(auth(token)).json({ nodeId })
+    await NodePeerStat.create({
+      nodeId,
+      peerPubkey: 'nodekey:zenbook',
+      allowedIps: [CLIENT_IP],
+      lastHandshakeAt: DateTime.now(),
+      isActive: true,
+    })
+    assert.equal((await status(client, token))!.state, 'pending')
+  })
+})
