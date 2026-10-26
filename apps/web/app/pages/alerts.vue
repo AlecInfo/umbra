@@ -10,62 +10,75 @@ interface Alert {
   type:           string
   severity:       Severity
   node:           string
+  nodeId:         string
   thresholdValue: number | null
+  thresholdUnit:  string | null
+  // The reading when the rule last fired — not the threshold.
+  lastValue:      number | null
+  firing:         boolean
   triggeredAt:    string | null
-  read:           boolean
+  resolvedAt:     string | null
 }
 
 const alerts  = ref<Alert[]>([])
 const loading = ref(false)
-const error   = ref<string | null>(null)
+const error   = ref(false)
 
 function alertTitle(type: string): string {
   return t(`alert_type_${type}`)
 }
-function alertDetail(type: string, value: number | null): string {
-  return t(`alert_detail_${type}`, value !== null ? { value: String(value) } : {})
+
+function alertDetail(a: Alert): string {
+  if (a.lastValue === null || a.thresholdValue === null) return t(`alert_detail_${a.type}`)
+  const unit = a.thresholdUnit ?? ''
+  return t('alert_detail_metric', {
+    value:     `${Math.round(a.lastValue)}${unit}`,
+    threshold: `${a.thresholdValue}${unit}`,
+  })
 }
-function alertTime(iso: string | null): string {
+
+function ago(iso: string | null): string {
   if (!iso) return t('common_dash')
-  const d    = new Date(iso)
-  const diff = (Date.now() - d.getTime()) / 1000
-  if (diff < 120)            return t('common_just_now')
-  if (diff < 3600)           return t('common_min_ago', { n: Math.floor(diff / 60) })
-  if (diff < 86400)          return t('common_hour_ago', { n: Math.floor(diff / 3600) })
+  const diff = (Date.now() - new Date(iso).getTime()) / 1000
+  if (diff < 120)   return t('common_just_now')
+  if (diff < 3600)  return t('common_min_ago', { n: Math.floor(diff / 60) })
+  if (diff < 86400) return t('common_hour_ago', { n: Math.floor(diff / 3600) })
   return t('common_day_ago', { n: Math.floor(diff / 86400) })
 }
 
 async function fetchAlerts() {
   loading.value = true
-  error.value   = null
+  error.value   = false
   try {
     const api = useApi()
-    const res = await api<{ data: any[] }>('/alerts')
-    alerts.value = res.data.map((a) => ({ ...a, read: !a.isActive }))
+    const res = await api<{ data: Alert[] }>('/alerts')
+    alerts.value = res.data
   } catch {
-    error.value = t('alerts_empty')
+    error.value = true
   } finally {
     loading.value = false
   }
 }
 
-onMounted(fetchAlerts)
+// Alerts change with heartbeats; keep the page current while it is open.
+let timer: ReturnType<typeof setInterval> | null = null
+onMounted(() => { fetchAlerts(); timer = setInterval(fetchAlerts, 15_000) })
+onUnmounted(() => { if (timer) clearInterval(timer) })
 
-const activeSeverity = ref<Severity | 'all'>('all')
+const activeFilter = ref<'all' | 'firing' | 'resolved'>('all')
 
 const filteredAlerts = computed(() =>
   alerts.value.filter(a =>
-    activeSeverity.value === 'all' || a.severity === activeSeverity.value
+    activeFilter.value === 'all' || (activeFilter.value === 'firing') === a.firing
   )
 )
 
-const unread = computed(() => alerts.value.filter(a => !a.read).length)
+const firingCount = computed(() => alerts.value.filter(a => a.firing).length)
 
-const severityFilters = computed(() => [
+const filters = computed(() => [
   { value: 'all',      label: t('alerts_filter_all'),      count: alerts.value.length },
-  { value: 'critical', label: t('alerts_filter_critical'), count: alerts.value.filter(a => a.severity === 'critical').length },
-  { value: 'warning',  label: t('alerts_filter_warning'),  count: alerts.value.filter(a => a.severity === 'warning').length },
-  { value: 'info',     label: t('alerts_filter_info'),     count: alerts.value.filter(a => a.severity === 'info').length },
+  { value: 'firing',   label: t('alerts_filter_firing'),   count: firingCount.value },
+  { value: 'resolved', label: t('alerts_filter_resolved'), count: alerts.value.length - firingCount.value },
 ])
 
 const severityLabel = computed<Record<Severity, string>>(() => ({
@@ -73,10 +86,6 @@ const severityLabel = computed<Record<Severity, string>>(() => ({
   warning:  t('alerts_sev_warning'),
   info:     t('alerts_sev_info'),
 }))
-
-function markAllRead() {
-  alerts.value.forEach(a => { a.read = true })
-}
 </script>
 
 <template>
@@ -85,19 +94,18 @@ function markAllRead() {
     <div class="page-header">
       <div>
         <div class="page-title">{{ t('alerts_title') }}</div>
-        <div class="page-sub">{{ t('alerts_sub', { unread, total: alerts.length }) }}</div>
+        <div class="page-sub">{{ t('alerts_sub', { firing: firingCount, total: alerts.length }) }}</div>
       </div>
-      <button class="btn-ghost" @click="markAllRead">{{ t('alerts_mark_all') }}</button>
     </div>
 
     <div class="filters mb">
       <div class="filter-group">
         <button
-          v-for="f in severityFilters"
+          v-for="f in filters"
           :key="f.value"
           class="filter-btn"
-          :class="{ active: activeSeverity === f.value }"
-          @click="activeSeverity = f.value as typeof activeSeverity"
+          :class="{ active: activeFilter === f.value }"
+          @click="activeFilter = f.value as typeof activeFilter"
         >
           {{ f.label }}
           <span class="filter-count">{{ f.count }}</span>
@@ -105,41 +113,46 @@ function markAllRead() {
       </div>
     </div>
 
-    <div v-if="loading" class="empty">{{ t('common_loading') }}</div>
+    <div v-if="loading && !alerts.length" class="empty">{{ t('common_loading') }}</div>
+    <div v-else-if="error && !alerts.length" class="empty">{{ t('alerts_load_failed') }}</div>
 
     <div v-else class="alert-list">
-      <div
+      <NuxtLink
         v-for="alert in filteredAlerts"
         :key="alert.id"
+        :to="`/nodes/${alert.nodeId}`"
         class="alert-row"
-        :class="[`sev-${alert.severity}`, { unread: !alert.read }]"
-        @click="alert.read = true"
+        :class="[alert.firing ? `sev-${alert.severity}` : 'sev-resolved', { unread: alert.firing }]"
       >
-        <div class="alert-icon" :class="`icon-${alert.severity}`">
-          <UIcon v-if="alert.severity === 'critical'" name="i-lucide-triangle-alert" style="width:13px;height:13px" />
-          <UIcon v-else-if="alert.severity === 'warning'" name="i-lucide-circle-alert" style="width:13px;height:13px" />
-          <UIcon v-else name="i-lucide-circle-check" style="width:13px;height:13px" />
+        <div class="alert-icon" :class="alert.firing ? `icon-${alert.severity}` : 'icon-info'">
+          <UIcon v-if="!alert.firing" name="i-lucide-circle-check" style="width:13px;height:13px" />
+          <UIcon v-else-if="alert.severity === 'critical'" name="i-lucide-triangle-alert" style="width:13px;height:13px" />
+          <UIcon v-else name="i-lucide-circle-alert" style="width:13px;height:13px" />
         </div>
 
         <div class="alert-body">
           <div class="alert-title">
             {{ alertTitle(alert.type) }}
-            <span v-if="!alert.read" class="unread-dot" />
+            <span v-if="alert.firing" class="unread-dot" />
           </div>
-          <div class="alert-detail">{{ alertDetail(alert.type, alert.thresholdValue) }}</div>
+          <div class="alert-detail">{{ alertDetail(alert) }}</div>
           <div class="alert-meta">
             <span class="alert-node">{{ alert.node }}</span>
             <span>·</span>
-            <span>{{ alertTime(alert.triggeredAt) }}</span>
+            <span>{{ t('alerts_since', { when: ago(alert.triggeredAt) }) }}</span>
+            <template v-if="!alert.firing">
+              <span>·</span>
+              <span>{{ t('alerts_resolved_when', { when: ago(alert.resolvedAt) }) }}</span>
+            </template>
           </div>
         </div>
 
-        <div class="alert-sev-badge" :class="`badge-${alert.severity}`">
-          {{ severityLabel[alert.severity] }}
+        <div class="alert-sev-badge" :class="alert.firing ? `badge-${alert.severity}` : 'badge-info'">
+          {{ alert.firing ? severityLabel[alert.severity] : t('alerts_resolved') }}
         </div>
-      </div>
+      </NuxtLink>
 
-      <div v-if="filteredAlerts.length === 0 && !loading" class="empty">{{ t('alerts_empty') }}</div>
+      <div v-if="filteredAlerts.length === 0" class="empty">{{ t('alerts_empty') }}</div>
     </div>
 
   </div>
@@ -147,4 +160,7 @@ function markAllRead() {
 
 <style scoped>
 .alerts-page { display: flex; flex-direction: column; }
+.alert-row { text-decoration: none; color: inherit; }
+/* A resolved alert is history: same row, no colour shouting for attention. */
+.sev-resolved { border-left: 2px solid var(--border2); padding-left: 14px; opacity: .75; }
 </style>

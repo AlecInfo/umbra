@@ -34,14 +34,10 @@ test.group('Offline detection', () => {
     client,
     assert,
   }) => {
-    const { nodeId, userId, agentToken } = await setupOnlineNode(client)
+    const { nodeId, agentToken } = await setupOnlineNode(client)
 
-    const alert = await NodeAlert.create({
-      nodeId,
-      createdBy: userId,
-      type: 'node_offline',
-      isActive: true,
-    })
+    // Every enrolled node gets this rule.
+    const alert = await NodeAlert.query().where('node_id', nodeId).where('type', 'node_offline').firstOrFail()
 
     // Fresh heartbeat: the sweep must not touch the node
     let swept = await markStaleNodesOffline()

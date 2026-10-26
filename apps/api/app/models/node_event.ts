@@ -11,6 +11,8 @@ export type NodeEventType =
   | 'agent_updated'
   | 'renamed'
   | 'transferred'
+  | 'alert_triggered'
+  | 'alert_resolved'
 
 export default class NodeEvent extends BaseModel {
   @column({ isPrimary: true })

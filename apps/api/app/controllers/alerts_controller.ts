@@ -21,9 +21,12 @@ export default class AlertsController {
     if (!nodeIds.length) return { data: [] }
 
     const severity = request.input('severity') as string | null
+    // Rules that never fired are configuration, not alerts. Firing ones first.
     const query    = NodeAlert.query()
       .whereIn('nodeId', nodeIds)
+      .whereNotNull('triggered_at')
       .preload('node', (q) => q.select('id', 'name'))
+      .orderByRaw('(resolved_at IS NULL) DESC')
       .orderBy('triggeredAt', 'desc')
       .limit(200)
 
@@ -44,6 +47,8 @@ export default class AlertsController {
         nodeId:         a.nodeId,
         thresholdValue: a.thresholdValue,
         thresholdUnit:  a.thresholdUnit,
+        lastValue:      a.lastValue,
+        firing:         a.resolvedAt === null,
         isActive:       a.isActive,
         triggeredAt:    a.triggeredAt?.toISO() ?? null,
         resolvedAt:     a.resolvedAt?.toISO() ?? null,

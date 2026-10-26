@@ -55,7 +55,7 @@ function onAction() {
         </div>
         <div class="nid">
           {{ node.ip }}
-          <span v-if="node.status === 'warning'" class="warn-hint"><UIcon name="i-lucide-triangle-alert" style="width:9px;height:9px" /> {{ t('row_warn_cpu') }} {{ node.cpu }}%</span>
+          <span v-if="node.status === 'warning'" class="warn-hint"><UIcon name="i-lucide-triangle-alert" style="width:9px;height:9px" /> {{ t('row_warn_alert') }}</span>
         </div>
       </div>
     </div>

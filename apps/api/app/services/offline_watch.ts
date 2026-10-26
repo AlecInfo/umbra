@@ -1,10 +1,12 @@
 import db from '@adonisjs/lucid/services/db'
+import NodeAlert from '#models/node_alert'
+import { isFiring, triggerAlert, resolveAlert } from '#services/alerts'
 
 // The agent heartbeats every 10s: 90s ≈ 9 missed beats.
 export const OFFLINE_AFTER_SECONDS = 90
 
-// Mark nodes offline once their agent stopped heartbeating, and trigger the
-// active node_offline alert rules of those nodes. Returns the ids of the
+// Mark nodes offline once their agent stopped heartbeating, and fire the
+// node_offline rule of each. Returns the ids of the
 // nodes that just went offline. Idempotent — safe to run at any frequency.
 export async function markStaleNodesOffline(): Promise<string[]> {
   const result = await db.rawQuery(
@@ -24,24 +26,22 @@ export async function markStaleNodesOffline(): Promise<string[]> {
     await db.table('node_events').multiInsert(
       rows.map((r) => ({ node_id: r.id, type: 'went_offline', created_at: r.last_seen_at ?? new Date() }))
     )
-    await db
-      .from('node_alerts')
+    const rules = await NodeAlert.query()
       .whereIn('node_id', ids)
       .where('type', 'node_offline')
       .where('is_active', true)
-      .update({ triggered_at: new Date(), resolved_at: null })
+    for (const rule of rules) {
+      if (!isFiring(rule)) await triggerAlert(rule, null)
+    }
   }
 
   return ids
 }
 
-// Resolve the node_offline alerts of a node that came back online.
+// Resolve the node_offline alert of a node that came back online.
 export async function resolveOfflineAlerts(nodeId: string): Promise<void> {
-  await db
-    .from('node_alerts')
-    .where('node_id', nodeId)
-    .where('type', 'node_offline')
-    .whereNotNull('triggered_at')
-    .whereNull('resolved_at')
-    .update({ resolved_at: new Date() })
+  const rules = await NodeAlert.query().where('node_id', nodeId).where('type', 'node_offline')
+  for (const rule of rules) {
+    if (isFiring(rule)) await resolveAlert(rule, null)
+  }
 }

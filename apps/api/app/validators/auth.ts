@@ -19,6 +19,12 @@ export const updateProfileValidator = vine.compile(
   vine.object({
     name: vine.string().trim().minLength(1).maxLength(100).optional(),
     avatarUrl: vine.string().url().maxLength(2000).nullable().optional(),
+    notificationPrefs: vine
+      .object({
+        offline: vine.boolean().optional(),
+        system: vine.boolean().optional(),
+      })
+      .optional(),
   })
 )
 

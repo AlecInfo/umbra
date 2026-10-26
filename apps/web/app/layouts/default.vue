@@ -34,19 +34,23 @@ const navGroups = computed(() => [
     section: t('side_nav'),
     links: [
       { to: '/',            label: t('side_dashboard'),   icon: 'i-lucide-layout-dashboard' },
-      { to: '/nodes',       label: t('side_nodes'),       icon: 'i-lucide-server',      badge: true },
+      { to: '/nodes',       label: t('side_nodes'),       icon: 'i-lucide-server',      badge: 'warning' as const },
       { to: '/connections', label: t('side_connections'), icon: 'i-lucide-network' },
     ],
   },
   {
     section: t('side_account'),
     links: [
-      { to: '/alerts',   label: t('side_alerts'),   icon: 'i-lucide-triangle-alert', badge: true },
+      { to: '/alerts',   label: t('side_alerts'),   icon: 'i-lucide-triangle-alert', badge: 'alerts' as const },
       { to: '/api-keys', label: t('side_api_keys'), icon: 'i-lucide-terminal' },
       { to: '/settings', label: t('side_settings'), icon: 'i-lucide-settings' },
     ],
   },
 ])
+
+function badgeCount(kind: 'warning' | 'alerts'): number {
+  return kind === 'alerts' ? store.alertCount : store.warningCount
+}
 
 function isActive(to: string) {
   if (to === '/') return route.path === '/'
@@ -87,7 +91,7 @@ async function logout() {
             >
               <UIcon :name="link.icon" style="width:14px;height:14px;flex-shrink:0" />
               <span>{{ link.label }}</span>
-              <span v-if="link.badge && store.warningCount > 0" class="nav-badge">{{ store.warningCount }}</span>
+              <span v-if="link.badge && badgeCount(link.badge) > 0" class="nav-badge">{{ badgeCount(link.badge) }}</span>
             </NuxtLink>
           </template>
         </nav>

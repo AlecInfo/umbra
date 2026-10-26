@@ -34,6 +34,12 @@ export default class NodeAlert extends BaseModel {
   @column()
   declare thresholdUnit: string | null
 
+  // The reading when the rule last fired (the threshold is what it is compared to).
+  @column({
+    consume: (value) => (value === null ? null : Number(value)),
+  })
+  declare lastValue: number | null
+
   @column()
   declare isActive: boolean
 

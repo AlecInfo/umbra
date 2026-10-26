@@ -14,6 +14,7 @@ import { readReleaseManifest } from '#services/agent_release'
 import { recordNodeEvent } from '#services/node_events'
 import { markExitRoutesVerified } from '#services/exit_routes'
 import { publicAddress } from '#services/public_address'
+import { ensureDefaultRules, evaluateMetricAlerts } from '#services/alerts'
 
 // Next allowed attempt (epoch ms) of the per-node exit-route self-heal.
 // In-memory on purpose: resets on API restart, and the operation is idempotent.
@@ -79,6 +80,7 @@ export default class AgentController {
     agentToken.expiresAt = DateTime.now().plus({ days: 90 })
     await agentToken.save()
 
+    await ensureDefaultRules(node.id, agentToken.createdBy)
     await recordNodeEvent(node.id, 'enrolled', {
       actorUserId: agentToken.createdBy,
       data: { hostname: node.hostname, agentVersion: node.agentVersion },
@@ -185,6 +187,16 @@ export default class AgentController {
         uptime_seconds: m.uptime_seconds ?? null,
         active_peers: m.active_peers ?? 0,
       })
+    }
+
+    // A node is 'warning' exactly while one of its metric rules is firing.
+    if (payload.metrics) {
+      const firing = await evaluateMetricAlerts(node.id)
+      const status = firing ? 'warning' : 'online'
+      if (node.status !== status && node.status !== 'offline') {
+        node.status = status
+        await node.save()
+      }
     }
 
     // Upsert peer stats — always process when peers field is present (even if empty)

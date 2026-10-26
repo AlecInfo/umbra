@@ -19,6 +19,7 @@ interface ActivityEvent {
   id:    string
   type:  'created' | 'enrolled' | 'went_offline' | 'back_online' | 'agent_updated'
        | 'renamed' | 'transferred' | 'connected' | 'disconnected'
+       | 'alert_triggered' | 'alert_resolved'
   at:    string
   actor: string | null
   data:  Record<string, any> | null
@@ -546,6 +547,8 @@ const ACTIVITY_STYLE: Record<ActivityEvent['type'], { icon: string; color: strin
   transferred:   { icon: 'i-lucide-arrow-right-left', color: 'var(--warning)' },
   connected:     { icon: 'i-lucide-plug',             color: 'var(--accent2)' },
   disconnected:  { icon: 'i-lucide-unplug',           color: 'var(--muted)' },
+  alert_triggered: { icon: 'i-lucide-triangle-alert', color: 'var(--warning)' },
+  alert_resolved:  { icon: 'i-lucide-circle-check',   color: 'var(--accent)' },
 }
 
 function fmtDuration(totalSeconds: number): string {
@@ -583,6 +586,9 @@ function activityMain(ev: ActivityEvent): string {
     case 'connected':    return t('nd_act_connected', { who })
     case 'disconnected': return t('nd_act_disconnected', { who })
     case 'transferred':  return t('nd_act_transferred', { to: ev.data?.to ?? t('common_dash') })
+    case 'alert_triggered':
+    case 'alert_resolved':
+      return t(`nd_act_${ev.type}`, { title: t(`alert_type_${ev.data?.type}`) })
     default:             return t(`nd_act_${ev.type}`)
   }
 }
@@ -605,6 +611,11 @@ function activitySub(ev: ActivityEvent): string {
       return [`${d.from} → ${d.to}`, by].filter(Boolean).join(' · ')
     case 'transferred':
       return by
+    case 'alert_triggered':
+    case 'alert_resolved':
+      return d.value != null && d.threshold != null
+        ? t('alert_detail_metric', { value: `${Math.round(d.value)}${d.unit ?? ''}`, threshold: `${d.threshold}${d.unit ?? ''}` })
+        : ''
     case 'disconnected':
       // Null traffic means the session was never matched to a device — unknown, not zero.
       return d.bytesSent == null

@@ -333,6 +333,15 @@ export const useNodesStore = defineStore('nodes', () => {
     nodes.value.filter(n => n.status === 'online' || n.status === 'connected' || n.status === 'warning').length
   )
 
+  // Nodes with a firing alert: a metric over its threshold, or silent. Read
+  // through the 'connected' overlay, which hides the node's own status.
+  const alertCount = computed(() =>
+    nodes.value.filter((n) => {
+      const base = n.status === 'connected' ? (savedStatus.value[n.id] ?? 'online') : n.status
+      return base === 'warning' || base === 'offline'
+    }).length
+  )
+
   const warningCount = computed(() =>
     nodes.value.filter(n => n.status === 'warning').length
   )
@@ -364,5 +373,5 @@ export const useNodesStore = defineStore('nodes', () => {
     lastUsedId.value = null
   }
 
-  return { reset, nodes, loading, error, fetchNodes, fetchSession, session, setConnected, disconnect, deleteNode, startPolling, stopPolling, connectedNode, pendingNode, pendingId, onlineCount, warningCount, avgLatency, lastUsedId, connectedAt, savedStatus, connectedId, connecting, uploadSpeed, downloadSpeed, connectCommands }
+  return { reset, nodes, loading, error, fetchNodes, fetchSession, session, setConnected, disconnect, deleteNode, startPolling, stopPolling, connectedNode, pendingNode, pendingId, onlineCount, warningCount, alertCount, avgLatency, lastUsedId, connectedAt, savedStatus, connectedId, connecting, uploadSpeed, downloadSpeed, connectCommands }
 })

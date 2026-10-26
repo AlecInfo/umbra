@@ -1,4 +1,5 @@
 import type { HttpContext } from '@adonisjs/core/http'
+import { isMailConfigured } from '#services/mailer'
 import hash from '@adonisjs/core/services/hash'
 import { DateTime } from 'luxon'
 import User from '#models/user'
@@ -132,14 +133,23 @@ export default class AuthController {
 
   async me({ auth }: HttpContext) {
     const user = auth.getUserOrFail()
-    return { user: user.serialize(), mustChangePassword: user.mustChangePassword }
+    return {
+      user: user.serialize(),
+      mustChangePassword: user.mustChangePassword,
+      // Whether this server can send email at all — the notification settings
+      // say so instead of offering toggles that would never deliver anything.
+      mailEnabled: isMailConfigured(),
+    }
   }
 
   async updateProfile({ auth, request }: HttpContext) {
     const user = auth.getUserOrFail()
-    const payload = await request.validateUsing(updateProfileValidator)
+    const { notificationPrefs, ...profile } = await request.validateUsing(updateProfileValidator)
 
-    user.merge(payload)
+    user.merge(profile)
+    if (notificationPrefs) {
+      user.notificationPrefs = { ...user.notificationPrefs, ...notificationPrefs }
+    }
     await user.save()
 
     return { user: user.serialize() }

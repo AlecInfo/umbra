@@ -88,3 +88,27 @@ export function sendPasswordReset(to: string, tempPassword: string): Promise<boo
     ].join('\n')
   )
 }
+
+export function sendAlert(
+  to: string,
+  alert: { nodeName: string; nodeId: string; title: string; detail: string; resolved: boolean }
+): Promise<boolean> {
+  const subject = alert.resolved
+    ? `Résolu — ${alert.title} sur ${alert.nodeName}`
+    : `${alert.title} sur ${alert.nodeName}`
+  return send(
+    to,
+    subject,
+    [
+      alert.resolved
+        ? `L'alerte « ${alert.title} » sur ${alert.nodeName} est résolue.`
+        : `Alerte « ${alert.title} » sur ${alert.nodeName}.`,
+      '',
+      `    ${alert.detail}`,
+      '',
+      `Voir le nœud : ${webUrl(`/nodes/${alert.nodeId}`)}`,
+      '',
+      'Vous recevez ce message parce que les notifications sont activées dans Paramètres → Notifications.',
+    ].join('\n')
+  )
+}

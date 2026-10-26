@@ -16,6 +16,13 @@ const AuthFinder = withAuthFinder(() => hash.use('scrypt'), {
   passwordColumnName: 'passwordHash',
 })
 
+export interface NotificationPrefs {
+  /** A node stopped heartbeating. */
+  offline: boolean
+  /** CPU, memory, disk or temperature crossed its threshold. */
+  system: boolean
+}
+
 export default class User extends compose(BaseModel, AuthFinder) {
   @column({ isPrimary: true })
   declare id: string
@@ -51,6 +58,10 @@ export default class User extends compose(BaseModel, AuthFinder) {
 
   @column({ serializeAs: null })
   declare mustChangePassword: boolean
+
+  // Which alert emails this person wants (sent only when SMTP is configured).
+  @column()
+  declare notificationPrefs: NotificationPrefs
 
   @column.dateTime({ autoCreate: true })
   declare createdAt: DateTime

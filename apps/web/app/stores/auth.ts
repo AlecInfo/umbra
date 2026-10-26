@@ -10,6 +10,8 @@ export interface ApiUser {
   // Who runs this deployment. Grants no access to anyone's nodes — it only
   // unlocks the instance administration section.
   instanceRole: 'user' | 'operator'
+  // Which alert emails this person wants.
+  notificationPrefs: { offline: boolean; system: boolean }
 }
 
 interface AuthResponse {
@@ -27,6 +29,8 @@ export const useAuthStore = defineStore('auth', () => {
   // Set on accounts provisioned with a temporary password: the dashboard
   // blocks on a change-password modal until it clears.
   const mustChangePassword = ref(false)
+  // Whether the server can send email at all (SMTP configured).
+  const mailEnabled = ref(false)
 
   const isAuthenticated = computed(() => !!token.value)
   const isOperator = computed(() => user.value?.instanceRole === 'operator')
@@ -86,17 +90,18 @@ export const useAuthStore = defineStore('auth', () => {
   async function fetchMe() {
     if (!token.value) return
     try {
-      const res = await $fetch<{ user: ApiUser; mustChangePassword?: boolean }>(
+      const res = await $fetch<{ user: ApiUser; mustChangePassword?: boolean; mailEnabled?: boolean }>(
         `${apiBase()}/auth/me`,
         { headers: { Authorization: `Bearer ${token.value}` } }
       )
       user.value = res.user
       mustChangePassword.value = res.mustChangePassword ?? false
+      mailEnabled.value = res.mailEnabled ?? false
     } catch {
       token.value = null
       user.value = null
     }
   }
 
-  return { token, user, mustChangePassword, isAuthenticated, isOperator, login, register, logout, fetchMe }
+  return { token, user, mustChangePassword, mailEnabled, isAuthenticated, isOperator, login, register, logout, fetchMe }
 })

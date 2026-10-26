@@ -26,15 +26,25 @@ const heartbeats = computed(() => [
   { value: '300s', label: t('settings_hb_5min') },
 ])
 
-const notifications = ref([
-  { key: 'crit',    enabled: true  },
-  { key: 'warn',    enabled: true  },
-  { key: 'offline', enabled: true  },
-  { key: 'weekly',  enabled: false },
-  { key: 'update',  enabled: false },
-])
+// Alert emails, saved on the account. Only what the server actually sends is
+// offered — the weekly digest and update notices were toggles wired to nothing.
+type NotifKey = 'offline' | 'system'
+const notifKeys: NotifKey[] = ['offline', 'system']
 const notifLabel = (k: string) => t(`settings_notif_${k}_label`)
 const notifSub   = (k: string) => t(`settings_notif_${k}_sub`)
+const notifPrefs = computed(() => auth.user?.notificationPrefs ?? { offline: true, system: true })
+
+async function setNotif(key: NotifKey, enabled: boolean) {
+  if (!auth.user) return
+  const previous = { ...notifPrefs.value }
+  auth.user.notificationPrefs = { ...previous, [key]: enabled }
+  try {
+    await useApi()('/auth/me', { method: 'PATCH', body: { notificationPrefs: { [key]: enabled } } })
+  } catch (e: any) {
+    auth.user.notificationPrefs = previous
+    notify({ title: t('notif_save_failed'), description: e?.data?.message, type: 'error' })
+  }
+}
 const pluralCount = (key: string, n: number) => t(n > 1 ? `${key}_many` : `${key}_one`, { n })
 
 // Edit name modal (API supports name only — not email change)
@@ -896,13 +906,17 @@ async function copyTemp() {
         <div id="notifications" class="card">
           <div class="card-header"><div class="card-title">{{ t('settings_notif_title') }}</div></div>
           <div class="card-body">
+            <div v-if="!auth.mailEnabled" class="info-box">
+              <UIcon name="i-lucide-mail-x" style="width:14px;height:14px" />
+              <span>{{ t('settings_notif_no_mail') }}</span>
+            </div>
             <SettingRow
-              v-for="notif in notifications"
-              :key="notif.key"
-              :label="notifLabel(notif.key)"
-              :sub="notifSub(notif.key)"
+              v-for="key in notifKeys"
+              :key="key"
+              :label="notifLabel(key)"
+              :sub="notifSub(key)"
             >
-              <Toggle v-model="notif.enabled" />
+              <Toggle :model-value="notifPrefs[key]" @update:model-value="(v: boolean) => setNotif(key, v)" />
             </SettingRow>
           </div>
         </div>

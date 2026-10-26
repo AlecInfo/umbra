@@ -64,7 +64,15 @@ test.group('Node activity', () => {
     const events = await activity(client, owner.token, nodeId)
     assert.deepEqual(
       events.map((e) => e.type),
-      ['agent_updated', 'back_online', 'went_offline', 'enrolled', 'created']
+      [
+        'agent_updated',
+        'back_online',
+        'alert_resolved', // the node_offline rule every enrolled node gets
+        'alert_triggered',
+        'went_offline',
+        'enrolled',
+        'created',
+      ]
     )
 
     const enrolled = events.find((e) => e.type === 'enrolled')!
