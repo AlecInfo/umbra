@@ -215,3 +215,35 @@ test.group('Node agent info', () => {
     assert.equal(compareVersions('2.0', '1.9.9'), 1)
   })
 })
+
+test.group('Latest metric', () => {
+  test('each node gets its own newest sample, and a node without samples gets none', async ({
+    client,
+    assert,
+  }) => {
+    const owner = await register(client, 'latest-metric@test.io')
+    const a = await enrolledNode(client, owner.token)
+    const b = await enrolledNode(client, owner.token)
+    const silent = await enrolledNode(client, owner.token)
+
+    const now = Date.now()
+    await db.table('node_metrics').multiInsert([
+      { node_id: a.nodeId, recorded_at: new Date(now - 60_000), cpu_percent: 10 },
+      { node_id: a.nodeId, recorded_at: new Date(now), cpu_percent: 42 },
+      { node_id: a.nodeId, recorded_at: new Date(now - 30_000), cpu_percent: 20 },
+      { node_id: b.nodeId, recorded_at: new Date(now - 5_000), cpu_percent: 77, bytes_sent: 1234 },
+    ])
+
+    const res = await client.get('/api/v1/nodes').header('Authorization', `Bearer ${owner.token}`)
+    res.assertStatus(200)
+    const byId = Object.fromEntries(res.body().data.map((n: any) => [n.id, n.latestMetric]))
+
+    assert.equal(byId[a.nodeId].cpuPercent, 42)
+    assert.equal(byId[b.nodeId].cpuPercent, 77)
+    assert.equal(byId[b.nodeId].bytesSent, 1234)
+    assert.isNull(byId[silent.nodeId])
+
+    const show = await client.get(`/api/v1/nodes/${a.nodeId}`).header('Authorization', `Bearer ${owner.token}`)
+    assert.equal(show.body().node.latestMetric.cpuPercent, 42)
+  })
+})

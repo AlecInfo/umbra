@@ -25,12 +25,25 @@ import {
 
 async function latestMetricForNodes(nodeIds: string[]): Promise<Record<string, any>> {
   if (!nodeIds.length) return {}
-  const ranked = db.from('node_metrics')
-    .select('node_id', 'latency_ms', 'cpu_percent', 'memory_percent', 'disk_percent', 'temperature_celsius', 'uptime_seconds', 'bytes_sent', 'bytes_received')
-    .select(db.raw('ROW_NUMBER() OVER (PARTITION BY node_id ORDER BY recorded_at DESC) as rn'))
-    .whereIn('node_id', nodeIds)
-    .as('ranked')
-  const rows = await db.from(ranked).where('rn', 1)
+  // One index probe per node on idx_metrics_node_time, newest row first.
+  // The previous form numbered every row of every node with ROW_NUMBER() and
+  // kept rn = 1: Postgres cannot stop early under a window function, so it
+  // read the whole history — 5 s for 558k rows on the Pi, on a query every
+  // open dashboard tab repeats every 8 s.
+  const result = await db.rawQuery(
+    `SELECT n.id AS node_id, m.*
+     FROM unnest(?::uuid[]) AS n(id)
+     CROSS JOIN LATERAL (
+       SELECT latency_ms, cpu_percent, memory_percent, disk_percent, temperature_celsius,
+              uptime_seconds, bytes_sent, bytes_received
+       FROM node_metrics
+       WHERE node_id = n.id
+       ORDER BY recorded_at DESC
+       LIMIT 1
+     ) m`,
+    [nodeIds]
+  )
+  const rows: any[] = result.rows ?? []
   const map: Record<string, any> = {}
   for (const r of rows) {
     map[r.node_id] = {

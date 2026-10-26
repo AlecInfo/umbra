@@ -78,7 +78,12 @@ export default class ConnectController {
         // Reuses the tenant's outstanding key rather than minting one per
         // click, and expires the stale ones on the way through.
         authKey = await headscaleClient.getOrCreatePreAuthKey(tenant)
-        connectCommand = `sudo tailscale up --login-server=${headscaleURL} --authkey=${authKey} --exit-node=${exitIp} --accept-routes --accept-dns=false --reset`
+        // --exit-node-allow-lan-access: without it tailscale also pulls the
+        // client's own LAN into the tunnel. The printer and the router UI
+        // vanish, and with --accept-dns=false the resolver is that router —
+        // so name resolution either dies or, when both LANs share a range,
+        // silently detours through the exit node.
+        connectCommand = `sudo tailscale up --login-server=${headscaleURL} --authkey=${authKey} --exit-node=${exitIp} --exit-node-allow-lan-access --accept-routes --accept-dns=false --reset`
 
         // Remember which key this session handed out: Headscale reports it back
         // on whichever machine redeems it, which identifies the device exactly.
@@ -96,7 +101,7 @@ export default class ConnectController {
       exitNodeIp: exitIp,
       // Run on ANY machine — no umbra-agent needed
       connectCommand,                                                              // first time: joins headscale + sets exit node
-      switchCommand: exitIp ? `sudo tailscale set --exit-node=${exitIp}` : null,   // already joined: just switch exit node
+      switchCommand: exitIp ? `sudo tailscale set --exit-node=${exitIp} --exit-node-allow-lan-access` : null,   // already joined: just switch exit node
       disconnectCommand: 'sudo tailscale set --exit-node=',
       headscaleUrl: headscaleURL,
       authKey,

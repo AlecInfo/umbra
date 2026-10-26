@@ -142,6 +142,8 @@ pub fn tailscale_join(
         &format!("--login-server={login_server}"),
         &format!("--authkey={auth_key}"),
         &format!("--exit-node={exit_node}"),
+        // Keep the local network local; see connect_controller.ts.
+        "--exit-node-allow-lan-access",
         "--accept-routes",
         "--accept-dns=false",
         "--reset",
@@ -151,7 +153,7 @@ pub fn tailscale_join(
 /// Already joined: switching exit node does not need a key.
 #[tauri::command]
 pub fn tailscale_set_exit_node(exit_node: String) -> Result<String, String> {
-    run_privileged(&["set", &format!("--exit-node={exit_node}")])
+    run_privileged(&["set", &format!("--exit-node={exit_node}"), "--exit-node-allow-lan-access"])
 }
 
 /// Stops routing through an exit node without leaving the mesh.
