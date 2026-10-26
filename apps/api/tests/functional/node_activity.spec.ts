@@ -293,3 +293,79 @@ test.group('Chart periods', () => {
     ;(await get('forever')).assertStatus(400)
   })
 })
+
+test.group('Peers', () => {
+  test('a peer missing from the latest heartbeat is gone, and an empty list clears them all', async ({
+    client,
+    assert,
+  }) => {
+    const owner = await register(client, 'peers@test.io')
+    const { nodeId, agentToken } = await enrolledNode(client, owner.token)
+    const peer = (key: string, ip: string) => ({
+      public_key: key,
+      name: key,
+      allowed_ips: [ip],
+      last_handshake_at: new Date().toISOString(),
+      bytes_sent: 1,
+      bytes_received: 1,
+    })
+    const names = async () =>
+      (await db.from('node_peer_stats').where('node_id', nodeId).select('peer_pubkey')).map((r) => r.peer_pubkey).sort()
+
+    ;(await heartbeat(client, agentToken, { peers: [peer('laptop', '100.64.0.2'), peer('phone', '100.64.0.3')] })).assertStatus(200)
+    assert.deepEqual(await names(), ['laptop', 'phone'])
+
+    ;(await heartbeat(client, agentToken, { peers: [peer('laptop', '100.64.0.2')] })).assertStatus(200)
+    assert.deepEqual(await names(), ['laptop'])
+
+    // No peers field at all (the agent could not read them): leave the rows alone.
+    ;(await heartbeat(client, agentToken)).assertStatus(200)
+    assert.deepEqual(await names(), ['laptop'])
+
+    ;(await heartbeat(client, agentToken, { peers: [] })).assertStatus(200)
+    assert.deepEqual(await names(), [])
+  })
+})
+
+test.group('Public address', () => {
+  test('the public IP is the one the API sees, never the LAN address the agent reports', async ({
+    client,
+    assert,
+  }) => {
+    const owner = await register(client, 'public-ip@test.io')
+    const created = await client
+      .post('/api/v1/nodes')
+      .header('Authorization', `Bearer ${owner.token}`)
+      .json({ name: 'behind-a-box', category: 'sbc' })
+    const nodeId = created.body().node.id
+    const et = await client
+      .post(`/api/v1/nodes/${nodeId}/enroll-token`)
+      .header('Authorization', `Bearer ${owner.token}`)
+
+    // Arrives through the tunnel: the proxy chain carries the visitor's address.
+    const enrolled = await client
+      .post('/api/v1/agent/register')
+      .header('X-Forwarded-For', '203.0.113.7')
+      .json({ token: et.body().enrollToken, hostname: 'pi', ip_address: '192.168.1.207' })
+    enrolled.assertStatus(201)
+    const agentToken = enrolled.body().auth_token
+    assert.equal((await Node.findOrFail(nodeId)).ipAddress, '203.0.113.7')
+
+    // The box gets a new lease.
+    await client
+      .post('/api/v1/agent/heartbeat')
+      .header('Authorization', `Bearer ${agentToken}`)
+      .header('X-Forwarded-For', '198.51.100.9')
+      .json({ timestamp: new Date().toISOString() })
+    assert.equal((await Node.findOrFail(nodeId)).ipAddress, '198.51.100.9')
+
+    // Reached over a private network: nothing public to learn, keep what we had.
+    await heartbeat(client, agentToken)
+    assert.equal((await Node.findOrFail(nodeId)).ipAddress, '198.51.100.9')
+
+    // A LAN address stored by an older version is dropped rather than shown as public.
+    await db.from('nodes').where('id', nodeId).update({ ip_address: '192.168.1.207' })
+    await heartbeat(client, agentToken)
+    assert.isNull((await Node.findOrFail(nodeId)).ipAddress)
+  })
+})

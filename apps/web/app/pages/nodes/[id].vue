@@ -1052,7 +1052,7 @@ async function doTransfer() {
             <div class="info-row"><span class="info-lbl">{{ t('nd_info_hardware') }}<InfoTip :text="t('nd_info_hardware_tip')" /></span><span class="info-val">{{ node.hardwareModel ?? t('common_dash') }}</span></div>
             <div class="info-row"><span class="info-lbl">{{ t('nd_info_arch') }}<InfoTip :text="t('nd_info_arch_tip')" /></span><span class="info-val">{{ node.arch ?? t('common_dash') }}</span></div>
             <div class="info-row"><span class="info-lbl">{{ t('nd_machine_os') }}<InfoTip :text="t('nd_info_os_tip')" /></span><span class="info-val">{{ node.osVersion ?? t('common_dash') }}</span></div>
-            <div class="info-row"><span class="info-lbl">{{ t('nd_info_pubip') }}<InfoTip :text="t('nd_info_pubip_tip')" /></span><span class="info-val">{{ node.ipAddress ?? t('common_dash') }}<span v-if="node.ipAddress" class="badge-blue">IPv4</span></span></div>
+            <div class="info-row"><span class="info-lbl">{{ t('nd_info_pubip') }}<InfoTip :text="t('nd_info_pubip_tip')" /></span><span class="info-val">{{ node.ipAddress ?? t('common_dash') }}<span v-if="node.ipAddress" class="badge-blue">{{ node.ipAddress.includes(':') ? 'IPv6' : 'IPv4' }}</span></span></div>
             <div class="info-row"><span class="info-lbl">{{ t('nd_info_loc') }}<InfoTip :text="t('nd_info_loc_tip')" /></span><span class="info-val">{{ node.location }}</span></div>
           </div>
         </div>

@@ -13,6 +13,7 @@ import { resolveOfflineAlerts } from '#services/offline_watch'
 import { readReleaseManifest } from '#services/agent_release'
 import { recordNodeEvent } from '#services/node_events'
 import { markExitRoutesVerified } from '#services/exit_routes'
+import { publicAddress } from '#services/public_address'
 
 // Next allowed attempt (epoch ms) of the per-node exit-route self-heal.
 // In-memory on purpose: resets on API restart, and the operation is idempotent.
@@ -64,7 +65,8 @@ export default class AgentController {
       arch: payload.arch ?? node.arch,
       osVersion: payload.os_version ?? node.osVersion,
       agentVersion: payload.agent_version ?? node.agentVersion,
-      ipAddress: payload.ip_address ?? node.ipAddress,
+      // What the agent sends is its LAN address; the public one is what we see.
+      ipAddress: publicAddress(request.ip()) ?? publicAddress(node.ipAddress),
       status: 'online',
       lastSeenAt: DateTime.now(),
     })
@@ -142,6 +144,8 @@ export default class AgentController {
     const previousVersion = node.agentVersion
     node.merge({
       agentVersion: payload.agent_version ?? node.agentVersion,
+      // Follows the node when its connection changes (new ISP lease, 4G failover).
+      ipAddress: publicAddress(ctx.request.ip()) ?? publicAddress(node.ipAddress),
       lastSeenAt: DateTime.now(),
       status: wasOffline ? 'online' : node.status,
     })
@@ -185,8 +189,14 @@ export default class AgentController {
 
     // Upsert peer stats — always process when peers field is present (even if empty)
     if (payload.peers !== undefined) {
-      // Mark all existing peers inactive first; active ones will be re-set below
-      await NodePeerStat.query().where('node_id', node.id).update({ isActive: false })
+      // The agent reports the node's whole netmap, so a peer missing from it is
+      // gone — deleted from Headscale, or re-registered under a new key. Those
+      // rows used to stay forever, and since Headscale reuses IPs, a long-gone
+      // phone could sit on the same address as a live laptop.
+      const reported = payload.peers.map((p) => p.public_key)
+      const stale = NodePeerStat.query().where('node_id', node.id)
+      if (reported.length > 0) stale.whereNotIn('peer_pubkey', reported)
+      await stale.delete()
 
       for (const peer of payload.peers) {
         await NodePeerStat.updateOrCreate(

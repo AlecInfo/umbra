@@ -21,6 +21,9 @@ export default defineNuxtConfig({
 
   app: {
     head: {
+      // viewport-fit=cover lets the app paint under the notch; the
+      // env(safe-area-inset-*) paddings in the mobile pages are 0 without it.
+      viewport: 'width=device-width, initial-scale=1, viewport-fit=cover',
       style: [
         { innerHTML: 'body{background:#0a0a0b}' },
       ],
@@ -28,9 +31,6 @@ export default defineNuxtConfig({
         { rel: 'apple-touch-icon', sizes: '180x180', href: '/apple-touch-icon.png' },
         { rel: 'icon', type: 'image/svg+xml', href: '/favicon.svg' },
         { rel: 'icon', type: 'image/png', sizes: '32x32', href: '/favicon-32x32.png' },
-        { rel: 'preconnect', href: 'https://fonts.googleapis.com' },
-        { rel: 'preconnect', href: 'https://fonts.gstatic.com', crossorigin: '' },
-        { rel: 'stylesheet', href: 'https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Syne:wght@600;700;800&display=swap' },
       ],
     },
   },
@@ -42,6 +42,10 @@ export default defineNuxtConfig({
     '@vueuse/nuxt',
   ],
   css: ['~/assets/css/main.css'],
+  // JetBrains Mono and Syne are downloaded at build time by @nuxt/fonts (via
+  // @nuxt/ui) and served from /_fonts. There used to be a Google Fonts <link>
+  // as well: every visitor of a self-hosted VPN dashboard fetched the fonts a
+  // second time and handed their IP to Google — and the offline app had none.
   colorMode: {
     preference: 'dark',
     fallback:   'dark',

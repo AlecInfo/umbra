@@ -104,10 +104,22 @@ button, input, select, textarea, a {
 @keyframes vpnp   { 0%,100%{ box-shadow: 0 0 0 0   rgba(79,255,176,.4); } 50%{ box-shadow: 0 0 0 5px rgba(79,255,176,0); } }
 @keyframes blink  { 0%,100%{ opacity:1; } 50%{ opacity:.3; } }
 
+/* ─── Touch ────────────────────────────────────────────── */
+/* No grey flash on tap: every control has its own pressed state. */
+html { -webkit-tap-highlight-color: transparent; }
+
+/* iOS zooms into any field under 16px and never zooms back out — the login
+   form was the first thing a phone user saw, cropped. !important because the
+   form classes set 11–12px; on a mouse they keep it. */
+@media (pointer: coarse) {
+  input, textarea, select { font-size: 16px !important; }
+}
+
 /* ─── App shell ────────────────────────────────────────── */
 .app-shell {
   display: flex;
   height: 100vh;
+  height: 100dvh; /* the visible area, as the mobile URL bar shows and hides */
   background: var(--bg);
   overflow: hidden;
 }
@@ -123,6 +135,7 @@ button, input, select, textarea, a {
 .sidebar {
   width: var(--sidebar-w);
   height: 100vh;
+  height: 100dvh; /* the visible area, as the mobile URL bar shows and hides */
   background: var(--surface);
   border-right: 1px solid var(--border);
   display: flex;
@@ -1002,6 +1015,7 @@ body:has(.vpn-bar) .notif-stack { bottom: 84px; }
 .login-wrap {
   display: flex;
   height: 100vh;
+  height: 100dvh; /* the visible area, as the mobile URL bar shows and hides */
   width: 100vw;
 }
 
@@ -1256,6 +1270,7 @@ body:has(.vpn-bar) .notif-stack { bottom: 84px; }
   padding: 36px;
   background: var(--bg);
   min-height: 100vh;
+  min-height: 100svh;
 }
 
 .onboard-card {
@@ -2152,8 +2167,8 @@ body:has(.vpn-bar) .notif-stack { bottom: 84px; }
 /* Mobile — auth pages only (app users are redirected to /mobile) */
 @media (max-width: 768px) {
   .login-left  { display: none; }
-  .login-wrap  { height: auto; min-height: 100vh; }
-  .login-right { width: 100%; min-width: 0; min-height: 100vh; height: auto; border-left: none; padding: 32px 24px; justify-content: center; }
+  .login-wrap  { height: auto; min-height: 100vh; min-height: 100svh; }
+  .login-right { width: 100%; min-width: 0; min-height: 100vh; min-height: 100svh; height: auto; border-left: none; padding: 32px 24px; justify-content: center; }
   .login-form  { margin: 0; }
 }
 
