@@ -283,8 +283,14 @@ const bandwidthData = computed(() => {
   return bandwidthRaw.value.map(p => ({ ts: p.ts, up: +(p.up / factor).toFixed(2), down: +(p.down / factor).toFixed(2) }))
 })
 
+// The curve shares one unit; a single reading (legend, tooltip) gets its own,
+// or a few KB/s next to a peak in MB/s would read "0.00 MB/s".
 function fmtBandwidth(v: number): string {
-  return `${v < 10 ? v.toFixed(2) : Math.round(v)} ${bandwidthUnit.value.label}`
+  const bytes = v * bandwidthUnit.value.factor
+  const [factor, label] = BYTE_UNITS.find(([f]) => bytes >= f) ?? [1, 'B']
+  const n = bytes / factor
+  const suffix = bandwidthMode.value === 'rate' ? '/s' : ''
+  return `${n < 10 && factor > 1 ? n.toFixed(1) : Math.round(n)} ${label}${suffix}`
 }
 
 const bandwidthTitle = computed(() => {
