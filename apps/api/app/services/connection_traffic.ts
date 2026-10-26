@@ -41,20 +41,45 @@ function isRegisteredNode(hsNode: HeadscaleNode, umbraNodeIps: Set<string>): boo
   return hsNode.ipAddresses.some((ip) => umbraNodeIps.has(ip))
 }
 
-async function upsertDevice(userId: string, hsNode: HeadscaleNode): Promise<Device> {
+/**
+ * The device row for this Headscale machine, created or brought up to date.
+ *
+ * Looked up by Headscale id *or* machine key: `tailscale up --reset` can give
+ * a machine a new Headscale id while it keeps its key, and both columns are
+ * unique. Matching on the id alone missed the existing row, tried to insert a
+ * second one and hit the constraint — every 5 s, so the session never left
+ * "pending" (seen in production on 2026-10-27).
+ *
+ * Returns null when the machine is registered to another account: a shared
+ * org tenant must never hand one person's laptop to someone else.
+ */
+async function upsertDevice(userId: string, hsNode: HeadscaleNode): Promise<Device | null> {
   const ipv4 = hsNode.ipAddresses.find((ip) => ip.includes('.')) ?? hsNode.ipAddresses[0] ?? null
+  const attrs = {
+    headscaleId: hsNode.id,
+    name: (hsNode.givenName || hsNode.name || 'device').slice(0, 100),
+    wireguardIp: ipv4,
+    wireguardPubkey: hsNode.nodeKey ?? null,
+    lastSeenAt: hsNode.lastSeen ? DateTime.fromISO(hsNode.lastSeen) : null,
+    isActive: hsNode.online ?? true,
+  }
 
-  return Device.updateOrCreate(
-    { userId, headscaleId: hsNode.id },
-    {
-      name: (hsNode.givenName || hsNode.name || 'device').slice(0, 100),
-      type: 'other',
-      wireguardIp: ipv4,
-      wireguardPubkey: hsNode.nodeKey ?? null,
-      lastSeenAt: hsNode.lastSeen ? DateTime.fromISO(hsNode.lastSeen) : null,
-      isActive: hsNode.online ?? true,
-    }
-  )
+  const existing = await Device.query()
+    .where((q) => {
+      q.where('headscale_id', hsNode.id)
+      if (hsNode.nodeKey) q.orWhere('wireguard_pubkey', hsNode.nodeKey)
+    })
+    .orderByRaw('(user_id = ?) DESC', [userId])
+    .first()
+
+  if (existing) {
+    if (existing.userId !== userId) return null
+    existing.merge({ ...attrs, deletedAt: null })
+    await existing.save()
+    return existing
+  }
+
+  return Device.create({ userId, type: 'other', ...attrs })
 }
 
 /**
@@ -160,7 +185,7 @@ async function syncSession(log: ConnectionLog, ctx: SweepContext): Promise<boole
 
     if (hsNode) {
       device = await upsertDevice(log.userId, hsNode)
-      log.deviceId = device.id
+      if (device) log.deviceId = device.id
     }
   }
 

@@ -192,6 +192,7 @@ test.group('Recognising the client machine', (group) => {
         givenName: 'alec-zenbook',
         ipAddresses: [CLIENT_IP],
         user: { name: 't' },
+        nodeKey: 'nodekey:zenbook',
         online: true,
         preAuthKey: { key: 'a-key-from-august', id: '1' },
       },
@@ -260,6 +261,90 @@ test.group('Recognising the client machine', (group) => {
       lastHandshakeAt: DateTime.now(),
       isActive: true,
     })
+    assert.equal((await status(client, token))!.state, 'pending')
+  })
+})
+
+test.group('Recognising the client machine — existing device rows', (group) => {
+  let restore: () => void = () => {}
+  group.each.teardown(() => restore())
+
+  function stubOneClient() {
+    const proto = Object.getPrototypeOf(headscaleClient)
+    const descriptor = Object.getOwnPropertyDescriptor(proto, 'isConfigured')
+    const originals = {
+      getNodesByUser: headscaleClient.getNodesByUser,
+      getOrCreatePreAuthKey: headscaleClient.getOrCreatePreAuthKey,
+      ensureNodeTenant: headscaleClient.ensureNodeTenant,
+      enableExitRoutes: headscaleClient.enableExitRoutes,
+      ensureUser: headscaleClient.ensureUser,
+      syncPolicy: headscaleClient.syncPolicy,
+    }
+    Object.defineProperty(headscaleClient, 'isConfigured', { get: () => true, configurable: true })
+    headscaleClient.ensureNodeTenant = async () => 'ok'
+    headscaleClient.enableExitRoutes = async () => ({ found: true, advertised: 2, enabled: 2 })
+    headscaleClient.ensureUser = async () => {}
+    headscaleClient.syncPolicy = async () => {}
+    headscaleClient.getOrCreatePreAuthKey = async () => 'unredeemed'
+    // Re-registered with `tailscale up --reset`: new Headscale id, same machine key.
+    headscaleClient.getNodesByUser = async () => [
+      { id: '1', name: 'exit', ipAddresses: [EXIT_IP], user: { name: 't' } },
+      { id: '42', name: 'alec-zenbook', nodeKey: 'nodekey:zenbook', ipAddresses: [CLIENT_IP], user: { name: 't' }, online: true },
+    ]
+    restore = () => {
+      Object.assign(headscaleClient, originals)
+      delete (headscaleClient as any).isConfigured
+      if (descriptor) Object.defineProperty(proto, 'isConfigured', descriptor)
+    }
+  }
+
+  async function handshakeNow(nodeId: string) {
+    await NodePeerStat.create({
+      nodeId,
+      peerPubkey: 'nodekey:zenbook',
+      allowedIps: [CLIENT_IP],
+      lastHandshakeAt: DateTime.now(),
+      isActive: true,
+    })
+  }
+
+  test('a machine re-registered under a new Headscale id reuses its device row', async ({ client, assert }) => {
+    stubOneClient()
+    const { token, userId, nodeId } = await setup(client)
+    const old = await Device.create({
+      userId,
+      name: 'alec-zenbook',
+      type: 'desktop',
+      headscaleId: '7',
+      wireguardPubkey: 'nodekey:zenbook',
+      wireguardIp: CLIENT_IP,
+      isActive: true,
+    })
+
+    await client.post('/api/v1/connect').headers(auth(token)).json({ nodeId })
+    await handshakeNow(nodeId)
+
+    assert.equal((await status(client, token))!.state, 'active')
+    await old.refresh()
+    assert.equal(old.headscaleId, '42')
+    assert.lengthOf(await Device.query().where('user_id', userId), 1)
+  })
+
+  test('a machine key registered to another account is left alone, without failing', async ({ client, assert }) => {
+    stubOneClient()
+    const { token, nodeId } = await setup(client)
+    const other = await client.post('/api/v1/auth/register').json({ email: 'owner-of-key@test.io', password: 'supersecret' })
+    await Device.create({
+      userId: other.body().user.id,
+      name: 'their-machine',
+      type: 'desktop',
+      headscaleId: '99',
+      wireguardPubkey: 'nodekey:zenbook',
+      isActive: true,
+    })
+
+    await client.post('/api/v1/connect').headers(auth(token)).json({ nodeId })
+    await handshakeNow(nodeId)
     assert.equal((await status(client, token))!.state, 'pending')
   })
 })
