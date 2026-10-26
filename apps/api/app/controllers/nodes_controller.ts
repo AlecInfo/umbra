@@ -35,7 +35,8 @@ async function latestMetricForNodes(nodeIds: string[]): Promise<Record<string, a
      FROM unnest(?::uuid[]) AS n(id)
      CROSS JOIN LATERAL (
        SELECT latency_ms, cpu_percent, memory_percent, disk_percent, temperature_celsius,
-              uptime_seconds, bytes_sent, bytes_received
+              uptime_seconds, bytes_sent, bytes_received, active_peers,
+              cpu_cores, load_avg, mem_total_gb, disk_total_gb
        FROM node_metrics
        WHERE node_id = n.id
        ORDER BY recorded_at DESC
@@ -55,9 +56,31 @@ async function latestMetricForNodes(nodeIds: string[]): Promise<Record<string, a
       uptimeSeconds:      r.uptime_seconds,
       bytesSent:          r.bytes_sent          !== null ? Number(r.bytes_sent)          : null,
       bytesReceived:      r.bytes_received      !== null ? Number(r.bytes_received)      : null,
+      activePeers:        r.active_peers,
+      cpuCores:           r.cpu_cores,
+      loadAvg:            r.load_avg,
+      memTotalGb:         r.mem_total_gb,
+      diskTotalGb:        r.disk_total_gb,
     }
   }
   return map
+}
+
+/*
+| Chart periods. Each one is cut into roughly 300 buckets: enough for a smooth
+| curve at any width, and the same payload whether the period holds an hour of
+| heartbeats or a year of them. Returning raw samples instead meant 5000 rows
+| (1.6 MB) per call, serialized on the API's only thread — about a second on
+| the Pi, during which every other request waited.
+*/
+// Short periods aggregate raw samples (a day is ~8 600 rows, one index range).
+// Longer ones re-bucket the hourly rollup: raw samples for a year took 13 s.
+const CHART_PERIODS: Record<string, { span: string; bucket: string; source: 'raw' | 'hourly' }> = {
+  '1h': { span: '1 hour', bucket: '15 seconds', source: 'raw' },
+  '1d': { span: '1 day', bucket: '5 minutes', source: 'raw' },
+  '1w': { span: '7 days', bucket: '1 hour', source: 'hourly' },
+  '1m': { span: '1 month', bucket: '2 hours', source: 'hourly' },
+  '1y': { span: '1 year', bucket: '1 day', source: 'hourly' },
 }
 
 // What the dashboard says about the agent itself. Every value is read from
@@ -340,6 +363,47 @@ export default class NodesController {
     const node = await findNodeWithPermission(auth.getUserOrFail().id, params.id, 'read')
     if (!node) return response.notFound({ message: 'Node introuvable' })
 
+    const period = request.input('period') as string | undefined
+    if (period !== undefined) {
+      const p = CHART_PERIODS[period]
+      if (!p) return response.badRequest({ message: 'Période inconnue' })
+      // Averages for gauges. The byte counters are cumulative, so each bucket
+      // keeps its last reading and the client derives a rate between buckets.
+      // Both sources expose the same columns; only the time column differs.
+      const [table, time] = p.source === 'raw' ? ['node_metrics', 'recorded_at'] : ['node_metrics_hourly', 'bucket']
+      const result = await db.rawQuery(
+        `SELECT time_bucket(?::interval, ${time}) AS bucket,
+                avg(cpu_percent)::float          AS cpu_percent,
+                avg(memory_percent)::float       AS memory_percent,
+                avg(disk_percent)::float         AS disk_percent,
+                avg(temperature_celsius)::float  AS temperature_celsius,
+                avg(latency_ms)::float           AS latency_ms,
+                max(active_peers)                AS active_peers,
+                last(bytes_sent, ${time})        AS bytes_sent,
+                last(bytes_received, ${time})    AS bytes_received
+         FROM ${table}
+         WHERE node_id = ? AND ${time} >= now() - ?::interval
+         GROUP BY 1
+         ORDER BY 1 ASC`,
+        [p.bucket, node.id, p.span]
+      )
+      return {
+        period,
+        metrics: (result.rows ?? []).map((r: any) => ({
+          recordedAt: new Date(r.bucket).toISOString(),
+          cpuPercent: r.cpu_percent,
+          memoryPercent: r.memory_percent,
+          diskPercent: r.disk_percent,
+          temperatureCelsius: r.temperature_celsius,
+          latencyMs: r.latency_ms,
+          activePeers: r.active_peers,
+          bytesSent: r.bytes_sent !== null ? Number(r.bytes_sent) : null,
+          bytesReceived: r.bytes_received !== null ? Number(r.bytes_received) : null,
+        })),
+      }
+    }
+
+    // Raw samples, newest first — kept for API clients; the dashboard uses periods.
     const since = request.input('since')
     const query = NodeMetric.query()
       .where('node_id', node.id)

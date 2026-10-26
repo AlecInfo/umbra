@@ -45,16 +45,14 @@ const periodLabel = computed(() => {
   return map[period.value] ?? ''
 })
 
-function periodSince(p: string): string {
-  const now = new Date()
-  switch (p) {
-    case '1h': now.setHours(now.getHours() - 1); break
-    case '1j': now.setDate(now.getDate() - 1); break
-    case '1s': now.setDate(now.getDate() - 7); break
-    case '1m': now.setMonth(now.getMonth() - 1); break
-    case '1a': now.setFullYear(now.getFullYear() - 1); break
-  }
-  return now.toISOString()
+// The page's period labels → the API's. Each period comes back as ~300
+// server-side buckets, and is refreshed no more often than its buckets change.
+const API_PERIOD: Record<string, { key: string; refreshMs: number }> = {
+  '1h': { key: '1h', refreshMs: 10_000 },
+  '1j': { key: '1d', refreshMs: 60_000 },
+  '1s': { key: '1w', refreshMs: 300_000 },
+  '1m': { key: '1m', refreshMs: 300_000 },
+  '1a': { key: '1y', refreshMs: 300_000 },
 }
 
 async function fetchNode() {
@@ -65,7 +63,7 @@ async function fetchNode() {
 async function fetchMetrics() {
   const api = useApi()
   const res = await api<{ metrics: any[] }>(`/nodes/${route.params.id}/metrics`, {
-    params: { since: periodSince(period.value), limit: 5000 },
+    params: { period: API_PERIOD[period.value]?.key ?? '1d' },
   })
   rawMetrics.value = res.metrics
 }
@@ -87,21 +85,30 @@ async function loadAll() {
 }
 
 let pollTimer: ReturnType<typeof setInterval> | null = null
+let metricsTimer: ReturnType<typeof setInterval> | null = null
+
+function scheduleMetrics() {
+  if (metricsTimer) clearInterval(metricsTimer)
+  metricsTimer = setInterval(fetchMetrics, API_PERIOD[period.value]?.refreshMs ?? 60_000)
+}
 
 onMounted(() => {
   if (!store.nodes.length) store.fetchNodes()
   loadAll()
-  pollTimer = setInterval(() => { fetchNode(); fetchMetrics(); fetchActivity() }, 10_000)
+  // The cards read the node's latest sample, which travels with the node.
+  pollTimer = setInterval(() => { fetchNode(); fetchActivity() }, 10_000)
+  scheduleMetrics()
   liveTickHandle = setInterval(() => { liveNow.value = Date.now() }, 1000)
 })
 
 onUnmounted(() => {
   if (pollTimer) clearInterval(pollTimer)
+  if (metricsTimer) clearInterval(metricsTimer)
   if (liveTickHandle) clearInterval(liveTickHandle)
   if (enrollTickHandle) clearInterval(enrollTickHandle)
 })
 
-watch(period, fetchMetrics)
+watch(period, () => { fetchMetrics(); scheduleMetrics() })
 
 // ── Unified node object ──────────────────────────────────
 interface AgentInfo {
@@ -111,7 +118,7 @@ interface AgentInfo {
   heartbeatIntervalSeconds: number | null
 }
 const storeNode     = computed(() => store.nodes.find(n => n.id === route.params.id) ?? null)
-const latestMetric  = computed(() => rawMetrics.value[0] ?? null)
+const latestMetric  = computed(() => apiNode.value?.latestMetric ?? null)
 
 const node = computed(() => {
   if (!apiNode.value && !storeNode.value) return null
@@ -224,8 +231,8 @@ const uptimeSince = computed(() => {
 })
 
 // ── Chart data from real metrics ─────────────────────────
-// API returns newest-first; charts need oldest-first
-const sortedMetrics = computed(() => [...rawMetrics.value].reverse())
+// Buckets arrive oldest-first, which is what the charts draw.
+const sortedMetrics = computed(() => rawMetrics.value)
 
 const systemData = computed(() =>
   sortedMetrics.value.map(m => ({

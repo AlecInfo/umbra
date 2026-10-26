@@ -247,3 +247,49 @@ test.group('Latest metric', () => {
     assert.equal(show.body().node.latestMetric.cpuPercent, 42)
   })
 })
+
+test.group('Chart periods', () => {
+  test('samples are averaged per bucket, counters keep their last reading, and the window is the period', async ({
+    client,
+    assert,
+  }) => {
+    const owner = await register(client, 'periods@test.io')
+    const { nodeId } = await enrolledNode(client, owner.token)
+
+    // Two samples in the same 5-minute bucket, one 3 days old.
+    const bucketStart = Math.floor((Date.now() - 3_600_000) / 300_000) * 300_000
+    await db.table('node_metrics').multiInsert([
+      { node_id: nodeId, recorded_at: new Date(bucketStart + 10_000), cpu_percent: 10, bytes_sent: 100 },
+      { node_id: nodeId, recorded_at: new Date(bucketStart + 20_000), cpu_percent: 30, bytes_sent: 500 },
+      { node_id: nodeId, recorded_at: new Date(Date.now() - 3 * 86_400_000), cpu_percent: 99, bytes_sent: 1 },
+    ])
+
+    const get = (period: string) =>
+      client
+        .get(`/api/v1/nodes/${nodeId}/metrics`)
+        .qs({ period })
+        .header('Authorization', `Bearer ${owner.token}`)
+
+    const day = await get('1d')
+    day.assertStatus(200)
+    const points = day.body().metrics
+    assert.lengthOf(points, 1)
+    assert.equal(points[0].cpuPercent, 20)
+    assert.equal(points[0].bytesSent, 500)
+    assert.equal(Date.parse(points[0].recordedAt), bucketStart)
+
+    const week = (await get('1w')).body().metrics
+    assert.lengthOf(week, 2)
+    assert.isBelow(Date.parse(week[0].recordedAt), Date.parse(week[1].recordedAt))
+
+    // Same answer once TimescaleDB has materialized the hourly rollup — the
+    // path every chart older than an hour or two takes in production.
+    await db.rawQuery(`CALL refresh_continuous_aggregate('node_metrics_hourly', NULL, now())`)
+    const materialized = (await get('1w')).body().metrics
+    assert.deepEqual(materialized, week)
+    assert.equal(materialized[1].cpuPercent, 20)
+    assert.equal(materialized[1].bytesSent, 500)
+
+    ;(await get('forever')).assertStatus(400)
+  })
+})
