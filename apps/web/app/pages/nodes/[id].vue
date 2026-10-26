@@ -243,18 +243,53 @@ const systemData = computed(() =>
   }))
 )
 
-const bandwidthData = computed(() => {
+/*
+| Bandwidth. Short periods show a rate; long ones the volume moved per bucket —
+| a day's average rate of a VPN used for an hour rounds to nothing, which is
+| how a year of real traffic used to draw as a flat line. Values are scaled to
+| the largest unit the data reaches, so small traffic stays visible.
+*/
+const BW_BUCKET_LABEL: Record<string, string> = { '1s': 'hour', '1m': '2hours', '1a': 'day' }
+const bandwidthMode = computed(() => (BW_BUCKET_LABEL[period.value] ? 'volume' : 'rate'))
+
+const bandwidthRaw = computed(() => {
   const ms = sortedMetrics.value
   if (ms.length < 2) return []
+  const volume = bandwidthMode.value === 'volume'
   return ms.slice(1).map((cur, i) => {
     const prev  = ms[i]!
     const dtSec = (new Date(cur.recordedAt).getTime() - new Date(prev.recordedAt).getTime()) / 1000
-    const up    = dtSec > 0 && cur.bytesSent     != null && prev.bytesSent     != null
-      ? Math.max(0, (cur.bytesSent - prev.bytesSent) / dtSec / 1_000_000) : 0
-    const down  = dtSec > 0 && cur.bytesReceived != null && prev.bytesReceived != null
-      ? Math.max(0, (cur.bytesReceived - prev.bytesReceived) / dtSec / 1_000_000) : 0
-    return { ts: new Date(cur.recordedAt).getTime(), up: +up.toFixed(2), down: +down.toFixed(2) }
+    // Counters are cumulative and restart from zero with tailscaled: a drop is a reset, not negative traffic.
+    const delta = (a: number | null, b: number | null) => (a != null && b != null ? Math.max(0, a - b) : 0)
+    const up    = delta(cur.bytesSent, prev.bytesSent)
+    const down  = delta(cur.bytesReceived, prev.bytesReceived)
+    return {
+      ts:   new Date(cur.recordedAt).getTime(),
+      up:   volume ? up : (dtSec > 0 ? up / dtSec : 0),
+      down: volume ? down : (dtSec > 0 ? down / dtSec : 0),
+    }
   })
+})
+
+const BYTE_UNITS: [number, string][] = [[1e9, 'GB'], [1e6, 'MB'], [1e3, 'KB'], [1, 'B']]
+const bandwidthUnit = computed(() => {
+  const max = Math.max(0, ...bandwidthRaw.value.flatMap(p => [p.up, p.down]))
+  const [factor, label] = BYTE_UNITS.find(([f]) => max >= f) ?? [1, 'B']
+  return { factor, label: bandwidthMode.value === 'rate' ? `${label}/s` : label }
+})
+
+const bandwidthData = computed(() => {
+  const { factor } = bandwidthUnit.value
+  return bandwidthRaw.value.map(p => ({ ts: p.ts, up: +(p.up / factor).toFixed(2), down: +(p.down / factor).toFixed(2) }))
+})
+
+function fmtBandwidth(v: number): string {
+  return `${v < 10 ? v.toFixed(2) : Math.round(v)} ${bandwidthUnit.value.label}`
+}
+
+const bandwidthTitle = computed(() => {
+  const bucket = BW_BUCKET_LABEL[period.value]
+  return bucket ? t(`nd_chart_traffic_per_${bucket}`) : t('nd_chart_bandwidth')
 })
 
 const peersData = computed(() =>
@@ -889,11 +924,11 @@ async function doTransfer() {
             <ClientOnly>
               <div class="charts-section">
                 <NodeChart
-                  :title="t('nd_chart_bandwidth')"
+                  :title="bandwidthTitle"
                   :data="bandwidthData"
                   :categories="{
-                    up:   { name: '↑ Upload',   color: '#4fffb0', fmt: (v: number) => `${Math.round(v)} MB/s` },
-                    down: { name: '↓ Download', color: '#7b6ef6', fmt: (v: number) => `${Math.round(v)} MB/s` },
+                    up:   { name: '↑ Upload',   color: '#4fffb0', fmt: fmtBandwidth },
+                    down: { name: '↓ Download', color: '#7b6ef6', fmt: fmtBandwidth },
                   }"
                   :height="120"
                   chart-type="area"
