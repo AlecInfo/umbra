@@ -81,6 +81,16 @@ export default class AgentController {
     await agentToken.save()
 
     await ensureDefaultRules(node.id, agentToken.createdBy)
+
+    // A personal node starts with its owner's agent defaults.
+    if (node.ownerUserId) {
+      const owner = await User.find(node.ownerUserId)
+      if (owner?.agentDefaults) {
+        node.heartbeatIntervalSeconds = owner.agentDefaults.heartbeatIntervalSeconds
+        node.autoUpdate = owner.agentDefaults.autoUpdate
+        await node.save()
+      }
+    }
     await recordNodeEvent(node.id, 'enrolled', {
       actorUserId: agentToken.createdBy,
       data: { hostname: node.hostname, agentVersion: node.agentVersion },
@@ -146,6 +156,12 @@ export default class AgentController {
     const previousVersion = node.agentVersion
     node.merge({
       agentVersion: payload.agent_version ?? node.agentVersion,
+      agentReportedConfig: payload.config
+        ? {
+            heartbeatIntervalSeconds: payload.config.heartbeat_interval_seconds,
+            autoUpdate: payload.config.auto_update,
+          }
+        : node.agentReportedConfig,
       // Follows the node when its connection changes (new ISP lease, 4G failover).
       ipAddress: publicAddress(ctx.request.ip()) ?? publicAddress(node.ipAddress),
       lastSeenAt: DateTime.now(),
@@ -318,6 +334,11 @@ export default class AgentController {
       exit_node_id: exitNodeId,
       exit_node_ip: exitNodeIP,
       exit_node_hostname: exitNodeHostname,
+      // What the dashboard wants this agent to run with; applied live by agents ≥ 1.1.0.
+      config: {
+        heartbeat_interval_seconds: node.heartbeatIntervalSeconds,
+        auto_update: node.autoUpdate,
+      },
     }
   }
 

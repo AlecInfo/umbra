@@ -117,6 +117,8 @@ interface AgentInfo {
   updateAvailable:          boolean
   tokenExpiresAt:           string | null
   heartbeatIntervalSeconds: number | null
+  // null: the agent is older than 1.1.0 and cannot receive settings.
+  settingsApplied:          boolean | null
 }
 const storeNode     = computed(() => store.nodes.find(n => n.id === route.params.id) ?? null)
 const latestMetric  = computed(() => apiNode.value?.latestMetric ?? null)
@@ -155,6 +157,9 @@ const node = computed(() => {
     osVersion:       a?.osVersion          ?? null,
     agentVersion:    a?.agentVersion       ?? null,
     agent:           (a?.agent ?? null) as AgentInfo | null,
+    // What the dashboard asks the agent to run with (sent with each heartbeat).
+    intervalSetting: (a?.heartbeatIntervalSeconds ?? 10) as number,
+    autoUpdate:      (a?.autoUpdate ?? true) as boolean,
     activePeers:     m?.activePeers        ?? null,
   }
 })
@@ -642,6 +647,24 @@ const showAllActivity = ref(false)
 const visibleActivity = computed(() => showAllActivity.value ? activity.value : activity.value.slice(0, ACTIVITY_PREVIEW))
 
 // ── Agent ────────────────────────────────────────────────
+const INTERVAL_CHOICES = [10, 30, 60, 300]
+const savingAgent = ref(false)
+async function saveAgentSetting(body: { heartbeatIntervalSeconds?: number; autoUpdate?: boolean }) {
+  if (!node.value || savingAgent.value) return
+  savingAgent.value = true
+  try {
+    await useApi()(`/nodes/${node.value.id}`, { method: 'PATCH', body })
+    await fetchNode()
+  } catch (e: any) {
+    notify({ title: t('notif_save_failed'), description: e?.data?.message, type: 'error' })
+  } finally {
+    savingAgent.value = false
+  }
+}
+function fmtInterval(sec: number): string {
+  return sec >= 60 ? `${sec / 60} min` : `${sec} s`
+}
+
 const tokenExpiresIn = computed(() => {
   const exp = node.value?.agent?.tokenExpiresAt
   if (!exp) return null
@@ -1111,6 +1134,43 @@ async function doTransfer() {
               <span class="info-lbl">{{ t('nd_agent_interval_label') }}<InfoTip :text="t('nd_agent_info_int')" /></span>
               <span class="info-val">{{ node.agent.heartbeatIntervalSeconds }}s</span>
             </div>
+            <div class="info-row">
+              <span class="info-lbl">{{ t('nd_agent_interval_setting') }}<InfoTip :text="t('nd_agent_info_interval_setting')" /></span>
+              <span class="info-val">
+                <select
+                  v-if="canManage"
+                  class="agent-select"
+                  :value="node.intervalSetting"
+                  :disabled="savingAgent"
+                  :aria-label="t('nd_agent_interval_setting')"
+                  @change="saveAgentSetting({ heartbeatIntervalSeconds: Number(($event.target as HTMLSelectElement).value) })"
+                >
+                  <option v-for="sec in INTERVAL_CHOICES" :key="sec" :value="sec">{{ fmtInterval(sec) }}</option>
+                  <option v-if="!INTERVAL_CHOICES.includes(node.intervalSetting)" :value="node.intervalSetting">{{ fmtInterval(node.intervalSetting) }}</option>
+                </select>
+                <template v-else>{{ fmtInterval(node.intervalSetting) }}</template>
+              </span>
+            </div>
+            <div class="info-row">
+              <span class="info-lbl">{{ t('nd_agent_autoupdate') }}<InfoTip :text="t('nd_agent_info_autoupdate')" /></span>
+              <span class="info-val">
+                <Toggle
+                  v-if="canManage"
+                  :model-value="node.autoUpdate"
+                  :label="t('nd_agent_autoupdate')"
+                  @update:model-value="(v: boolean) => saveAgentSetting({ autoUpdate: v })"
+                />
+                <template v-else>{{ node.autoUpdate ? t('nd_agent_on') : t('nd_agent_off') }}</template>
+              </span>
+            </div>
+            <div class="info-row">
+              <span class="info-lbl">{{ t('nd_agent_settings_state') }}</span>
+              <span class="info-val">
+                <span v-if="node.agent?.settingsApplied === true" class="badge-green">{{ t('nd_agent_applied') }}</span>
+                <span v-else-if="node.agent?.settingsApplied === false" class="badge-blue">{{ t('nd_agent_pending') }}</span>
+                <span v-else class="badge-warning" :title="t('nd_agent_too_old_tip')">{{ t('nd_agent_too_old') }}</span>
+              </span>
+            </div>
             <div v-if="tokenExpiresIn" class="info-row">
               <span class="info-lbl">{{ t('nd_agent_jwt_label') }}<InfoTip :text="t('nd_agent_info_jwt')" position="bottom" /></span>
               <span class="info-val">{{ tokenExpiresIn }}</span>
@@ -1384,4 +1444,15 @@ async function doTransfer() {
   background: var(--surface2); margin-top: 4px;
 }
 
+
+.agent-select {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text);
+  background: var(--bg);
+  border: 1px solid var(--border2);
+  border-radius: 4px;
+  padding: 2px 6px;
+  cursor: pointer;
+}
 </style>

@@ -12,6 +12,8 @@ export interface ApiUser {
   instanceRole: 'user' | 'operator'
   // Which alert emails this person wants.
   notificationPrefs: { offline: boolean; system: boolean }
+  // Agent settings for this account's personal nodes.
+  agentDefaults: { heartbeatIntervalSeconds: number; autoUpdate: boolean }
 }
 
 interface AuthResponse {

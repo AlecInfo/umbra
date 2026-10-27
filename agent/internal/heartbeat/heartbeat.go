@@ -11,6 +11,7 @@ import (
 	"github.com/umbravpn/umbra-agent/internal/api"
 	"github.com/umbravpn/umbra-agent/internal/config"
 	"github.com/umbravpn/umbra-agent/internal/metrics"
+	"github.com/umbravpn/umbra-agent/internal/remoteconfig"
 	"github.com/umbravpn/umbra-agent/internal/version"
 )
 
@@ -60,6 +61,7 @@ func Send(client *api.Client, cfg *config.Config, logger *zap.Logger) (*api.Hear
 		Metrics:      payload,
 		Peers:        peerStats,
 		AgentVersion: version.Current,
+		Config:       remoteconfig.Report(cfg),
 	}
 
 	return client.Heartbeat(req)

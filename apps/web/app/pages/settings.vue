@@ -26,6 +26,28 @@ const notifLabel = (k: string) => t(`settings_notif_${k}_label`)
 const notifSub   = (k: string) => t(`settings_notif_${k}_sub`)
 const notifPrefs = computed(() => auth.user?.notificationPrefs ?? { offline: true, system: true })
 
+// Agent defaults: saved on the account and applied to every personal node,
+// which the agents pick up at their next heartbeat (agent ≥ 1.1.0).
+const agentDefaults = computed(() => auth.user?.agentDefaults ?? { heartbeatIntervalSeconds: 10, autoUpdate: true })
+const heartbeats = [
+  { value: '10',  label: '10 s' },
+  { value: '30',  label: '30 s' },
+  { value: '60',  label: '1 min' },
+  { value: '300', label: '5 min' },
+]
+async function setAgentDefault(change: { heartbeatIntervalSeconds?: number; autoUpdate?: boolean }) {
+  if (!auth.user) return
+  const previous = { ...agentDefaults.value }
+  auth.user.agentDefaults = { ...previous, ...change }
+  try {
+    await useApi()('/auth/me', { method: 'PATCH', body: { agentDefaults: change } })
+    notify({ title: t('notif_agent_defaults_saved'), type: 'success' })
+  } catch (e: any) {
+    auth.user.agentDefaults = previous
+    notify({ title: t('notif_save_failed'), description: e?.data?.message, type: 'error' })
+  }
+}
+
 async function setNotif(key: NotifKey, enabled: boolean) {
   if (!auth.user) return
   const previous = { ...notifPrefs.value }
@@ -997,6 +1019,12 @@ async function copyTemp() {
         <div id="agent" class="card">
           <div class="card-header"><div class="card-title">{{ t('settings_agent_title') }}</div></div>
           <div class="card-body">
+            <SettingRow :label="t('settings_heartbeat_label')" :sub="t('settings_heartbeat_sub')">
+              <SegmentedControl :model-value="String(agentDefaults.heartbeatIntervalSeconds)" :options="heartbeats" @update:model-value="(v: string) => setAgentDefault({ heartbeatIntervalSeconds: Number(v) })" />
+            </SettingRow>
+            <SettingRow :label="t('settings_autoupdate_label')" :sub="t('settings_autoupdate_sub')">
+              <Toggle :model-value="agentDefaults.autoUpdate" :label="t('settings_autoupdate_label')" @update:model-value="(v: boolean) => setAgentDefault({ autoUpdate: v })" />
+            </SettingRow>
             <SettingRow :label="t('settings_subnet_label')" :sub="t('settings_subnet_sub')">
               <span class="mono-val">100.64.0.0/10</span>
             </SettingRow>

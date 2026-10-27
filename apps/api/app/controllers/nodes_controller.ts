@@ -119,6 +119,13 @@ async function agentInfo(node: Node) {
       latestVersion !== null && node.agentVersion !== null && compareVersions(node.agentVersion, latestVersion) < 0,
     tokenExpiresAt: token?.expiresAt.toISO() ?? null,
     heartbeatIntervalSeconds,
+    // Whether the agent runs with what the dashboard asks. null: the agent is
+    // older than 1.1.0 and cannot receive settings at all.
+    settingsApplied:
+      node.agentReportedConfig === null
+        ? null
+        : node.agentReportedConfig.heartbeatIntervalSeconds === node.heartbeatIntervalSeconds &&
+          node.agentReportedConfig.autoUpdate === node.autoUpdate,
   }
 }
 

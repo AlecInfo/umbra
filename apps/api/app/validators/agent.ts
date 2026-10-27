@@ -21,6 +21,13 @@ export const heartbeatValidator = vine.compile(
   vine.object({
     node_id: vine.string().optional(),
     timestamp: isoDateTime().optional(),
+    // What the agent runs with (agent ≥ 1.1.0).
+    config: vine
+      .object({
+        heartbeat_interval_seconds: vine.number().withoutDecimals().range([1, 86400]),
+        auto_update: vine.boolean(),
+      })
+      .optional(),
     agent_version: vine.string().trim().maxLength(20).optional(),
     metrics: vine
       .object({

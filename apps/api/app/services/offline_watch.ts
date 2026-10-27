@@ -3,7 +3,9 @@ import { DateTime } from 'luxon'
 import NodeAlert from '#models/node_alert'
 import { isFiring, triggerAlert, resolveAlert } from '#services/alerts'
 
-// The agent heartbeats every 10s: 90s ≈ 9 missed beats.
+// At the default 10 s interval, 90 s ≈ 9 missed beats. A node set to a slower
+// interval gets three of its own beats plus some slack, or a 2-minute
+// heartbeat would be declared offline between two perfectly normal beats.
 export const OFFLINE_AFTER_SECONDS = 90
 
 // Mark nodes offline once their agent stopped heartbeating, and fire the
@@ -14,7 +16,7 @@ export async function markStaleNodesOffline(): Promise<string[]> {
     `UPDATE nodes SET status = 'offline'
      WHERE status IN ('online', 'warning')
        AND deleted_at IS NULL
-       AND (last_seen_at IS NULL OR last_seen_at < now() - make_interval(secs => ?))
+       AND (last_seen_at IS NULL OR last_seen_at < now() - make_interval(secs => GREATEST(?, heartbeat_interval_seconds * 3 + 30)))
      RETURNING id, last_seen_at`,
     [OFFLINE_AFTER_SECONDS]
   )

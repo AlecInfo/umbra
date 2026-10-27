@@ -89,6 +89,17 @@ export default class Node extends BaseModel {
   @column()
   declare agentVersion: string | null
 
+  // Wanted by the dashboard; sent to the agent with every heartbeat.
+  @column()
+  declare heartbeatIntervalSeconds: number
+
+  @column()
+  declare autoUpdate: boolean
+
+  // What the agent last said it runs with (null: agent older than 1.1.0).
+  @column()
+  declare agentReportedConfig: { heartbeatIntervalSeconds: number; autoUpdate: boolean } | null
+
   @column.dateTime({ autoCreate: true })
   declare createdAt: DateTime
 

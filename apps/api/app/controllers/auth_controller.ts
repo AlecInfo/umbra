@@ -1,6 +1,7 @@
 import type { HttpContext } from '@adonisjs/core/http'
 import { isMailConfigured } from '#services/mailer'
 import hash from '@adonisjs/core/services/hash'
+import db from '@adonisjs/lucid/services/db'
 import { DateTime } from 'luxon'
 import User from '#models/user'
 import Invitation from '#models/invitation'
@@ -144,13 +145,27 @@ export default class AuthController {
 
   async updateProfile({ auth, request }: HttpContext) {
     const user = auth.getUserOrFail()
-    const { notificationPrefs, ...profile } = await request.validateUsing(updateProfileValidator)
+    const { notificationPrefs, agentDefaults, ...profile } = await request.validateUsing(updateProfileValidator)
 
     user.merge(profile)
     if (notificationPrefs) {
       user.notificationPrefs = { ...user.notificationPrefs, ...notificationPrefs }
     }
+    if (agentDefaults) {
+      user.agentDefaults = { ...user.agentDefaults, ...agentDefaults }
+    }
     await user.save()
+
+    // An account-wide setting means every personal node; each node can still
+    // be set on its own page afterwards. Org nodes belong to the org.
+    if (agentDefaults) {
+      const changes: Record<string, unknown> = {}
+      if (agentDefaults.heartbeatIntervalSeconds !== undefined) {
+        changes.heartbeat_interval_seconds = agentDefaults.heartbeatIntervalSeconds
+      }
+      if (agentDefaults.autoUpdate !== undefined) changes.auto_update = agentDefaults.autoUpdate
+      await db.from('nodes').where('owner_user_id', user.id).whereNull('deleted_at').update(changes)
+    }
 
     return { user: user.serialize() }
   }

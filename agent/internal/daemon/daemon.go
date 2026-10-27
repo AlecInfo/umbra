@@ -6,6 +6,8 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	sysd "github.com/coreos/go-systemd/v22/daemon"
@@ -14,6 +16,7 @@ import (
 	"github.com/umbravpn/umbra-agent/internal/api"
 	"github.com/umbravpn/umbra-agent/internal/config"
 	"github.com/umbravpn/umbra-agent/internal/heartbeat"
+	"github.com/umbravpn/umbra-agent/internal/remoteconfig"
 	"github.com/umbravpn/umbra-agent/internal/updater"
 )
 
@@ -42,27 +45,47 @@ func Run(ctx context.Context, cfg *config.Config, logger *zap.Logger) error {
 
 	backoff := 30 * time.Second
 
+	// cfg is now written from heartbeat goroutines (token rotation, settings
+	// sent by the server) while others read it: every access goes through cfgMu.
+	var cfgMu sync.Mutex
+	snapshot := func() config.Config {
+		cfgMu.Lock()
+		defer cfgMu.Unlock()
+		return *cfg
+	}
+
 	heartbeatTicker := time.NewTicker(time.Duration(cfg.HeartbeatIntervalSeconds) * time.Second)
 	watchdogTicker := time.NewTicker(30 * time.Second)
 	defer heartbeatTicker.Stop()
 	defer watchdogTicker.Stop()
 
-	if cfg.AutoUpdate {
+	// The interval can change from the dashboard; only this loop owns the ticker.
+	intervalCh := make(chan time.Duration, 1)
+
+	// Auto-update can be switched on and off from the dashboard, so the
+	// updater always runs and asks the flag at each tick. Switching it on also
+	// checks right away rather than up to six hours later.
+	var autoUpdate atomic.Bool
+	autoUpdate.Store(cfg.AutoUpdate)
+	checkNow := make(chan struct{}, 1)
+	go func() {
 		updateTicker := time.NewTicker(6 * time.Hour)
 		defer updateTicker.Stop()
-		go func() {
-			for {
-				select {
-				case <-ctx.Done():
-					return
-				case <-updateTicker.C:
-					if err := updater.CheckAndUpdate(client, logger); err != nil {
-						logger.Warn("auto-update check failed", zap.Error(err))
-					}
-				}
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-updateTicker.C:
+			case <-checkNow:
 			}
-		}()
-	}
+			if !autoUpdate.Load() {
+				continue
+			}
+			if err := updater.CheckAndUpdate(client, logger); err != nil {
+				logger.Warn("auto-update check failed", zap.Error(err))
+			}
+		}
+	}()
 
 	sysd.SdNotify(false, sysd.SdNotifyReady)
 	logger.Info("umbra-agent started", zap.String("node_id", cfg.NodeID))
@@ -72,6 +95,10 @@ func Run(ctx context.Context, cfg *config.Config, logger *zap.Logger) error {
 		case <-ctx.Done():
 			logger.Info("shutting down")
 			return nil
+
+		case d := <-intervalCh:
+			heartbeatTicker.Reset(d)
+			logger.Info("heartbeat interval changed", zap.Duration("interval", d))
 
 		case <-heartbeatTicker.C:
 			go func() {
@@ -86,7 +113,8 @@ func Run(ctx context.Context, cfg *config.Config, logger *zap.Logger) error {
 					}
 				}
 
-				resp, err := heartbeat.Send(client, cfg, logger)
+				current := snapshot()
+				resp, err := heartbeat.Send(client, &current, logger)
 				if err != nil {
 					logger.Warn("heartbeat failed",
 						zap.Error(err),
@@ -97,16 +125,40 @@ func Run(ctx context.Context, cfg *config.Config, logger *zap.Logger) error {
 				}
 				backoff = 30 * time.Second
 
+				cfgMu.Lock()
+				dirty := false
 				if resp.NewToken != nil {
 					cfg.AuthToken = *resp.NewToken
 					client.UpdateToken(*resp.NewToken)
-					if err := config.Write(cfg); err != nil {
-						logger.Error("failed to persist rotated token", zap.Error(err))
+					dirty = true
+				}
+				changes := remoteconfig.Apply(cfg, resp.Config)
+				if changes.Interval {
+					select {
+					case intervalCh <- time.Duration(cfg.HeartbeatIntervalSeconds) * time.Second:
+					default: // a change is already queued; the next heartbeat re-sends it
 					}
 				}
+				if changes.AutoUpdate {
+					autoUpdate.Store(cfg.AutoUpdate)
+					logger.Info("auto-update changed", zap.Bool("enabled", cfg.AutoUpdate))
+					if cfg.AutoUpdate {
+						select {
+						case checkNow <- struct{}{}:
+						default:
+						}
+					}
+				}
+				if dirty || changes.Any() {
+					if err := config.Write(cfg); err != nil {
+						logger.Error("failed to persist config", zap.Error(err))
+					}
+				}
+				isLocalClient := cfg.IsLocalClient
+				cfgMu.Unlock()
 
 				// Exit node management via tailscale CLI (uses Tailscale IP, not hostname/UUID)
-				if cfg.IsLocalClient {
+				if isLocalClient {
 					newIP := resp.ExitNodeIP
 					if exitNodeChanged(currentExitHostname, newIP) {
 						if newIP == nil || *newIP == "" {

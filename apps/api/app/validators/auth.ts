@@ -25,6 +25,13 @@ export const updateProfileValidator = vine.compile(
         system: vine.boolean().optional(),
       })
       .optional(),
+    // Defaults for this account's personal nodes — and applied to all of them.
+    agentDefaults: vine
+      .object({
+        heartbeatIntervalSeconds: vine.number().withoutDecimals().range([5, 300]).optional(),
+        autoUpdate: vine.boolean().optional(),
+      })
+      .optional(),
   })
 )
 

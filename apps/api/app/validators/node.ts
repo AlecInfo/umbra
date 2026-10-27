@@ -31,6 +31,9 @@ export const updateNodeValidator = vine.compile(
     longitude: vine.number().range([-180, 180]).nullable().optional(),
     hardwareModel: vine.string().trim().maxLength(100).nullable().optional(),
     osVersion: vine.string().trim().maxLength(100).nullable().optional(),
+    // Agent settings, applied by the agent at its next heartbeat.
+    heartbeatIntervalSeconds: vine.number().withoutDecimals().range([5, 300]).optional(),
+    autoUpdate: vine.boolean().optional(),
   })
 )
 

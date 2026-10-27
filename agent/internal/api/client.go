@@ -84,6 +84,21 @@ type HeartbeatRequest struct {
 	Metrics      MetricsPayload `json:"metrics"`
 	Peers        []PeerPayload  `json:"peers"`
 	AgentVersion string         `json:"agent_version"`
+	// What this agent is actually running with, so the dashboard can tell a
+	// setting that was applied from one still waiting for the agent.
+	Config *AgentConfigReport `json:"config,omitempty"`
+}
+
+type AgentConfigReport struct {
+	HeartbeatIntervalSeconds int  `json:"heartbeat_interval_seconds"`
+	AutoUpdate               bool `json:"auto_update"`
+}
+
+// RemoteConfig is what the server wants this agent to run with. Nil fields
+// mean "no opinion" — an older server sends none of them.
+type RemoteConfig struct {
+	HeartbeatIntervalSeconds *int  `json:"heartbeat_interval_seconds"`
+	AutoUpdate               *bool `json:"auto_update"`
 }
 
 type HeartbeatResponse struct {
@@ -93,6 +108,7 @@ type HeartbeatResponse struct {
 	ExitNodeId     *string `json:"exit_node_id"`
 	ExitNodeIP     *string `json:"exit_node_ip"`     // Tailscale IP (100.64.x.x) — use for tailscale set
 	ExitNodeHostname *string `json:"exit_node_hostname"` // kept for reference
+	Config           *RemoteConfig `json:"config"`
 }
 
 type VersionResponse struct {
