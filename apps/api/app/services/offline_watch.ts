@@ -1,4 +1,5 @@
 import db from '@adonisjs/lucid/services/db'
+import { DateTime } from 'luxon'
 import NodeAlert from '#models/node_alert'
 import { isFiring, triggerAlert, resolveAlert } from '#services/alerts'
 
@@ -30,8 +31,12 @@ export async function markStaleNodesOffline(): Promise<string[]> {
       .whereIn('node_id', ids)
       .where('type', 'node_offline')
       .where('is_active', true)
+    // Dated at the last heartbeat, like the went_offline event: the sweep only
+    // notices a silence some two minutes in, and the outage began before.
+    const lastSeen = new Map(rows.map((r) => [r.id, r.last_seen_at]))
     for (const rule of rules) {
-      if (!isFiring(rule)) await triggerAlert(rule, null)
+      const since = lastSeen.get(rule.nodeId)
+      if (!isFiring(rule)) await triggerAlert(rule, null, since ? DateTime.fromJSDate(since) : undefined)
     }
   }
 

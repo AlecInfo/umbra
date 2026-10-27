@@ -125,8 +125,9 @@ async function notify(rule: NodeAlert, resolved: boolean): Promise<void> {
   }
 }
 
-export async function triggerAlert(rule: NodeAlert, value: number | null): Promise<void> {
-  rule.triggeredAt = DateTime.now()
+/** `at`: when the condition began, when that is known better than "now". */
+export async function triggerAlert(rule: NodeAlert, value: number | null, at?: DateTime): Promise<void> {
+  rule.triggeredAt = at ?? DateTime.now()
   rule.resolvedAt = null
   rule.lastValue = value
   await rule.save()

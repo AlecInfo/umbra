@@ -124,7 +124,9 @@ test.group('Alert rules', () => {
     node.lastSeenAt = DateTime.now().minus({ minutes: 5 })
     await node.save()
     await markStaleNodesOffline()
-    assert.isNotNull((await rule(nodeId, 'node_offline')).triggeredAt)
+    const fired = await rule(nodeId, 'node_offline')
+    // Dated when the heartbeats stopped, so the outage's duration is honest.
+    assert.approximately(fired.triggeredAt!.toMillis(), node.lastSeenAt!.toMillis(), 1000)
 
     await client
       .post('/api/v1/agent/heartbeat')

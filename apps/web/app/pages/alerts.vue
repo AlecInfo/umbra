@@ -28,7 +28,18 @@ function alertTitle(type: string): string {
   return t(`alert_type_${type}`)
 }
 
+function duration(a: Alert): string {
+  if (!a.triggeredAt || !a.resolvedAt) return t('common_dash')
+  const s = Math.max(0, Math.round((Date.parse(a.resolvedAt) - Date.parse(a.triggeredAt)) / 1000))
+  if (s < 60)    return `${s} s`
+  if (s < 3600)  return `${Math.round(s / 60)} min`
+  if (s < 86400) return `${Math.floor(s / 3600)} h ${Math.round((s % 3600) / 60)} min`
+  return `${Math.floor(s / 86400)} j ${Math.floor((s % 86400) / 3600)} h`
+}
+
 function alertDetail(a: Alert): string {
+  // A resolved alert is history: say how long it lasted, not what was wrong.
+  if (!a.firing) return t(`alert_resolved_detail_${a.type === 'node_offline' ? 'offline' : 'metric'}`, { d: duration(a) })
   if (a.lastValue === null || a.thresholdValue === null) return t(`alert_detail_${a.type}`)
   const unit = a.thresholdUnit ?? ''
   return t('alert_detail_metric', {
