@@ -315,7 +315,7 @@ function latencyColor(ms: number | null) {
   justify-content: center;
   color: var(--muted);
   cursor: pointer;
-  transition: all .15s;
+  transition: color .15s, background-color .15s, border-color .15s, opacity .15s, transform .15s;
 }
 .m-icon-btn:active { background: var(--surface2); color: var(--text); }
 
@@ -384,7 +384,7 @@ function latencyColor(ms: number | null) {
   justify-content: center;
   position: relative;
   z-index: 1;
-  transition: all .5s;
+  transition: background-color .5s var(--ease-out), border-color .5s var(--ease-out);
 }
 
 .m-ring-wrap.connected .m-ring-core {
@@ -494,8 +494,8 @@ function latencyColor(ms: number | null) {
   line-height: 1;
   white-space: nowrap;
 }
-.m-stat-unit { font-size: 9px; font-weight: 400; color: var(--muted); }
-.m-stat-lbl  { font-size: 9px; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
+.m-stat-unit { font-size: 10px; font-weight: 400; color: var(--muted); }
+.m-stat-lbl  { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
 .mono-timer  { font-family: var(--font-mono); font-size: 13px; letter-spacing: .04em; }
 
 .m-stat-sep {
@@ -540,7 +540,7 @@ function latencyColor(ms: number | null) {
   align-items: center;
   justify-content: center;
   gap: 8px;
-  transition: all .15s;
+  transition: color .15s, background-color .15s, border-color .15s, opacity .15s, transform .15s;
   letter-spacing: .02em;
 }
 
@@ -646,7 +646,7 @@ function latencyColor(ms: number | null) {
   padding: 11px 10px;
   border-radius: 8px;
   border: 1px solid transparent;
-  transition: all .12s;
+  transition: color .12s, background-color .12s, border-color .12s, opacity .12s, transform .12s;
   cursor: pointer;
 }
 .m-node-row:not(.is-disabled):active { background: var(--surface2); }
@@ -678,7 +678,7 @@ function latencyColor(ms: number | null) {
 
 /* Tags */
 .m-tag {
-  font-size: 8px;
+  font-size: 10px;
   font-weight: 600;
   letter-spacing: .08em;
   padding: 1px 5px;

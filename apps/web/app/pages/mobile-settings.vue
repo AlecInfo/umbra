@@ -479,7 +479,7 @@ function signOut() {
   justify-content: center;
   color: var(--muted);
   cursor: pointer;
-  transition: all .15s;
+  transition: color .15s, background-color .15s, border-color .15s, opacity .15s, transform .15s;
 }
 .m-icon-btn:active { background: var(--surface2); color: var(--text); }
 
@@ -607,7 +607,7 @@ function signOut() {
 .ms-profile-name { font-size: 13px; font-weight: 600; color: var(--text); }
 .ms-profile-email { font-size: 11px; color: var(--muted); }
 .ms-plan-badge {
-  font-size: 9px;
+  font-size: 10px;
   font-weight: 700;
   letter-spacing: .08em;
   padding: 3px 8px;
@@ -661,7 +661,7 @@ function signOut() {
   background: transparent;
   color: var(--muted);
   cursor: pointer;
-  transition: all .15s;
+  transition: color .15s, background-color .15s, border-color .15s, opacity .15s, transform .15s;
 }
 .ms-seg-btn.active {
   background: var(--surface);

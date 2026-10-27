@@ -29,7 +29,7 @@ const cpuStyle = computed(() => {
 
 const iconStyle = computed(() => {
   if (props.node.status === 'warning')
-    return 'background: rgba(255,183,79,.15); color: var(--warning)'
+    return 'background: color-mix(in srgb, var(--warning) 15%, transparent); color: var(--warning)'
   return ''
 })
 
@@ -40,7 +40,16 @@ function onAction() {
 </script>
 
 <template>
-  <div class="node-row" :class="rowClass" @click="emit('click', node)">
+  <!-- Opens the node. A row of a grid of cells, so not an <a>: made reachable
+       and operable from the keyboard by hand. -->
+  <div
+    class="node-row"
+    :class="rowClass"
+    role="link"
+    tabindex="0"
+    @click="emit('click', node)"
+    @keydown.enter.self="emit('click', node)"
+  >
 
     <div class="nc">
       <div class="nicon" :class="`cat-${node.category}`" :style="iconStyle">

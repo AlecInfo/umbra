@@ -32,10 +32,10 @@ const labels: Record<NodeCategory, string> = {
   font-weight: 500;
 }
 
-.cat-sbc     { background: rgba(79,255,176,.12);  color: var(--accent);  }
-.cat-vps     { background: rgba(79,168,255,.15);  color: var(--pending); }
-.cat-router  { background: rgba(255,183,79,.12);  color: var(--warning); }
-.cat-nas     { background: rgba(123,110,246,.15); color: var(--accent2); }
+.cat-sbc     { background: color-mix(in srgb, var(--accent) 12%, transparent);  color: var(--accent);  }
+.cat-vps     { background: color-mix(in srgb, var(--pending) 15%, transparent);  color: var(--pending); }
+.cat-router  { background: color-mix(in srgb, var(--warning) 12%, transparent);  color: var(--warning); }
+.cat-nas     { background: color-mix(in srgb, var(--accent2) 15%, transparent); color: var(--accent2); }
 .cat-desktop { background: rgba(200,200,220,.1);  color: var(--muted);   }
 .cat-other   { background: var(--surface2); color: var(--muted); border: 1px solid var(--border2); }
 </style>

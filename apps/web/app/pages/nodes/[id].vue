@@ -834,7 +834,7 @@ async function doTransfer() {
   <div v-else-if="node" class="detail-page">
 
     <!-- Back -->
-    <div class="back-link" @click="navigateTo('/nodes')">{{ t('nd_back_link') }}</div>
+    <NuxtLink to="/nodes" class="back-link">{{ t('nd_back_link') }}</NuxtLink>
 
     <!-- Page header -->
     <div class="page-header">

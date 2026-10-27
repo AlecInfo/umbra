@@ -11,20 +11,12 @@ const colorMode = useColorMode()
 const { lang, setLang, t } = useT()
 const { notify } = useNotifications()
 
-const autoUpdate = ref(true)
-const heartbeat  = ref('30s')
 
 const themes = computed(() => [
   { value: 'dark',  label: t('settings_theme_dark') },
   { value: 'light', label: t('settings_theme_light') },
 ])
 const langs = [{ value: 'fr', label: 'Français' }, { value: 'en', label: 'English' }]
-const heartbeats = computed(() => [
-  { value: '15s',  label: '15s' },
-  { value: '30s',  label: '30s' },
-  { value: '60s',  label: t('settings_hb_1min') },
-  { value: '300s', label: t('settings_hb_5min') },
-])
 
 // Alert emails, saved on the account. Only what the server actually sends is
 // offered — the weekly digest and update notices were toggles wired to nothing.
@@ -916,7 +908,7 @@ async function copyTemp() {
               :label="notifLabel(key)"
               :sub="notifSub(key)"
             >
-              <Toggle :model-value="notifPrefs[key]" @update:model-value="(v: boolean) => setNotif(key, v)" />
+              <Toggle :model-value="notifPrefs[key]" :label="notifLabel(key)" @update:model-value="(v: boolean) => setNotif(key, v)" />
             </SettingRow>
           </div>
         </div>
@@ -1005,12 +997,6 @@ async function copyTemp() {
         <div id="agent" class="card">
           <div class="card-header"><div class="card-title">{{ t('settings_agent_title') }}</div></div>
           <div class="card-body">
-            <SettingRow :label="t('settings_heartbeat_label')" :sub="t('settings_heartbeat_sub')">
-              <SegmentedControl v-model="heartbeat" :options="heartbeats" />
-            </SettingRow>
-            <SettingRow :label="t('settings_autoupdate_label')" :sub="t('settings_autoupdate_sub')">
-              <Toggle v-model="autoUpdate" />
-            </SettingRow>
             <SettingRow :label="t('settings_subnet_label')" :sub="t('settings_subnet_sub')">
               <span class="mono-val">100.64.0.0/10</span>
             </SettingRow>
@@ -1379,7 +1365,7 @@ async function copyTemp() {
               <UIcon name="i-lucide-monitor" style="width:13px;height:13px" />
             </div>
             <div class="session-info">
-              <div class="session-device">{{ parseSessionLabel(s.name) }} <span v-if="s.isCurrent" class="badge-accent" style="font-size:9px">{{ t('sessions_current_badge') }}</span></div>
+              <div class="session-device">{{ parseSessionLabel(s.name) }} <span v-if="s.isCurrent" class="badge-accent" style="font-size: 10px">{{ t('sessions_current_badge') }}</span></div>
               <div class="session-meta">{{ t('sessions_created', { time: relativeTime(s.createdAt) }) }}</div>
               <div class="session-meta" style="color:var(--muted)">{{ t('sessions_last_used', { time: relativeTime(s.lastUsedAt) }) }}</div>
             </div>
@@ -1717,7 +1703,7 @@ async function copyTemp() {
 .up-top { margin-bottom: 14px; }
 .up-label {
   display: inline-block;
-  font-size: 9px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase;
+  font-size: 10px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase;
   color: var(--muted); margin-bottom: 8px;
 }
 .up-label-pro  { color: var(--accent); }
@@ -1817,7 +1803,7 @@ async function copyTemp() {
 }
 .up-lifetime-feats li::before {
   content: '✓'; position: absolute; left: 0;
-  font-size: 9px; color: var(--accent2);
+  font-size: 10px; color: var(--accent2);
 }
 .up-lifetime-right {
   display: flex; flex-direction: column; align-items: center; gap: 4px;
@@ -1828,7 +1814,7 @@ async function copyTemp() {
   color: #ffb74f; line-height: 1;
 }
 .up-lifetime-once {
-  font-size: 9px; color: var(--muted); letter-spacing: .04em;
+  font-size: 10px; color: var(--muted); letter-spacing: .04em;
   text-transform: uppercase; margin-bottom: 6px;
 }
 .up-cta-lifetime {

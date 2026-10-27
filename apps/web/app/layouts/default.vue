@@ -13,6 +13,19 @@ const showConnectModal = computed(() => store.connectCommands !== null)
 const displayName = computed(() => auth.user?.name?.trim() || auth.user?.email?.split('@')[0] || t('side_account_label'))
 const avatarInitial = computed(() => displayName.value.charAt(0).toUpperCase())
 
+/*
+| Escape closes the topmost dialog. The ~20 dialogs of the dashboard are
+| hand-built overlays that close on a click on their own backdrop
+| (@click.self); clicking that backdrop programmatically reuses each one's own
+| close logic instead of teaching every page about the keyboard.
+*/
+function onKeydown(e: KeyboardEvent) {
+  if (e.key !== 'Escape' || e.defaultPrevented) return
+  const overlays = document.querySelectorAll<HTMLElement>('.modal-overlay')
+  const top = overlays[overlays.length - 1]
+  if (top) { e.preventDefault(); top.click() }
+}
+
 function onVisibility() {
   if (document.visibilityState === 'visible') { store.fetchNodes(); store.fetchSession() }
 }
@@ -22,11 +35,13 @@ onMounted(() => {
   store.fetchSession()
   store.startPolling(8000)
   document.addEventListener('visibilitychange', onVisibility)
+  document.addEventListener('keydown', onKeydown)
 })
 
 onUnmounted(() => {
   store.stopPolling()
   document.removeEventListener('visibilitychange', onVisibility)
+  document.removeEventListener('keydown', onKeydown)
 })
 
 const navGroups = computed(() => [
@@ -97,7 +112,16 @@ async function logout() {
         </nav>
 
         <div class="sidebar-bottom">
-          <div class="user-pill" @click="toggleTheme">
+          <!-- Holds the logout button, so it cannot be a <button> itself. -->
+          <div
+            class="user-pill"
+            role="button"
+            tabindex="0"
+            :aria-label="t('side_toggle_theme')"
+            @click="toggleTheme"
+            @keydown.enter.self.prevent="toggleTheme"
+            @keydown.space.self.prevent="toggleTheme"
+          >
             <div class="user-avatar">
               <span style="color:#0a0a0b;font-weight:600;font-size:11px">{{ avatarInitial }}</span>
             </div>
@@ -106,11 +130,10 @@ async function logout() {
               <div class="user-plan">{{ colorMode.value === 'dark' ? 'Dark' : 'Light' }}</div>
             </div>
             <button
+              class="logout-btn"
               :title="t('side_logout')"
-              style="background:transparent;border:none;padding:4px 6px;border-radius:4px;cursor:pointer;color:var(--muted);display:flex;align-items:center"
+              :aria-label="t('side_logout')"
               @click.stop="logout"
-              @mouseover="($event.currentTarget as HTMLElement).style.color='var(--text)'"
-              @mouseleave="($event.currentTarget as HTMLElement).style.color='var(--muted)'"
             >
               <UIcon name="i-lucide-log-out" style="width:14px;height:14px" />
             </button>

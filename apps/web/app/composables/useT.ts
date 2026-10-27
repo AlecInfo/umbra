@@ -52,6 +52,7 @@ const TR: Record<Lang, Record<string, string>> = {
     side_api_keys: 'Clés API',
     side_settings: 'Paramètres',
     side_account_label: 'Compte',
+    side_toggle_theme: 'Basculer le thème clair / sombre',
     side_logout: 'Déconnexion',
 
     // Common
@@ -247,14 +248,8 @@ const TR: Record<Lang, Record<string, string>> = {
 
     // Settings — agent
     settings_agent_title:     'Agent & réseau',
-    settings_heartbeat_label: 'Intervalle heartbeat',
-    settings_heartbeat_sub:   'Fréquence de rapport des agents',
-    settings_autoupdate_label: 'Auto-update des agents',
-    settings_autoupdate_sub:   'Mise à jour automatique vers la dernière version stable',
     settings_subnet_label:    'Subnet VPN par défaut',
     settings_subnet_sub:      "Plage d'adresses IP du réseau UMBRA",
-    settings_hb_1min:         '1min',
-    settings_hb_5min:         '5min',
 
     // Settings — danger
     settings_danger_title:        'Zone de danger',
@@ -1036,6 +1031,7 @@ const TR: Record<Lang, Record<string, string>> = {
     side_api_keys: 'API keys',
     side_settings: 'Settings',
     side_account_label: 'Account',
+    side_toggle_theme: 'Toggle light / dark theme',
     side_logout: 'Sign out',
 
     // Common
@@ -1231,14 +1227,8 @@ const TR: Record<Lang, Record<string, string>> = {
 
     // Settings — agent
     settings_agent_title:     'Agent & network',
-    settings_heartbeat_label: 'Heartbeat interval',
-    settings_heartbeat_sub:   'Agent reporting frequency',
-    settings_autoupdate_label: 'Agent auto-update',
-    settings_autoupdate_sub:   'Automatically update to the latest stable version',
     settings_subnet_label:    'Default VPN subnet',
     settings_subnet_sub:      'IP address range of the UMBRA network',
-    settings_hb_1min:         '1min',
-    settings_hb_5min:         '5min',
 
     // Settings — danger
     settings_danger_title:        'Danger zone',
