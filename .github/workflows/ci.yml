@@ -57,7 +57,9 @@ jobs:
       postgres:
         # Must be TimescaleDB, not plain postgres: the first migration creates
         # the extension and node_metrics is a hypertable.
-        image: timescale/timescaledb:latest-pg16
+        # Same image as docker-compose.yml: migrations are validated against the
+        # TimescaleDB that will run them, not a floating tag (audit O3).
+        image: timescale/timescaledb:2.29.2-pg16
         env:
           POSTGRES_USER: umbra
           POSTGRES_PASSWORD: umbra

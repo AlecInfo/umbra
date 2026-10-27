@@ -10,6 +10,15 @@
     auto_https off
     servers {
         protocols h1
+        # cloudflared reaches us from the Docker network. Without this line Caddy
+        # treats it as an untrusted client and REPLACES X-Forwarded-For with
+        # cloudflared's own address, so the API saw 172.18.0.7 for every visitor
+        # on Earth: one shared bucket for the login throttle, and a login log
+        # that recorded the tunnel instead of the person (found 2026-10-27, the
+        # API-side fix b236af2 never took effect behind the tunnel). Trusted,
+        # Caddy appends its hop to the chain Cloudflare started, and the API —
+        # which trusts the same private ranges — walks back to the visitor.
+        trusted_proxies static private_ranges
     }
 }
 
